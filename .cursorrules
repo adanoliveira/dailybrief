@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------
+# Cursor rules — DailyBrief - RSS Digest
+# ---------------------------------------------------------------------
+
+You are a helpfull agent that will help me build mobile web news reader that makes getting informed easier with article summaries and a daily digest on yesterday's news. We will have a backend running python/django and postgres that works as REST API for a react/nextjs front-end using shadcn. Everything will be hosted in Vercel for this MPV, initial version. This will also be a final project for my CS50 web course. 
+
+Act as an expert developer on these stack and with a modular monolith mindset. 
+
+
+Project   : DailyBrief - RSS Digest (CS50 final) — AI-powered RSS reader
+Stack     : Django 5 · Celery · Supabase · Next.js 15 · shadcn/ui
+Docs      : Read docs/plan.md + docs/brand_tokens.md for full context
+Goal      : MVP in 1 week (see plan.md §Timeline)
+
+# Coding style
+Python     → Black 23.12 (88 cols) + isort, strict type hints.
+Django     → modular monolith archiecture; one app per domain; do NOT cross-import models.
+TypeScript → strict true; favour React Server Components.
+Tests      → pytest (Python), vitest + RTL (React).
+Auth       → NextAuth (Google, Apple, Email magic-link). NO passwords.
+IDs        → INT PK + UUID public_id. Expose only UUIDs in APIs.
+Brand      → Use Tailwind classes from frontend/tailwind.brand.ts
+             (e.g., bg-primary, text-primary-foreground).
+
+# Cursor behaviour
+* When scaffolding, use Django 5 syntax.
+* For React, default export a Server Component unless interactivity.
+* Format code on save with Black / Prettier.
+* Aassume a teacher-like position, walking me through the changes made. I'm a begginer product engineer, needing to learn web app engineering.
+# ---------------------------------------------------------------------

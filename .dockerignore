@@ -1,0 +1,35 @@
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.*
+!**/.env.example
+**/*.so
+**/env/
+**/venv/
+**/ENV/
+**/env.bak/
+**/venv.bak/
+
+# Node.js
+**/node_modules
+**/npm-debug.log
+**/.next
+
+# Editor directories and files
+**/.idea
+**/.vscode
+**/*.swp
+**/*.swo
+
+# Docker
+**/Dockerfile*
+**/.dockerignore
+**/docker-compose*
+
+# Git
+**/.git
+**/.gitignore
+
+# Project
+**/*.md
+**/docs/ 
