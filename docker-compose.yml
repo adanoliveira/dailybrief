@@ -114,21 +114,32 @@ services:
 
   # Next.js Frontend
   frontend:
-    build:
+    build: 
       context: ./frontend
-    command: sh -c "cd /app/src && npm run dev"
+      dockerfile: Dockerfile.dev
+    container_name: dailybrief-frontend
+    command: npm run dev
+    restart: on-failure:3
     volumes:
       - ./frontend:/app
-      # Use anonymous volume for node_modules to avoid overwriting with host files
-      - /app/src/node_modules
-    ports:
-      - "3000:3000"
+      # Use anonymous volumes for node_modules and build directories
+      - /app/node_modules
+      - /app/.next
+      - /app/src/generated
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=dev-nextauth-secret-replace-in-production
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/dailybrief?schema=auth
+      # Email configuration
+      - EMAIL_FROM=${EMAIL_FROM:-dailybrief@resend.dev}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
+      - db
 
 volumes:
   postgres_data:
