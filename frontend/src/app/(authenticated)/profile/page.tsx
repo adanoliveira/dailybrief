@@ -1,14 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LogOut, Settings, User, Edit } from "lucide-react"
+import { LogOut, Settings, User, Edit, Sun, Moon } from "lucide-react"
 import { PreferencesModal } from "@/components/preferences-modal"
 
 export default function Profile() {
   const [preferencesOpen, setPreferencesOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   return (
     <div className="container py-6">
@@ -74,7 +76,14 @@ export default function Profile() {
                     <h3 className="font-medium">Dark Mode</h3>
                     <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
                   </div>
-                  <Button variant="outline">Toggle Theme</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    className="gap-2"
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                  </Button>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
