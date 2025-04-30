@@ -13,8 +13,6 @@ export const metadata = {
   description:
     "Get daily news summaries tailored to your interests. Skip the endless scrolling and focus on what matters to you.",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   generator: 'v0.dev',
   icons: {
     icon: [
@@ -25,6 +23,13 @@ export const metadata = {
       { url: '/apple-icon.png' },
     ],
   },
+}
+
+export const viewport = {
+  themeColor: "#3b82f6",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({

@@ -14,7 +14,12 @@ export function middleware(request: NextRequest) {
     !isTestPage &&
     !request.nextUrl.pathname.startsWith("/_next") &&
     !request.nextUrl.pathname.startsWith("/api") &&
-    request.nextUrl.pathname !== "/"
+    request.nextUrl.pathname !== "/" &&
+    !request.nextUrl.pathname.endsWith(".svg") && // Exclude SVG files
+    !request.nextUrl.pathname.endsWith(".png") && // Exclude PNG files
+    !request.nextUrl.pathname.endsWith(".jpg") && // Exclude JPG files
+    !request.nextUrl.pathname.endsWith(".ico") && // Exclude ICO files
+    !request.nextUrl.pathname.endsWith(".json") // Exclude JSON files (for manifest)
   ) {
     return NextResponse.redirect(new URL("/auth/signin", request.url))
   }
@@ -35,7 +40,12 @@ export function middleware(request: NextRequest) {
     !isOnboardingPage &&
     !isTestPage &&
     !request.nextUrl.pathname.startsWith("/_next") &&
-    !request.nextUrl.pathname.startsWith("/api")
+    !request.nextUrl.pathname.startsWith("/api") &&
+    !request.nextUrl.pathname.endsWith(".svg") && // Exclude SVG files
+    !request.nextUrl.pathname.endsWith(".png") && // Exclude PNG files
+    !request.nextUrl.pathname.endsWith(".jpg") && // Exclude JPG files
+    !request.nextUrl.pathname.endsWith(".ico") && // Exclude ICO files
+    !request.nextUrl.pathname.endsWith(".json") // Exclude JSON files (for manifest)
   ) {
     return NextResponse.redirect(new URL("/onboarding", request.url))
   }
@@ -50,9 +60,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public (public files)
      * - sw.js (service worker)
      */
-    "/((?!_next/static|_next/image|favicon.ico|public|sw.js).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js).*)",
   ],
 }
