@@ -3,6 +3,7 @@ import { MobileNav } from "@/components/mobile-nav"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
+import { LogoHorizontal } from "@/components/ui/logo"
 import Link from "next/link"
 import { Suspense } from "react"
 import { NotificationPermission } from "@/components/notification-permission"
@@ -17,7 +18,7 @@ export default function AuthenticatedLayout({
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/home" className="flex items-center gap-2">
-            <span className="text-xl font-bold">DailyBrief</span>
+            <LogoHorizontal priority />
           </Link>
           <div className="hidden md:flex items-center gap-4">
             <Link href="/home" className="text-sm font-medium">

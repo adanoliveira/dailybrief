@@ -1,11 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LogoFull } from "@/components/ui/logo"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -20,7 +20,10 @@ export default function SignUp() {
   return (
     <div className="container flex items-center justify-center min-h-screen py-12">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
+        <CardHeader className="space-y-3">
+          <div className="flex justify-center">
+            <LogoFull priority />
+          </div>
           <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
           <CardDescription className="text-center">Enter your email to get started</CardDescription>
         </CardHeader>
