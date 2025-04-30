@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200" fill="none">
+  <g clip-path="url(#clip0_1_2)">
+    <!-- Triangle Icon -->
+    <g transform="translate(0, 0) scale(0.67)">
+      <defs>
+        <clipPath id="icon-clip-1">
+          <path d="M 25.09375 25.09375 L 274.90625 25.09375 L 274.90625 274.90625 L 25.09375 274.90625 Z M 25.09375 25.09375 " clip-rule="nonzero"/>
+        </clipPath>
+        <clipPath id="icon-clip-2">
+          <path d="M 150 25.09375 C 80.8125 25.09375 25.09375 80.8125 25.09375 150 C 25.09375 219.1875 80.8125 274.90625 150 274.90625 C 219.1875 274.90625 274.90625 219.1875 274.90625 150 C 274.90625 80.8125 219.1875 25.09375 150 25.09375 Z M 150 25.09375 " clip-rule="nonzero"/>
+        </clipPath>
+        <clipPath id="icon-clip-3">
+          <path d="M 65 95 L 235 95 L 235 235 L 65 235 Z M 65 95 " clip-rule="nonzero"/>
+        </clipPath>
+        <clipPath id="icon-clip-4">
+          <path d="M 154.761719 232.5 L 230 102.5 C 230.9375 100.859375 230.929688 98.851562 229.980469 97.222656 C 229.03125 95.589844 227.304688 94.628906 225.4375 94.628906 L 74.5625 94.628906 C 72.695312 94.628906 70.96875 95.589844 70.019531 97.222656 C 69.066406 98.851562 69.0625 100.859375 70 102.5 L 145.238281 232.5 C 146.167969 234.132812 147.914062 235.101562 149.792969 235.101562 C 151.671875 235.101562 153.417969 234.132812 154.347656 232.5 Z M 154.761719 232.5 " clip-rule="nonzero"/>
+        </clipPath>
+      </defs>
+      <g clip-path="url(#icon-clip-1)">
+        <g clip-path="url(#icon-clip-2)">
+          <path fill="#ffffff" d="M 25.09375 25.09375 L 274.90625 25.09375 L 274.90625 274.90625 L 25.09375 274.90625 Z M 25.09375 25.09375" fill-opacity="1" fill-rule="nonzero"/>
+        </g>
+      </g>
+      <g clip-path="url(#icon-clip-3)">
+        <g clip-path="url(#icon-clip-4)">
+          <path fill="#000000" d="M 62 94.628906 L 238 94.628906 L 238 238.019531 L 62 238.019531 Z M 62 94.628906" fill-opacity="1" fill-rule="nonzero"/>
+        </g>
+      </g>
+    </g>
+    
+    <!-- Text: DailyBrief -->
+    <text x="240" y="120" font-family="Inter, sans-serif" font-weight="700" font-size="72" fill="#ffffff">DailyBrief</text>
+  </g>
+  
+  <defs>
+    <clipPath id="clip0_1_2">
+      <rect width="800" height="200" fill="white"/>
+    </clipPath>
+  </defs>
+</svg> 

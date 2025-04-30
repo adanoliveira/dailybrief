@@ -5,11 +5,13 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value
   const isAuthPage = request.nextUrl.pathname.startsWith("/auth")
   const isOnboardingPage = request.nextUrl.pathname.startsWith("/onboarding")
+  const isTestPage = request.nextUrl.pathname.startsWith("/test")
 
   // If the user is not authenticated and trying to access a protected route
   if (
     !token &&
     !isAuthPage &&
+    !isTestPage &&
     !request.nextUrl.pathname.startsWith("/_next") &&
     !request.nextUrl.pathname.startsWith("/api") &&
     request.nextUrl.pathname !== "/"
@@ -31,6 +33,7 @@ export function middleware(request: NextRequest) {
     token &&
     !hasCompletedOnboarding &&
     !isOnboardingPage &&
+    !isTestPage &&
     !request.nextUrl.pathname.startsWith("/_next") &&
     !request.nextUrl.pathname.startsWith("/api")
   ) {
