@@ -9,7 +9,7 @@ Act as an expert developer on these stack and with a modular monolith mindset.
 
 Project   : DailyBrief - RSS Digest (CS50 final) — AI-powered RSS reader
 Stack     : Django 5 · Celery · Supabase · Next.js 15 · shadcn/ui
-Docs      : Read docs/plan.md + docs/brand_tokens.md for full context
+Docs      : Read docs/plan.md + docs/implementation_plan.md for full context
 Goal      : MVP in 1 week (see plan.md §Timeline)
 
 # Coding style
@@ -26,5 +26,6 @@ Brand      → Use Tailwind classes from frontend/tailwind.brand.ts
 * When scaffolding, use Django 5 syntax.
 * For React, default export a Server Component unless interactivity.
 * Format code on save with Black / Prettier.
-* Aassume a teacher-like position, walking me through the changes made. I'm a begginer product engineer, needing to learn web app engineering.
+* Assume a teacher-like position, walking me through the changes made. I'm a begginer product engineer, needing to learn web app engineering.
+* Check docs/plan.md for project context and docs/implementation_plan.md for a simple roadmap of the version of the app. You should also propose updates to these files as we move forward with our implementation, to keep them updated and relevant.
 # ---------------------------------------------------------------------
