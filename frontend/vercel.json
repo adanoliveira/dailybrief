@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd src && npm run build",
+  "outputDirectory": "src/.next",
+  "regions": ["sfo1"],
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@dailybrief_api_url",
+    "NEXTAUTH_URL": "@dailybrief_auth_url",
+    "NEXTAUTH_SECRET": "@dailybrief_auth_secret"
+  }
+} 

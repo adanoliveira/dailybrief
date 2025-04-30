@@ -68,7 +68,7 @@ services:
   celery_worker:
     build:
       context: ./backend
-    command: celery -A dailybrief worker --loglevel=info
+    command: sh -c "cd /app && PYTHONPATH=/app celery -A dailybrief worker --loglevel=info"
     volumes:
       - ./backend:/app
     depends_on:
@@ -92,7 +92,7 @@ services:
   celery_beat:
     build:
       context: ./backend
-    command: celery -A dailybrief beat --loglevel=info
+    command: sh -c "cd /app && PYTHONPATH=/app celery -A dailybrief beat --loglevel=info"
     volumes:
       - ./backend:/app
     depends_on:
@@ -116,10 +116,11 @@ services:
   frontend:
     build:
       context: ./frontend
-    command: npm run dev
+    command: sh -c "cd /app/src && npm run dev"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      # Use anonymous volume for node_modules to avoid overwriting with host files
+      - /app/src/node_modules
     ports:
       - "3000:3000"
     environment:
