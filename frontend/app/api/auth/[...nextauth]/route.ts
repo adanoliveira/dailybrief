@@ -13,6 +13,9 @@ interface SessionUser {
   email: string
   name?: string
   image?: string
+  django_user_id?: number
+  django_token?: string
+  has_completed_onboarding?: boolean
 }
 
 // Custom function to handle email verification requests
@@ -29,6 +32,36 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
     if (process.env.NODE_ENV === "development") {
       console.log(`[DEV FALLBACK] Magic link for ${email}: ${url}`)
     }
+  }
+}
+
+// Function to sync user with Django backend
+async function syncUserWithBackend(user: any): Promise<any> {
+  try {
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/sync/`
+    
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: user.email,
+        name: user.name || user.email.split("@")[0],
+        provider: user.provider || "email",
+        nextauth_id: user.id,
+        image: user.image || "",
+      }),
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Backend sync failed: ${response.status}`)
+    }
+    
+    return await response.json()
+  } catch (error) {
+    console.error("Error syncing user with backend:", error)
+    return null
   }
 }
 
@@ -58,16 +91,42 @@ export const authOptions: NextAuthOptions = {
     verifyRequest: "/auth/verify-request",
   },
   callbacks: {
-    async jwt({ token, user }): Promise<JWT> {
-      // Add user data to token
+    async jwt({ token, user, account }): Promise<JWT> {
+      // Add user data to token when first signing in
       if (user) {
         token.user = user
+        
+        // If user just signed in, sync with backend
+        if (account) {
+          const backendUser = await syncUserWithBackend({
+            ...user,
+            provider: account.provider
+          })
+          
+          if (backendUser) {
+            token.django_user_id = backendUser.id
+            token.django_token = backendUser.django_token
+            token.has_completed_onboarding = backendUser.has_completed_onboarding
+          }
+        }
       }
       return token
     },
     async session({ session, token }: { session: any; token: JWT }) {
       // Add user data to session
       session.user = token.user as SessionUser || session.user
+      
+      // Add Django data to session
+      if (token.django_user_id) {
+        session.user.django_user_id = token.django_user_id
+      }
+      if (token.django_token) {
+        session.user.django_token = token.django_token
+      }
+      if (token.has_completed_onboarding !== undefined) {
+        session.user.has_completed_onboarding = token.has_completed_onboarding
+      }
+      
       return session
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
