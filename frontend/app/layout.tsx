@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
+import SessionRedirect from "@/components/session-redirect"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -44,6 +45,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <LanguageProvider>
+              <SessionRedirect />
               {children}
               <Toaster />
               <ServiceWorkerRegistration />

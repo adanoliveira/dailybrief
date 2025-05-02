@@ -62,10 +62,10 @@ model VerificationToken {
 
 // Custom model to track email verification tokens
 model EmailVerificationRequest {
-  id        String   @id @default(cuid())
-  email     String
-  createdAt DateTime @default(now())
-  invalidated Boolean @default(false)
-  
+  id          String   @id @default(cuid())
+  email       String
+  createdAt   DateTime @default(now())
+  invalidated Boolean  @default(false)
+
   @@index([email])
 }

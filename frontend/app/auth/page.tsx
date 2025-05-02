@@ -1,34 +1,110 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LogoHorizontal } from "@/components/ui/logo"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import { FaGoogle, FaApple } from "react-icons/fa"
 import { cn } from "@/lib/utils"
 
+// Rate limiting constants
+const COOLDOWN_PERIOD_MS = 20000; // 20 seconds
+
 export default function AuthPage() {
   const [isEmailSent, setIsEmailSent] = useState(false)
   const [email, setEmail] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [cooldownRemaining, setCooldownRemaining] = useState(0)
+  const [lastRequestTime, setLastRequestTime] = useState<number | null>(null)
+
+  useEffect(() => {
+    // Check if there's a cooldown in localStorage
+    const storedRequestTime = localStorage.getItem('lastMagicLinkRequest');
+    if (storedRequestTime) {
+      const lastTime = parseInt(storedRequestTime, 10);
+      const now = Date.now();
+      const elapsed = now - lastTime;
+      
+      if (elapsed < COOLDOWN_PERIOD_MS) {
+        // Still in cooldown period
+        setLastRequestTime(lastTime);
+        setCooldownRemaining(Math.ceil((COOLDOWN_PERIOD_MS - elapsed) / 1000));
+      }
+    }
+  }, []);
+
+  // Countdown timer for cooldown
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    
+    const timer = setTimeout(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 1) {
+          setLastRequestTime(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [cooldownRemaining]);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value)
+    setError(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Clear any previous errors
+    setError(null)
+    
+    // Check if email is valid
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address')
+      return
+    }
+    
+    // Check if we're in cooldown period
+    if (cooldownRemaining > 0) {
+      setError(`Please wait ${cooldownRemaining} seconds before requesting another link`)
+      return
+    }
+    
+    setIsSubmitting(true)
+    
     try {
       // Use NextAuth to send the magic link
-      await signIn("email", { email, redirect: false })
+      const result = await signIn("email", { 
+        email, 
+        redirect: false,
+        callbackUrl: "/onboarding",
+      })
+      
+      if (result?.error) {
+        throw new Error(result.error)
+      }
+      
+      // Set cooldown
+      const now = Date.now();
+      localStorage.setItem('lastMagicLinkRequest', now.toString());
+      setLastRequestTime(now);
+      setCooldownRemaining(COOLDOWN_PERIOD_MS / 1000);
+      
       setIsEmailSent(true)
     } catch (error) {
       console.error("Error sending magic link:", error)
-      // Handle error
+      setError('Failed to send magic link. Please try again later.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -77,6 +153,12 @@ export default function AuthPage() {
             </div>
           </div>
 
+          {error && (
+            <Alert variant="destructive" className="text-sm">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {!isEmailSent ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -91,8 +173,16 @@ export default function AuthPage() {
                 />
               </div>
               
-              <Button type="submit" className="w-full">
-                Continue with Email
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isSubmitting || cooldownRemaining > 0}
+              >
+                {isSubmitting 
+                  ? "Sending..." 
+                  : cooldownRemaining > 0 
+                    ? `Wait ${cooldownRemaining}s` 
+                    : "Continue with Email"}
               </Button>
 
               <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
@@ -107,12 +197,18 @@ export default function AuthPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   We've sent a secure link to {email}
                 </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  The link will expire in 5 minutes.
+                </p>
               </div>
               <button 
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
                 onClick={() => setIsEmailSent(false)}
+                disabled={cooldownRemaining > 0}
               >
-                Try another email
+                {cooldownRemaining > 0 
+                  ? `Try again in ${cooldownRemaining}s` 
+                  : "Try another email"}
               </button>
             </div>
           )}

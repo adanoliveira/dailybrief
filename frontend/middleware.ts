@@ -1,29 +1,33 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
-export function middleware(request: NextRequest) {
-  const token = request.cookies.get("next-auth.session-token")?.value
-  const isAuthPage = request.nextUrl.pathname === "/auth" || 
-                     request.nextUrl.pathname.startsWith("/auth/") ||
-                     request.nextUrl.pathname === "/terms" ||
-                     request.nextUrl.pathname === "/privacy"
-  const isOnboardingPage = request.nextUrl.pathname.startsWith("/onboarding")
-  const isTestPage = request.nextUrl.pathname.startsWith("/test")
+export async function middleware(request: NextRequest) {
+  // Get the path
+  const path = request.nextUrl.pathname
+
+  // Check if this is a protected path 
+  const isAuthPage = path === "/auth" || 
+                     path.startsWith("/auth/") ||
+                     path === "/terms" ||
+                     path === "/privacy"
+  const isOnboardingPage = path.startsWith("/onboarding")
+  const isTestPage = path.startsWith("/test")
+  const isPublicPath = 
+    path.startsWith("/_next") ||
+    path.startsWith("/api") ||
+    path === "/" ||
+    path.endsWith(".svg") ||
+    path.endsWith(".png") ||
+    path.endsWith(".jpg") ||
+    path.endsWith(".ico") ||
+    path.endsWith(".json")
+
+  // Get the token from the request
+  const token = await getToken({ req: request })
 
   // If the user is not authenticated and trying to access a protected route
-  if (
-    !token &&
-    !isAuthPage &&
-    !isTestPage &&
-    !request.nextUrl.pathname.startsWith("/_next") &&
-    !request.nextUrl.pathname.startsWith("/api") &&
-    request.nextUrl.pathname !== "/" &&
-    !request.nextUrl.pathname.endsWith(".svg") && // Exclude SVG files
-    !request.nextUrl.pathname.endsWith(".png") && // Exclude PNG files
-    !request.nextUrl.pathname.endsWith(".jpg") && // Exclude JPG files
-    !request.nextUrl.pathname.endsWith(".ico") && // Exclude ICO files
-    !request.nextUrl.pathname.endsWith(".json") // Exclude JSON files (for manifest)
-  ) {
+  if (!token && !isAuthPage && !isTestPage && !isPublicPath) {
     return NextResponse.redirect(new URL("/auth", request.url))
   }
 
@@ -32,23 +36,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
-  // If the user is authenticated but hasn't completed onboarding
-  // This would require checking a user preference in a real app
-  // For now, we'll use a simple cookie check
-  const hasCompletedOnboarding = request.cookies.get("onboarding_completed")?.value === "true"
+  // Check if the user has completed onboarding
+  const hasCompletedOnboarding = token?.has_completed_onboarding === true
 
+  // If the user is authenticated but hasn't completed onboarding
   if (
     token &&
     !hasCompletedOnboarding &&
     !isOnboardingPage &&
     !isTestPage &&
-    !request.nextUrl.pathname.startsWith("/_next") &&
-    !request.nextUrl.pathname.startsWith("/api") &&
-    !request.nextUrl.pathname.endsWith(".svg") && // Exclude SVG files
-    !request.nextUrl.pathname.endsWith(".png") && // Exclude PNG files
-    !request.nextUrl.pathname.endsWith(".jpg") && // Exclude JPG files
-    !request.nextUrl.pathname.endsWith(".ico") && // Exclude ICO files
-    !request.nextUrl.pathname.endsWith(".json") // Exclude JSON files (for manifest)
+    !isPublicPath
   ) {
     return NextResponse.redirect(new URL("/onboarding", request.url))
   }

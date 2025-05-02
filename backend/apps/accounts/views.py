@@ -92,15 +92,30 @@ def sync_user(request):
 def check_onboarding_status(request):
     """
     Check if the authenticated user has completed onboarding.
-    Uses the frontend auth token to identify the user.
+    Uses the auth token to identify the user.
     """
-    # This will be implemented in the next step
     try:
         user = request.user
-        # For now, we'll return a placeholder
-        # Later we'll check user preferences in the feeds app
+        
+        # Ensure user is authenticated
+        if not user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Check if the user has set any topic preferences
+        # This is our indicator that onboarding is complete
+        from apps.feeds.models import UserTopic
+        
+        has_completed_onboarding = UserTopic.objects.filter(user=user).exists()
+        
+        # Return the onboarding status
         return Response({
-            'has_completed_onboarding': False
+            'user_id': user.id,
+            'public_id': str(user.profile.public_id),
+            'email': user.email,
+            'has_completed_onboarding': has_completed_onboarding,
         })
     except Exception as e:
         return Response(
