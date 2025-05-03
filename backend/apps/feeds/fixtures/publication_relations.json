@@ -1,0 +1,1399 @@
+{
+  "abc-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "abc-news-au": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "au"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "aftenposten": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "no"
+    ],
+    "languages": [
+      "no"
+    ]
+  },
+  "al-jazeera-english": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "ansa": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "it"
+    ],
+    "languages": [
+      "it"
+    ]
+  },
+  "argaam": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "sa"
+    ],
+    "languages": [
+      "ar"
+    ]
+  },
+  "ars-technica": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "ary-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "pk"
+    ],
+    "languages": [
+      "ud"
+    ]
+  },
+  "associated-press": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "australian-financial-review": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "au"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "axios": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "bbc-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "bbc-sport": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "bild": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "blasting-news-br": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "br"
+    ],
+    "languages": [
+      "pt"
+    ]
+  },
+  "bleacher-report": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "bloomberg": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "breitbart-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "business-insider": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "buzzfeed": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "cbc-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ca"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "cbs-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "cnn": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "cnn-es": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "crypto-coins-news": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "der-tagesspiegel": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "die-zeit": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "el-mundo": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "es"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "engadget": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "entertainment-weekly": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "espn": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "espn-cric-info": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "financial-post": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "ca"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "focus": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "football-italia": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "it"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "fortune": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "four-four-two": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "fox-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "fox-sports": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "globo": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "br"
+    ],
+    "languages": [
+      "pt"
+    ]
+  },
+  "google-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "google-news-ar": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ar"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "google-news-au": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "au"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "google-news-br": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "br"
+    ],
+    "languages": [
+      "pt"
+    ]
+  },
+  "google-news-ca": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ca"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "google-news-fr": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "fr"
+    ],
+    "languages": [
+      "fr"
+    ]
+  },
+  "google-news-in": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "in"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "google-news-is": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "is"
+    ],
+    "languages": [
+      "he"
+    ]
+  },
+  "google-news-it": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "it"
+    ],
+    "languages": [
+      "it"
+    ]
+  },
+  "google-news-ru": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ru"
+    ],
+    "languages": [
+      "ru"
+    ]
+  },
+  "google-news-sa": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "sa"
+    ],
+    "languages": [
+      "ar"
+    ]
+  },
+  "google-news-uk": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "goteborgs-posten": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "se"
+    ],
+    "languages": [
+      "sv"
+    ]
+  },
+  "gruenderszene": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "hacker-news": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "handelsblatt": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "ign": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "il-sole-24-ore": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "it"
+    ],
+    "languages": [
+      "it"
+    ]
+  },
+  "independent": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "infobae": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ar"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "info-money": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "br"
+    ],
+    "languages": [
+      "pt"
+    ]
+  },
+  "la-gaceta": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ar"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "la-nacion": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ar"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "la-repubblica": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "it"
+    ],
+    "languages": [
+      "it"
+    ]
+  },
+  "le-monde": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "fr"
+    ],
+    "languages": [
+      "fr"
+    ]
+  },
+  "lenta": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ru"
+    ],
+    "languages": [
+      "ru"
+    ]
+  },
+  "lequipe": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "fr"
+    ],
+    "languages": [
+      "fr"
+    ]
+  },
+  "les-echos": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "fr"
+    ],
+    "languages": [
+      "fr"
+    ]
+  },
+  "liberation": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "fr"
+    ],
+    "languages": [
+      "fr"
+    ]
+  },
+  "marca": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "es"
+    ],
+    "languages": [
+      "es"
+    ]
+  },
+  "mashable": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "medical-news-today": {
+    "topics": [
+      "health"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "msnbc": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "mtv-news": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "mtv-news-uk": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "national-geographic": {
+    "topics": [
+      "science"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "national-review": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "nbc-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "news24": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "za"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "new-scientist": {
+    "topics": [
+      "science"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "news-com-au": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "au"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "newsweek": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "new-york-magazine": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "next-big-future": {
+    "topics": [
+      "science"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "nfl-news": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "nhl-news": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "nrk": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "no"
+    ],
+    "languages": [
+      "no"
+    ]
+  },
+  "politico": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "polygon": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "rbc": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ru"
+    ],
+    "languages": [
+      "ru"
+    ]
+  },
+  "recode": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "reddit-r-all": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "reuters": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "rt": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ru"
+    ],
+    "languages": [
+      "ru"
+    ]
+  },
+  "rte": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ie"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "rtl-nieuws": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "nl"
+    ],
+    "languages": [
+      "nl"
+    ]
+  },
+  "sabq": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "sa"
+    ],
+    "languages": [
+      "ar"
+    ]
+  },
+  "spiegel-online": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "svenska-dagbladet": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "se"
+    ],
+    "languages": [
+      "sv"
+    ]
+  },
+  "t3n": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "talksport": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "techcrunch": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "techcrunch-cn": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "zh"
+    ],
+    "languages": [
+      "zh"
+    ]
+  },
+  "techradar": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-american-conservative": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-globe-and-mail": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ca"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-hill": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-hindu": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "in"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-huffington-post": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-irish-times": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "ie"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-jerusalem-post": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "is"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-lad-bible": {
+    "topics": [
+      "entertainment"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-next-web": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-sport-bible": {
+    "topics": [
+      "sports"
+    ],
+    "regions": [
+      "gb"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-times-of-india": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "in"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-verge": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-wall-street-journal": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-washington-post": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "the-washington-times": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "time": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "usa-today": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "vice-news": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "wired": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "us"
+    ],
+    "languages": [
+      "en"
+    ]
+  },
+  "wired-de": {
+    "topics": [
+      "technology"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "wirtschafts-woche": {
+    "topics": [
+      "business"
+    ],
+    "regions": [
+      "de"
+    ],
+    "languages": [
+      "de"
+    ]
+  },
+  "xinhua-net": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "zh"
+    ],
+    "languages": [
+      "zh"
+    ]
+  },
+  "ynet": {
+    "topics": [
+      "general"
+    ],
+    "regions": [
+      "is"
+    ],
+    "languages": [
+      "he"
+    ]
+  }
+}

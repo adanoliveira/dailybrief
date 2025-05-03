@@ -5,6 +5,10 @@ import { getToken } from "next-auth/jwt"
 export async function middleware(request: NextRequest) {
   // Get the path
   const path = request.nextUrl.pathname
+  
+  // Check for special query parameters
+  const searchParams = request.nextUrl.searchParams
+  const isNewSession = searchParams.get('new_session') === 'true'
 
   // Check if this is a protected path 
   const isAuthPage = path === "/auth" || 
@@ -38,6 +42,14 @@ export async function middleware(request: NextRequest) {
 
   // Check if the user has completed onboarding
   const hasCompletedOnboarding = token?.has_completed_onboarding === true
+
+  // If we have a direct request with new_session=true to /home, allow it
+  // This is a special case for after onboarding completion
+  if (token && path === "/home" && isNewSession) {
+    // Allow the request to proceed to /home even if onboarding is not completed
+    // The session will be refreshed on the client side
+    return NextResponse.next()
+  }
 
   // If the user is authenticated but hasn't completed onboarding
   if (

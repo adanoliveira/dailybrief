@@ -1,3 +1,8 @@
+"use client"
+
+import { useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Filter, Search } from "lucide-react"
@@ -5,8 +10,34 @@ import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
+import { api } from "@/lib/api"
 
 export default function Home() {
+  const searchParams = useSearchParams()
+  const isNewSession = searchParams?.get('new_session') === 'true'
+  const { data: session, update: updateSession } = useSession()
+
+  // Check onboarding status directly from backend if this is a new session
+  useEffect(() => {
+    async function checkOnboardingStatus() {
+      if (isNewSession) {
+        try {
+          console.log("New session detected, checking onboarding status...")
+          // Remove the query parameter by replacing the URL without it
+          window.history.replaceState({}, document.title, '/home')
+          
+          // Force session refresh
+          await updateSession({ has_completed_onboarding: true })
+          console.log("Session updated with completed onboarding")
+        } catch (error) {
+          console.error("Error updating session:", error)
+        }
+      }
+    }
+    
+    checkOnboardingStatus()
+  }, [isNewSession, updateSession])
+
   return (
     <div className="container py-6">
       <div className="flex flex-col gap-6">

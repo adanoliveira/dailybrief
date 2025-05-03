@@ -1,0 +1,2309 @@
+[
+  {
+    "model": "feeds.topic",
+    "pk": 1,
+    "fields": {
+      "name": "Business",
+      "slug": "business",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 2,
+    "fields": {
+      "name": "Entertainment",
+      "slug": "entertainment",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 3,
+    "fields": {
+      "name": "General",
+      "slug": "general",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 4,
+    "fields": {
+      "name": "Health",
+      "slug": "health",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 5,
+    "fields": {
+      "name": "Science",
+      "slug": "science",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 6,
+    "fields": {
+      "name": "Sports",
+      "slug": "sports",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.topic",
+    "pk": 7,
+    "fields": {
+      "name": "Technology",
+      "slug": "technology",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 1,
+    "fields": {
+      "code": "us",
+      "name": "United States",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 2,
+    "fields": {
+      "code": "gb",
+      "name": "United Kingdom",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 3,
+    "fields": {
+      "code": "ca",
+      "name": "Canada",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 4,
+    "fields": {
+      "code": "au",
+      "name": "Australia",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 5,
+    "fields": {
+      "code": "in",
+      "name": "India",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 6,
+    "fields": {
+      "code": "fr",
+      "name": "France",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 7,
+    "fields": {
+      "code": "de",
+      "name": "Germany",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 8,
+    "fields": {
+      "code": "jp",
+      "name": "Japan",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 1,
+    "fields": {
+      "iso_code": "en",
+      "name": "English",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 2,
+    "fields": {
+      "iso_code": "es",
+      "name": "Spanish",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 3,
+    "fields": {
+      "iso_code": "fr",
+      "name": "French",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 4,
+    "fields": {
+      "iso_code": "de",
+      "name": "German",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 5,
+    "fields": {
+      "iso_code": "it",
+      "name": "Italian",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 1,
+    "fields": {
+      "name": "BBC News",
+      "news_api_id": "bbc-news",
+      "rss_url": "http://feeds.bbci.co.uk/news/rss.xml",
+      "website_url": "https://www.bbc.co.uk/news",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BBC_News_2019.svg/1200px-BBC_News_2019.svg.png",
+      "description": "BBC News is an operational business division of the British Broadcasting Corporation responsible for the gathering and broadcasting of news and current affairs.",
+      "authority": 9.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2,
+    "fields": {
+      "name": "CNN",
+      "news_api_id": "cnn",
+      "rss_url": "http://rss.cnn.com/rss/cnn_topstories.rss",
+      "website_url": "https://www.cnn.com",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/1200px-CNN.svg.png",
+      "description": "Cable News Network (CNN) is a multinational news-based pay television channel headquartered in Atlanta, United States.",
+      "authority": 9.0,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 3,
+    "fields": {
+      "name": "The New York Times",
+      "news_api_id": "the-new-york-times",
+      "rss_url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+      "website_url": "https://www.nytimes.com",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/NewYorkTimes.svg/1200px-NewYorkTimes.svg.png",
+      "description": "The New York Times is an American daily newspaper based in New York City with a worldwide readership.",
+      "authority": 9.7,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 4,
+    "fields": {
+      "name": "Reuters",
+      "news_api_id": "reuters",
+      "rss_url": "http://feeds.reuters.com/reuters/topNews",
+      "website_url": "https://www.reuters.com",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Reuters_logo.svg/1200px-Reuters_logo.svg.png",
+      "description": "Reuters is an international news organization owned by Thomson Reuters. It employs around 2,500 journalists in about 200 locations worldwide.",
+      "authority": 9.6,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 5,
+    "fields": {
+      "name": "Associated Press",
+      "news_api_id": "associated-press",
+      "rss_url": "https://feeds.npr.org/1001/rss.xml",
+      "website_url": "https://apnews.com",
+      "logo_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Associated_Press_logo_2012.svg/1200px-Associated_Press_logo_2012.svg.png",
+      "description": "The Associated Press is an American non-profit news agency headquartered in New York City. Founded in 1846, it operates as a cooperative, unincorporated association.",
+      "authority": 9.4,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 9,
+    "fields": {
+      "code": "ar",
+      "name": "Argentina",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 10,
+    "fields": {
+      "code": "br",
+      "name": "Brazil",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 11,
+    "fields": {
+      "code": "it",
+      "name": "Italy",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 12,
+    "fields": {
+      "code": "es",
+      "name": "Spain",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 13,
+    "fields": {
+      "code": "no",
+      "name": "Norway",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 14,
+    "fields": {
+      "code": "is",
+      "name": "Israel",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 15,
+    "fields": {
+      "code": "ie",
+      "name": "Ireland",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 16,
+    "fields": {
+      "code": "ru",
+      "name": "Russia",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 17,
+    "fields": {
+      "code": "pk",
+      "name": "Pakistan",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 18,
+    "fields": {
+      "code": "za",
+      "name": "South Africa",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 19,
+    "fields": {
+      "code": "zh",
+      "name": "China",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 20,
+    "fields": {
+      "code": "sa",
+      "name": "Saudi Arabia",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 21,
+    "fields": {
+      "code": "se",
+      "name": "Sweden",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.region",
+    "pk": 22,
+    "fields": {
+      "code": "nl",
+      "name": "Netherlands",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 6,
+    "fields": {
+      "iso_code": "ru",
+      "name": "Russian",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 7,
+    "fields": {
+      "iso_code": "ud",
+      "name": "Urdu",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 8,
+    "fields": {
+      "iso_code": "ar",
+      "name": "Arabic",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 9,
+    "fields": {
+      "iso_code": "zh",
+      "name": "Chinese",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 10,
+    "fields": {
+      "iso_code": "he",
+      "name": "Hebrew",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 11,
+    "fields": {
+      "iso_code": "no",
+      "name": "Norwegian",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 12,
+    "fields": {
+      "iso_code": "pt",
+      "name": "Portuguese",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 13,
+    "fields": {
+      "iso_code": "sv",
+      "name": "Swedish",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.language",
+    "pk": 14,
+    "fields": {
+      "iso_code": "nl",
+      "name": "Dutch",
+      "created_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 6,
+    "fields": {
+      "name": "ABC News",
+      "news_api_id": "abc-news",
+      "rss_url": "",
+      "website_url": "https://abcnews.go.com",
+      "logo_url": "",
+      "description": "Your trusted source for breaking news, analysis, exclusive interviews, headlines, and videos at ABCNews.com.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 7,
+    "fields": {
+      "name": "ABC News (AU)",
+      "news_api_id": "abc-news-au",
+      "rss_url": "",
+      "website_url": "https://www.abc.net.au/news",
+      "logo_url": "",
+      "description": "Australia's most trusted source of local, national and world news. Comprehensive, independent, in-depth analysis, the latest business, sport, weather and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 8,
+    "fields": {
+      "name": "Aftenposten",
+      "news_api_id": "aftenposten",
+      "rss_url": "",
+      "website_url": "https://www.aftenposten.no",
+      "logo_url": "",
+      "description": "Norges ledende nettavis med alltid oppdaterte nyheter innenfor innenriks, utenriks, sport og kultur.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 9,
+    "fields": {
+      "name": "Al Jazeera English",
+      "news_api_id": "al-jazeera-english",
+      "rss_url": "",
+      "website_url": "https://www.aljazeera.com",
+      "logo_url": "",
+      "description": "News, analysis from the Middle East and worldwide, multimedia and interactives, opinions, documentaries, podcasts, long reads and broadcast schedule.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 10,
+    "fields": {
+      "name": "ANSA.it",
+      "news_api_id": "ansa",
+      "rss_url": "",
+      "website_url": "https://www.ansa.it",
+      "logo_url": "",
+      "description": "Agenzia ANSA: ultime notizie, foto, video e approfondimenti su: cronaca, politica, economia, regioni, mondo, sport, calcio, cultura e tecnologia.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 11,
+    "fields": {
+      "name": "Argaam",
+      "news_api_id": "argaam",
+      "rss_url": "",
+      "website_url": "https://www.argaam.com",
+      "logo_url": "",
+      "description": "\u0627\u0631\u0642\u0627\u0645 \u0645\u0648\u0642\u0639 \u0645\u062a\u062e\u0635\u0635 \u0641\u064a \u0645\u062a\u0627\u0628\u0639\u0629 \u0633\u0648\u0642 \u0627\u0644\u0623\u0633\u0647\u0645 \u0627\u0644\u0633\u0639\u0648\u062f\u064a \u062a\u062f\u0627\u0648\u0644 - \u062a\u0627\u0633\u064a - \u0645\u0639 \u062a\u063a\u0637\u064a\u0647 \u0645\u0639\u0645\u0642\u0629 \u0644\u0634\u0631\u0643\u0627\u062a \u0648\u0627\u0633\u0639\u0627\u0631 \u0648\u0645\u0646\u062a\u062c\u0627\u062a \u0627\u0644\u0628\u062a\u0631\u0648\u0643\u064a\u0645\u0627\u0648\u064a\u0627\u062a , \u062a\u0642\u0627\u0631\u064a\u0631 \u0645\u0627\u0644\u064a\u0629 \u0627\u0644\u0627\u0643\u062a\u062a\u0627\u0628\u0627\u062a \u0627\u0644\u062c\u062f\u064a\u062f\u0647 ",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 12,
+    "fields": {
+      "name": "Ars Technica",
+      "news_api_id": "ars-technica",
+      "rss_url": "",
+      "website_url": "https://arstechnica.com",
+      "logo_url": "",
+      "description": "The PC enthusiast's resource. Power users and the tools they love, without computing religion.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 13,
+    "fields": {
+      "name": "Ary News",
+      "news_api_id": "ary-news",
+      "rss_url": "",
+      "website_url": "https://arynews.tv/ud/",
+      "logo_url": "",
+      "description": "ARY News is a Pakistani news channel committed to bring you up-to-the minute Pakistan news and featured stories from around Pakistan and all over the world.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 14,
+    "fields": {
+      "name": "Australian Financial Review",
+      "news_api_id": "australian-financial-review",
+      "rss_url": "",
+      "website_url": "http://www.afr.com",
+      "logo_url": "",
+      "description": "The Australian Financial Review reports the latest news from business, finance, investment and politics, updated in real time. It has a reputation for independent, award-winning journalism and is essential reading for the business and investor community.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 15,
+    "fields": {
+      "name": "Axios",
+      "news_api_id": "axios",
+      "rss_url": "",
+      "website_url": "https://www.axios.com",
+      "logo_url": "",
+      "description": "Axios are a new media company delivering vital, trustworthy news and analysis in the most efficient, illuminating and shareable ways possible.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 16,
+    "fields": {
+      "name": "BBC Sport",
+      "news_api_id": "bbc-sport",
+      "rss_url": "",
+      "website_url": "http://www.bbc.co.uk/sport",
+      "logo_url": "",
+      "description": "The home of BBC Sport online. Includes live sports coverage, breaking news, results, video, audio and analysis on Football, F1, Cricket, Rugby Union, Rugby League, Golf, Tennis and all the main world sports, plus major events such as the Olympic Games.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 17,
+    "fields": {
+      "name": "Bild",
+      "news_api_id": "bild",
+      "rss_url": "",
+      "website_url": "http://www.bild.de",
+      "logo_url": "",
+      "description": "Die Seite 1 f\u00fcr aktuelle Nachrichten und Themen, Bilder und Videos aus den Bereichen News, Wirtschaft, Politik, Show, Sport, und Promis.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 18,
+    "fields": {
+      "name": "Blasting News (BR)",
+      "news_api_id": "blasting-news-br",
+      "rss_url": "",
+      "website_url": "https://br.blastingnews.com",
+      "logo_url": "",
+      "description": "Descubra a se\u00e7\u00e3o brasileira da Blasting News, a primeira revista feita pelo  p\u00fablico, com not\u00edcias globais e v\u00eddeos independentes. Junte-se a n\u00f3s e torne- se um rep\u00f3rter.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 19,
+    "fields": {
+      "name": "Bleacher Report",
+      "news_api_id": "bleacher-report",
+      "rss_url": "",
+      "website_url": "http://www.bleacherreport.com",
+      "logo_url": "",
+      "description": "Sports journalists and bloggers covering NFL, MLB, NBA, NHL, MMA, college football and basketball, NASCAR, fantasy sports and more. News, photos, mock drafts, game scores, player profiles and more!",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 20,
+    "fields": {
+      "name": "Bloomberg",
+      "news_api_id": "bloomberg",
+      "rss_url": "",
+      "website_url": "http://www.bloomberg.com",
+      "logo_url": "",
+      "description": "Bloomberg delivers business and markets news, data, analysis, and video to the world, featuring stories from Businessweek and Bloomberg News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 21,
+    "fields": {
+      "name": "Breitbart News",
+      "news_api_id": "breitbart-news",
+      "rss_url": "",
+      "website_url": "http://www.breitbart.com",
+      "logo_url": "",
+      "description": "Syndicated news and opinion website providing continuously updated headlines to top news and analysis sources.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 22,
+    "fields": {
+      "name": "Business Insider",
+      "news_api_id": "business-insider",
+      "rss_url": "",
+      "website_url": "http://www.businessinsider.com",
+      "logo_url": "",
+      "description": "Business Insider is a fast-growing business site with deep financial, media, tech, and other industry verticals. Launched in 2007, the site is now the largest business news site on the web.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 23,
+    "fields": {
+      "name": "Buzzfeed",
+      "news_api_id": "buzzfeed",
+      "rss_url": "",
+      "website_url": "https://www.buzzfeed.com",
+      "logo_url": "",
+      "description": "BuzzFeed is a cross-platform, global network for news and entertainment that generates seven billion views each month.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 24,
+    "fields": {
+      "name": "CBC News",
+      "news_api_id": "cbc-news",
+      "rss_url": "",
+      "website_url": "http://www.cbc.ca/news",
+      "logo_url": "",
+      "description": "CBC News is the division of the Canadian Broadcasting Corporation responsible for the news gathering and production of news programs on the corporation's English-language operations, namely CBC Television, CBC Radio, CBC News Network, and CBC.ca.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 25,
+    "fields": {
+      "name": "CBS News",
+      "news_api_id": "cbs-news",
+      "rss_url": "",
+      "website_url": "http://www.cbsnews.com",
+      "logo_url": "",
+      "description": "CBS News: dedicated to providing the best in journalism under standards it pioneered at the dawn of radio and television and continue in the digital age.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 26,
+    "fields": {
+      "name": "CNN Spanish",
+      "news_api_id": "cnn-es",
+      "rss_url": "",
+      "website_url": "http://cnnespanol.cnn.com/",
+      "logo_url": "",
+      "description": "Lee las \u00faltimas noticias e informaci\u00f3n sobre Latinoam\u00e9rica, Estados Unidos, mundo, entretenimiento, pol\u00edtica, salud, tecnolog\u00eda y deportes en CNNEspa\u00f1ol.com.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 27,
+    "fields": {
+      "name": "Crypto Coins News",
+      "news_api_id": "crypto-coins-news",
+      "rss_url": "",
+      "website_url": "https://www.ccn.com",
+      "logo_url": "",
+      "description": "Providing breaking cryptocurrency news - focusing on Bitcoin, Ethereum, ICOs, blockchain technology, and smart contracts.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 28,
+    "fields": {
+      "name": "Der Tagesspiegel",
+      "news_api_id": "der-tagesspiegel",
+      "rss_url": "",
+      "website_url": "http://www.tagesspiegel.de",
+      "logo_url": "",
+      "description": "Nachrichten, News und neueste Meldungen aus dem Inland und dem Ausland - aktuell pr\u00e4sentiert von tagesspiegel.de.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 29,
+    "fields": {
+      "name": "Die Zeit",
+      "news_api_id": "die-zeit",
+      "rss_url": "",
+      "website_url": "http://www.zeit.de/index",
+      "logo_url": "",
+      "description": "Aktuelle Nachrichten, Kommentare, Analysen und Hintergrundberichte aus Politik, Wirtschaft, Gesellschaft, Wissen, Kultur und Sport lesen Sie auf ZEIT ONLINE.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 30,
+    "fields": {
+      "name": "El Mundo",
+      "news_api_id": "el-mundo",
+      "rss_url": "",
+      "website_url": "http://www.elmundo.es",
+      "logo_url": "",
+      "description": "Noticias, actualidad, \u00e1lbumes, debates, sociedad, servicios, entretenimiento y \u00faltima hora en Espa\u00f1a y el mundo.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 31,
+    "fields": {
+      "name": "Engadget",
+      "news_api_id": "engadget",
+      "rss_url": "",
+      "website_url": "https://www.engadget.com",
+      "logo_url": "",
+      "description": "Engadget is a web magazine with obsessive daily coverage of everything new in gadgets and consumer electronics.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 32,
+    "fields": {
+      "name": "Entertainment Weekly",
+      "news_api_id": "entertainment-weekly",
+      "rss_url": "",
+      "website_url": "http://www.ew.com",
+      "logo_url": "",
+      "description": "Online version of the print magazine includes entertainment news, interviews, reviews of music, film, TV and books, and a special area for magazine subscribers.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 33,
+    "fields": {
+      "name": "ESPN",
+      "news_api_id": "espn",
+      "rss_url": "",
+      "website_url": "https://www.espn.com",
+      "logo_url": "",
+      "description": "ESPN has up-to-the-minute sports news coverage, scores, highlights and commentary for NFL, MLB, NBA, College Football, NCAA Basketball and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 34,
+    "fields": {
+      "name": "ESPN Cric Info",
+      "news_api_id": "espn-cric-info",
+      "rss_url": "",
+      "website_url": "http://www.espncricinfo.com/",
+      "logo_url": "",
+      "description": "ESPN Cricinfo provides the most comprehensive cricket coverage available including live ball-by-ball commentary, news, unparalleled statistics, quality editorial comment and analysis.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 35,
+    "fields": {
+      "name": "Financial Post",
+      "news_api_id": "financial-post",
+      "rss_url": "",
+      "website_url": "https://financialpost.com",
+      "logo_url": "",
+      "description": "Find the latest happenings in the Canadian Financial Sector and stay up to date with changing trends in Business Markets. Read trading and investing advice from professionals.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 36,
+    "fields": {
+      "name": "Focus",
+      "news_api_id": "focus",
+      "rss_url": "",
+      "website_url": "http://www.focus.de",
+      "logo_url": "",
+      "description": "Minutenaktuelle Nachrichten und Service-Informationen von Deutschlands modernem Nachrichtenmagazin.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 37,
+    "fields": {
+      "name": "Football Italia",
+      "news_api_id": "football-italia",
+      "rss_url": "",
+      "website_url": "http://www.football-italia.net",
+      "logo_url": "",
+      "description": "Italian football news, analysis, fixtures and results for the latest from Serie A, Serie B and the Azzurri.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 38,
+    "fields": {
+      "name": "Fortune",
+      "news_api_id": "fortune",
+      "rss_url": "",
+      "website_url": "http://fortune.com",
+      "logo_url": "",
+      "description": "Fortune 500 Daily and Breaking Business News",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 39,
+    "fields": {
+      "name": "FourFourTwo",
+      "news_api_id": "four-four-two",
+      "rss_url": "",
+      "website_url": "http://www.fourfourtwo.com/news",
+      "logo_url": "",
+      "description": "The latest football news, in-depth features, tactical and statistical analysis from FourFourTwo, the UK&#039;s favourite football monthly.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 40,
+    "fields": {
+      "name": "Fox News",
+      "news_api_id": "fox-news",
+      "rss_url": "",
+      "website_url": "http://www.foxnews.com",
+      "logo_url": "",
+      "description": "Breaking News, Latest News and Current News from FOXNews.com. Breaking news and video. Latest Current News: U.S., World, Entertainment, Health, Business, Technology, Politics, Sports.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 41,
+    "fields": {
+      "name": "Fox Sports",
+      "news_api_id": "fox-sports",
+      "rss_url": "",
+      "website_url": "http://www.foxsports.com",
+      "logo_url": "",
+      "description": "Find live scores, player and team news, videos, rumors, stats, standings, schedules and fantasy games on FOX Sports.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 42,
+    "fields": {
+      "name": "Globo",
+      "news_api_id": "globo",
+      "rss_url": "",
+      "website_url": "http://www.globo.com/",
+      "logo_url": "",
+      "description": "S\u00f3 na globo.com voc\u00ea encontra tudo sobre o conte\u00fado e marcas do Grupo Globo. O melhor acervo de v\u00eddeos online sobre entretenimento, esportes e jornalismo do Brasil.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 43,
+    "fields": {
+      "name": "Google News",
+      "news_api_id": "google-news",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Comprehensive, up-to-date news coverage, aggregated from sources all over the world by Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 44,
+    "fields": {
+      "name": "Google News (Argentina)",
+      "news_api_id": "google-news-ar",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Completa cobertura actualizada de noticias agregadas a partir de fuentes de todo el mundo por Google Noticias.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 45,
+    "fields": {
+      "name": "Google News (Australia)",
+      "news_api_id": "google-news-au",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Comprehensive, up-to-date Australia news coverage, aggregated from sources all over the world by Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 46,
+    "fields": {
+      "name": "Google News (Brasil)",
+      "news_api_id": "google-news-br",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Cobertura jornal\u00edstica abrangente e atualizada, agregada de fontes do mundo inteiro pelo Google Not\u00edcias.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 47,
+    "fields": {
+      "name": "Google News (Canada)",
+      "news_api_id": "google-news-ca",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Comprehensive, up-to-date Canada news coverage, aggregated from sources all over the world by Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 48,
+    "fields": {
+      "name": "Google News (France)",
+      "news_api_id": "google-news-fr",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Informations compl\u00e8tes et \u00e0 jour, compil\u00e9es par Google Actualit\u00e9s \u00e0 partir de sources d&#39;actualit\u00e9s du monde entier.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 49,
+    "fields": {
+      "name": "Google News (India)",
+      "news_api_id": "google-news-in",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Comprehensive, up-to-date India news coverage, aggregated from sources all over the world by Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 50,
+    "fields": {
+      "name": "Google News (Israel)",
+      "news_api_id": "google-news-is",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "\u05db\u05d9\u05e1\u05d5\u05d9 \u05de\u05e7\u05d9\u05e3 \u05d5\u05e2\u05d3\u05db\u05e0\u05d9 \u05e9\u05dc \u05d7\u05d3\u05e9\u05d5\u05ea \u05e9\u05d4\u05e6\u05d8\u05d1\u05e8\u05d5 \u05de\u05de\u05e7\u05d5\u05e8\u05d5\u05ea \u05d1\u05db\u05dc \u05d4\u05e2\u05d5\u05dc\u05dd \u05e2\u05dc \u05d9\u05d3\u05d9 &#39;\u05d7\u05d3\u05e9\u05d5\u05ea Google&#39;.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 51,
+    "fields": {
+      "name": "Google News (Italy)",
+      "news_api_id": "google-news-it",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Copertura giornalistica completa e aggiornata ottenuta combinando fonti di notizie in tutto il mondo attraverso Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 52,
+    "fields": {
+      "name": "Google News (Russia)",
+      "news_api_id": "google-news-ru",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "\u0418\u0441\u0447\u0435\u0440\u043f\u044b\u0432\u0430\u044e\u0449\u0430\u044f \u0438 \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u0430\u044f \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044f, \u0441\u043e\u0431\u0440\u0430\u043d\u043d\u0430\u044f \u0441\u043b\u0443\u0436\u0431\u043e\u0439 &quot;\u041d\u043e\u0432\u043e\u0441\u0442\u0438 Google&quot; \u0441\u043e \u0432\u0441\u0435\u0433\u043e \u0441\u0432\u0435\u0442\u0430.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 53,
+    "fields": {
+      "name": "Google News (Saudi Arabia)",
+      "news_api_id": "google-news-sa",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "\u062a\u063a\u0637\u064a\u0629 \u0634\u0627\u0645\u0644\u0629 \u0648\u0645\u062a\u062c\u062f\u062f\u0629 \u0644\u0644\u0623\u062e\u0628\u0627\u0631\u060c \u062a\u0645 \u062c\u0645\u0639\u0647\u0627 \u0645\u0646 \u0645\u0635\u0627\u062f\u0631 \u0623\u062e\u0628\u0627\u0631 \u0645\u0646 \u062c\u0645\u064a\u0639 \u0623\u0646\u062d\u0627\u0621 \u0627\u0644\u0639\u0627\u0644\u0645 \u0628\u0648\u0627\u0633\u0637\u0629 \u0623\u062e\u0628\u0627\u0631 Google.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 54,
+    "fields": {
+      "name": "Google News (UK)",
+      "news_api_id": "google-news-uk",
+      "rss_url": "",
+      "website_url": "https://news.google.com",
+      "logo_url": "",
+      "description": "Comprehensive, up-to-date UK news coverage, aggregated from sources all over the world by Google News.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 55,
+    "fields": {
+      "name": "G\u00f6teborgs-Posten",
+      "news_api_id": "goteborgs-posten",
+      "rss_url": "",
+      "website_url": "http://www.gp.se",
+      "logo_url": "",
+      "description": "G\u00f6teborgs-Posten, abbreviated GP, is a major Swedish language daily newspaper published in Gothenburg, Sweden.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 56,
+    "fields": {
+      "name": "Gruenderszene",
+      "news_api_id": "gruenderszene",
+      "rss_url": "",
+      "website_url": "http://www.gruenderszene.de",
+      "logo_url": "",
+      "description": "Online-Magazin f\u00fcr Startups und die digitale Wirtschaft. News und Hintergr\u00fcnde zu Investment, VC und Gr\u00fcndungen.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 57,
+    "fields": {
+      "name": "Hacker News",
+      "news_api_id": "hacker-news",
+      "rss_url": "",
+      "website_url": "https://news.ycombinator.com",
+      "logo_url": "",
+      "description": "Hacker News is a social news website focusing on computer science and entrepreneurship. It is run by Paul Graham's investment fund and startup incubator, Y Combinator. In general, content that can be submitted is defined as \"anything that gratifies one's intellectual curiosity\".",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 58,
+    "fields": {
+      "name": "Handelsblatt",
+      "news_api_id": "handelsblatt",
+      "rss_url": "",
+      "website_url": "http://www.handelsblatt.com",
+      "logo_url": "",
+      "description": "Auf Handelsblatt lesen sie Nachrichten \u00fcber Unternehmen, Finanzen, Politik und Technik. Verwalten Sie Ihre Finanzanlagen mit Hilfe unserer B\u00f6rsenkurse.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 59,
+    "fields": {
+      "name": "IGN",
+      "news_api_id": "ign",
+      "rss_url": "",
+      "website_url": "http://www.ign.com",
+      "logo_url": "",
+      "description": "IGN is your site for Xbox One, PS4, PC, Wii-U, Xbox 360, PS3, Wii, 3DS, PS Vita and iPhone games with expert reviews, news, previews, trailers, cheat codes, wiki guides and walkthroughs.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 60,
+    "fields": {
+      "name": "Il Sole 24 Ore",
+      "news_api_id": "il-sole-24-ore",
+      "rss_url": "",
+      "website_url": "https://www.ilsole24ore.com",
+      "logo_url": "",
+      "description": "Notizie di economia, cronaca italiana ed estera, quotazioni borsa in tempo reale e di finanza, norme e tributi, fondi e obbligazioni, mutui, prestiti e lavoro a cura de Il Sole 24 Ore.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 61,
+    "fields": {
+      "name": "Independent",
+      "news_api_id": "independent",
+      "rss_url": "",
+      "website_url": "http://www.independent.co.uk",
+      "logo_url": "",
+      "description": "National morning quality (tabloid) includes free online access to news and supplements. Insight by Robert Fisk and various other columnists.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 62,
+    "fields": {
+      "name": "Infobae",
+      "news_api_id": "infobae",
+      "rss_url": "",
+      "website_url": "http://www.infobae.com/?noredirect",
+      "logo_url": "",
+      "description": "Noticias de Argentina y del mundo en tiempo real. Informaci\u00f3n, videos y fotos sobre los hechos m\u00e1s relevantes y sus protagonistas. L\u00e9elo antes en infobae.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 63,
+    "fields": {
+      "name": "InfoMoney",
+      "news_api_id": "info-money",
+      "rss_url": "",
+      "website_url": "https://www.infomoney.com.br",
+      "logo_url": "",
+      "description": "No InfoMoney voc\u00ea encontra tudo o que precisa sobre dinheiro. A\u00e7\u00f5es, investimentos, bolsas de valores e muito mais. Aqui voc\u00ea encontra informa\u00e7\u00e3o que vale dinheiro!",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 64,
+    "fields": {
+      "name": "La Gaceta",
+      "news_api_id": "la-gaceta",
+      "rss_url": "",
+      "website_url": "http://www.lagaceta.com.ar",
+      "logo_url": "",
+      "description": "El diario de Tucum\u00e1n, noticias 24 horas online - San Miguel de Tucum\u00e1n - Argentina - Ultimo momento - Ultimas noticias.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 65,
+    "fields": {
+      "name": "La Nacion",
+      "news_api_id": "la-nacion",
+      "rss_url": "",
+      "website_url": "http://www.lanacion.com.ar",
+      "logo_url": "",
+      "description": "Informaci\u00f3n confiable en Internet. Noticias de Argentina y del mundo - \u00a1Informate ya!",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 66,
+    "fields": {
+      "name": "La Repubblica",
+      "news_api_id": "la-repubblica",
+      "rss_url": "",
+      "website_url": "http://www.repubblica.it",
+      "logo_url": "",
+      "description": "Breaking News, Latest News and Current News from FOXNews.com. Breaking news and video. Latest Current News: U.S., World, Entertainment, Health, Business, Technology, Politics, Sports.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 67,
+    "fields": {
+      "name": "Le Monde",
+      "news_api_id": "le-monde",
+      "rss_url": "",
+      "website_url": "http://www.lemonde.fr",
+      "logo_url": "",
+      "description": "Les articles du journal et toute l'actualit&eacute; en continu : International, France, Soci&eacute;t&eacute;, Economie, Culture, Environnement, Blogs ...",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 68,
+    "fields": {
+      "name": "Lenta",
+      "news_api_id": "lenta",
+      "rss_url": "",
+      "website_url": "https://lenta.ru",
+      "logo_url": "",
+      "description": "\u041d\u043e\u0432\u043e\u0441\u0442\u0438, \u0441\u0442\u0430\u0442\u044c\u0438, \u0444\u043e\u0442\u043e\u0433\u0440\u0430\u0444\u0438\u0438, \u0432\u0438\u0434\u0435\u043e. \u0421\u0435\u043c\u044c \u0434\u043d\u0435\u0439 \u0432 \u043d\u0435\u0434\u0435\u043b\u044e, 24 \u0447\u0430\u0441\u0430 \u0432 \u0441\u0443\u0442\u043a\u0438.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 69,
+    "fields": {
+      "name": "L'equipe",
+      "news_api_id": "lequipe",
+      "rss_url": "",
+      "website_url": "https://www.lequipe.fr",
+      "logo_url": "",
+      "description": "Le sport en direct sur L'EQUIPE.fr. Les informations, r\u00e9sultats et classements de tous les sports. Directs comment\u00e9s, images et vid\u00e9os \u00e0 regarder et \u00e0 partager !",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 70,
+    "fields": {
+      "name": "Les Echos",
+      "news_api_id": "les-echos",
+      "rss_url": "",
+      "website_url": "https://www.lesechos.fr",
+      "logo_url": "",
+      "description": "Toute l'actualit\u00e9 \u00e9conomique, financi\u00e8re et boursi\u00e8re fran\u00e7aise et internationale sur Les Echos.fr",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 71,
+    "fields": {
+      "name": "Lib\u00e9ration",
+      "news_api_id": "liberation",
+      "rss_url": "",
+      "website_url": "http://www.liberation.fr",
+      "logo_url": "",
+      "description": "Toute l'actualit\u00e9 en direct - photos et vid\u00e9os avec Lib\u00e9ration",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 72,
+    "fields": {
+      "name": "Marca",
+      "news_api_id": "marca",
+      "rss_url": "",
+      "website_url": "http://www.marca.com",
+      "logo_url": "",
+      "description": "La mejor informaci\u00f3n deportiva en castellano actualizada minuto a minuto en noticias, v\u00eddeos, fotos, retransmisiones y resultados en directo.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 73,
+    "fields": {
+      "name": "Mashable",
+      "news_api_id": "mashable",
+      "rss_url": "",
+      "website_url": "https://mashable.com",
+      "logo_url": "",
+      "description": "Mashable is a global, multi-platform media and entertainment company.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 74,
+    "fields": {
+      "name": "Medical News Today",
+      "news_api_id": "medical-news-today",
+      "rss_url": "",
+      "website_url": "http://www.medicalnewstoday.com",
+      "logo_url": "",
+      "description": "Medical news and health news headlines posted throughout the day, every day.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 75,
+    "fields": {
+      "name": "MSNBC",
+      "news_api_id": "msnbc",
+      "rss_url": "",
+      "website_url": "http://www.msnbc.com",
+      "logo_url": "",
+      "description": "Breaking news and in-depth analysis of the headlines, as well as commentary and informed perspectives from The Rachel Maddow Show, Morning Joe & more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 76,
+    "fields": {
+      "name": "MTV News",
+      "news_api_id": "mtv-news",
+      "rss_url": "",
+      "website_url": "http://www.mtv.com/news",
+      "logo_url": "",
+      "description": "The ultimate news source for music, celebrity, entertainment, movies, and current events on the web. It's pop culture on steroids.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 77,
+    "fields": {
+      "name": "MTV News (UK)",
+      "news_api_id": "mtv-news-uk",
+      "rss_url": "",
+      "website_url": "http://www.mtv.co.uk/news",
+      "logo_url": "",
+      "description": "All the latest celebrity news, gossip, exclusive interviews and pictures from the world of music and entertainment.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 78,
+    "fields": {
+      "name": "National Geographic",
+      "news_api_id": "national-geographic",
+      "rss_url": "",
+      "website_url": "http://news.nationalgeographic.com",
+      "logo_url": "",
+      "description": "Reporting our world daily: original nature and science news from National Geographic.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 79,
+    "fields": {
+      "name": "National Review",
+      "news_api_id": "national-review",
+      "rss_url": "",
+      "website_url": "https://www.nationalreview.com/",
+      "logo_url": "",
+      "description": "National Review: Conservative News, Opinion, Politics, Policy, & Current Events.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 80,
+    "fields": {
+      "name": "NBC News",
+      "news_api_id": "nbc-news",
+      "rss_url": "",
+      "website_url": "http://www.nbcnews.com",
+      "logo_url": "",
+      "description": "Breaking news, videos, and the latest top stories in world news, business, politics, health and pop culture.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 81,
+    "fields": {
+      "name": "News24",
+      "news_api_id": "news24",
+      "rss_url": "",
+      "website_url": "http://www.news24.com",
+      "logo_url": "",
+      "description": "South Africa's premier news source, provides breaking news on national, world, Africa, sport, entertainment, technology and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 82,
+    "fields": {
+      "name": "New Scientist",
+      "news_api_id": "new-scientist",
+      "rss_url": "",
+      "website_url": "https://www.newscientist.com/section/news",
+      "logo_url": "",
+      "description": "Breaking science and technology news from around the world. Exclusive stories and expert analysis on space, technology, health, physics, life and Earth.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 83,
+    "fields": {
+      "name": "News.com.au",
+      "news_api_id": "news-com-au",
+      "rss_url": "",
+      "website_url": "http://www.news.com.au",
+      "logo_url": "",
+      "description": "We say what people are thinking and cover the issues that get people talking balancing Australian and global moments \u2014 from politics to pop culture.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 84,
+    "fields": {
+      "name": "Newsweek",
+      "news_api_id": "newsweek",
+      "rss_url": "",
+      "website_url": "https://www.newsweek.com",
+      "logo_url": "",
+      "description": "Newsweek provides in-depth analysis, news and opinion about international issues, technology, business, culture and politics.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 85,
+    "fields": {
+      "name": "New York Magazine",
+      "news_api_id": "new-york-magazine",
+      "rss_url": "",
+      "website_url": "https://nymag.com/",
+      "logo_url": "",
+      "description": "NYMAG and New York magazine cover the new, the undiscovered, the next in politics, culture, food, fashion, and behavior nationally, through a New York lens.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 86,
+    "fields": {
+      "name": "Next Big Future",
+      "news_api_id": "next-big-future",
+      "rss_url": "",
+      "website_url": "https://www.nextbigfuture.com",
+      "logo_url": "",
+      "description": "Coverage of science and technology that have the potential for disruption, and analysis of plans, policies, and technology that enable radical improvement.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 87,
+    "fields": {
+      "name": "NFL News",
+      "news_api_id": "nfl-news",
+      "rss_url": "",
+      "website_url": "https://www.nfl.com",
+      "logo_url": "",
+      "description": "The official source for NFL news, schedules, stats, scores and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 88,
+    "fields": {
+      "name": "NHL News",
+      "news_api_id": "nhl-news",
+      "rss_url": "",
+      "website_url": "https://www.nhl.com/news",
+      "logo_url": "",
+      "description": "The most up-to-date breaking hockey news from the official source including interviews, rumors, statistics and schedules.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 89,
+    "fields": {
+      "name": "NRK",
+      "news_api_id": "nrk",
+      "rss_url": "",
+      "website_url": "https://www.nrk.no",
+      "logo_url": "",
+      "description": "NRK er Norges st\u00f8rste tilbud p\u00e5 nett: nyheter fra Norge og verden, lokalnyheter, radio- og tv-program, podcast, v\u00e6r, helse-, kultur-, underholdning-, humor- og debattstoff.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 90,
+    "fields": {
+      "name": "Politico",
+      "news_api_id": "politico",
+      "rss_url": "",
+      "website_url": "https://www.politico.com",
+      "logo_url": "",
+      "description": "Political news about Congress, the White House, campaigns, lobbyists and issues.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 91,
+    "fields": {
+      "name": "Polygon",
+      "news_api_id": "polygon",
+      "rss_url": "",
+      "website_url": "http://www.polygon.com",
+      "logo_url": "",
+      "description": "Polygon is a gaming website in partnership with Vox Media. Our culture focused site covers games, their creators, the fans, trending stories and entertainment news.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 92,
+    "fields": {
+      "name": "RBC",
+      "news_api_id": "rbc",
+      "rss_url": "",
+      "website_url": "https://www.rbc.ru",
+      "logo_url": "",
+      "description": "\u0413\u043b\u0430\u0432\u043d\u044b\u0435 \u043d\u043e\u0432\u043e\u0441\u0442\u0438 \u043f\u043e\u043b\u0438\u0442\u0438\u043a\u0438, \u044d\u043a\u043e\u043d\u043e\u043c\u0438\u043a\u0438 \u0438 \u0431\u0438\u0437\u043d\u0435\u0441\u0430, \u043a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0438 \u0430\u043d\u0430\u043b\u0438\u0442\u0438\u043a\u043e\u0432, \u0444\u0438\u043d\u0430\u043d\u0441\u043e\u0432\u044b\u0435 \u0434\u0430\u043d\u043d\u044b\u0435 \u0441 \u0440\u043e\u0441\u0441\u0438\u0439\u0441\u043a\u0438\u0445 \u0438 \u043c\u0438\u0440\u043e\u0432\u044b\u0445 \u0431\u0438\u0440\u0436\u0435\u0432\u044b\u0445 \u0441\u0438\u0441\u0442\u0435\u043c \u043d\u0430 \u0441\u0430\u0439\u0442\u0435 rbc.ru.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 93,
+    "fields": {
+      "name": "Recode",
+      "news_api_id": "recode",
+      "rss_url": "",
+      "website_url": "http://www.recode.net",
+      "logo_url": "",
+      "description": "Get the latest independent tech news, reviews and analysis from Recode with the most informed and respected journalists in technology and media.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 94,
+    "fields": {
+      "name": "Reddit /r/all",
+      "news_api_id": "reddit-r-all",
+      "rss_url": "",
+      "website_url": "https://www.reddit.com/r/all",
+      "logo_url": "",
+      "description": "Reddit is an entertainment, social news networking service, and news website. Reddit's registered community members can submit content, such as text posts or direct links.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 95,
+    "fields": {
+      "name": "RT",
+      "news_api_id": "rt",
+      "rss_url": "",
+      "website_url": "https://russian.rt.com",
+      "logo_url": "",
+      "description": "\u0410\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u0430\u044f \u043a\u0430\u0440\u0442\u0438\u043d\u0430 \u0434\u043d\u044f \u043d\u0430 RT: \u043a\u0440\u0443\u0433\u043b\u043e\u0441\u0443\u0442\u043e\u0447\u043d\u043e\u0435 \u0435\u0436\u0435\u0434\u043d\u0435\u0432\u043d\u043e\u0435 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 \u043d\u043e\u0432\u043e\u0441\u0442\u0435\u0439 \u043f\u043e\u043b\u0438\u0442\u0438\u043a\u0438, \u0431\u0438\u0437\u043d\u0435\u0441\u0430, \u0444\u0438\u043d\u0430\u043d\u0441\u043e\u0432, \u0441\u043f\u043e\u0440\u0442\u0430, \u043d\u0430\u0443\u043a\u0438, \u043a\u0443\u043b\u044c\u0442\u0443\u0440\u044b. \u041e\u043d\u043b\u0430\u0439\u043d-\u0440\u0435\u043f\u043e\u0440\u0442\u0430\u0436\u0438 \u0441 \u043c\u0435\u0441\u0442\u0430 \u0441\u043e\u0431\u044b\u0442\u0438\u0439. \u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0438 \u044d\u043a\u0441\u043f\u0435\u0440\u0442\u043e\u0432, \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u044b\u0435 \u0438\u043d\u0442\u0435\u0440\u0432\u044c\u044e, \u0444\u043e\u0442\u043e \u0438 \u0432\u0438\u0434\u0435\u043e \u0440\u0435\u043f\u043e\u0440\u0442\u0430\u0436\u0438.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 96,
+    "fields": {
+      "name": "RTE",
+      "news_api_id": "rte",
+      "rss_url": "",
+      "website_url": "https://www.rte.ie/news",
+      "logo_url": "",
+      "description": "Get all of the latest breaking local and international news stories as they happen, with up to the minute updates and analysis, from Ireland's National Broadcaster.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 97,
+    "fields": {
+      "name": "RTL Nieuws",
+      "news_api_id": "rtl-nieuws",
+      "rss_url": "",
+      "website_url": "https://www.rtlnieuws.nl/",
+      "logo_url": "",
+      "description": "Volg het nieuws terwijl het gebeurt. RTL Nieuws informeert haar lezers op een onafhankelijke, boeiende en toegankelijke wijze over belangrijke ontwikkelingen in eigen land en de rest van de wereld.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 98,
+    "fields": {
+      "name": "SABQ",
+      "news_api_id": "sabq",
+      "rss_url": "",
+      "website_url": "https://sabq.org",
+      "logo_url": "",
+      "description": "\u0635\u062d\u064a\u0641\u0629 \u0627\u0644\u0643\u062a\u0631\u0648\u0646\u064a\u0629 \u0633\u0639\u0648\u062f\u064a\u0629 \u0647\u062f\u0641\u0647\u0627 \u0627\u0644\u0633\u0628\u0642 \u0641\u064a \u0646\u0642\u0644 \u0627\u0644\u062d\u062f\u062b \u0628\u0645\u0647\u0646\u064a\u0629 \u0648\u0645\u0635\u062f\u0627\u0642\u064a\u0629 \u062e\u062f\u0645\u0629 \u0644\u0644\u0648\u0637\u0646 \u0648\u0627\u0644\u0645\u0648\u0627\u0637\u0646.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 99,
+    "fields": {
+      "name": "Spiegel Online",
+      "news_api_id": "spiegel-online",
+      "rss_url": "",
+      "website_url": "http://www.spiegel.de",
+      "logo_url": "",
+      "description": "Deutschlands f\u00fchrende Nachrichtenseite. Alles Wichtige aus Politik, Wirtschaft, Sport, Kultur, Wissenschaft, Technik und mehr.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 100,
+    "fields": {
+      "name": "Svenska Dagbladet",
+      "news_api_id": "svenska-dagbladet",
+      "rss_url": "",
+      "website_url": "https://www.svd.se",
+      "logo_url": "",
+      "description": "Sveriges ledande mediesajt - SvD.se. Svenska Dagbladets nyhetssajt l\u00e5ter l\u00e4sarna ta plats och f\u00f6rdjupar nyheterna.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 101,
+    "fields": {
+      "name": "T3n",
+      "news_api_id": "t3n",
+      "rss_url": "",
+      "website_url": "https://t3n.de",
+      "logo_url": "",
+      "description": "Das Online-Magazin bietet Artikel zu den Themen E-Business, Social Media, Startups und Webdesign.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 102,
+    "fields": {
+      "name": "TalkSport",
+      "news_api_id": "talksport",
+      "rss_url": "",
+      "website_url": "http://talksport.com",
+      "logo_url": "",
+      "description": "Tune in to the world's biggest sports radio station - Live Premier League football coverage, breaking sports news, transfer rumours &amp; exclusive interviews.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 103,
+    "fields": {
+      "name": "TechCrunch",
+      "news_api_id": "techcrunch",
+      "rss_url": "",
+      "website_url": "https://techcrunch.com",
+      "logo_url": "",
+      "description": "TechCrunch is a leading technology media property, dedicated to obsessively profiling startups, reviewing new Internet products, and breaking tech news.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 104,
+    "fields": {
+      "name": "TechCrunch (CN)",
+      "news_api_id": "techcrunch-cn",
+      "rss_url": "",
+      "website_url": "https://techcrunch.cn",
+      "logo_url": "",
+      "description": "TechCrunch is a leading technology media property, dedicated to obsessively profiling startups, reviewing new Internet products, and breaking tech news.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 105,
+    "fields": {
+      "name": "TechRadar",
+      "news_api_id": "techradar",
+      "rss_url": "",
+      "website_url": "https://www.techradar.com",
+      "logo_url": "",
+      "description": "The latest technology news and reviews, covering computing, home entertainment systems, gadgets and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 106,
+    "fields": {
+      "name": "The American Conservative",
+      "news_api_id": "the-american-conservative",
+      "rss_url": "",
+      "website_url": "http://www.theamericanconservative.com/",
+      "logo_url": "",
+      "description": "Realism and reform. A new voice for a new generation of conservatives.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 107,
+    "fields": {
+      "name": "The Globe And Mail",
+      "news_api_id": "the-globe-and-mail",
+      "rss_url": "",
+      "website_url": "https://www.theglobeandmail.com",
+      "logo_url": "",
+      "description": "The Globe and Mail offers the most authoritative news in Canada, featuring national and international news.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 108,
+    "fields": {
+      "name": "The Hill",
+      "news_api_id": "the-hill",
+      "rss_url": "",
+      "website_url": "https://thehill.com",
+      "logo_url": "",
+      "description": "The Hill is a top US political website, read by the White House and more lawmakers than any other site -- vital for policy, politics and election campaigns.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 109,
+    "fields": {
+      "name": "The Hindu",
+      "news_api_id": "the-hindu",
+      "rss_url": "",
+      "website_url": "http://www.thehindu.com",
+      "logo_url": "",
+      "description": "The Hindu. latest news, analysis, comment, in-depth coverage of politics, business, sport, environment, cinema and arts from India's national newspaper.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 110,
+    "fields": {
+      "name": "The Huffington Post",
+      "news_api_id": "the-huffington-post",
+      "rss_url": "",
+      "website_url": "http://www.huffingtonpost.com",
+      "logo_url": "",
+      "description": "The Huffington Post is a politically liberal American online news aggregator and blog that has both localized and international editions founded by Arianna Huffington, Kenneth Lerer, Andrew Breitbart, and Jonah Peretti, featuring columnists.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 111,
+    "fields": {
+      "name": "The Irish Times",
+      "news_api_id": "the-irish-times",
+      "rss_url": "",
+      "website_url": "https://www.irishtimes.com",
+      "logo_url": "",
+      "description": "The Irish Times online. Latest news including sport, analysis, business, weather and more from the definitive brand of quality news in Ireland.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 112,
+    "fields": {
+      "name": "The Jerusalem Post",
+      "news_api_id": "the-jerusalem-post",
+      "rss_url": "",
+      "website_url": "https://www.jpost.com/",
+      "logo_url": "",
+      "description": "The Jerusalem Post is the leading online newspaper for English speaking Jewry since 1932, bringing news and updates from the Middle East and all over the Jewish world.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 113,
+    "fields": {
+      "name": "The Lad Bible",
+      "news_api_id": "the-lad-bible",
+      "rss_url": "",
+      "website_url": "https://www.theladbible.com",
+      "logo_url": "",
+      "description": "The LAD Bible is one of the largest community for guys aged 16-30 in the world. Send us your funniest pictures and videos!",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 114,
+    "fields": {
+      "name": "The Next Web",
+      "news_api_id": "the-next-web",
+      "rss_url": "",
+      "website_url": "http://thenextweb.com",
+      "logo_url": "",
+      "description": "The Next Web is one of the world\u2019s largest online publications that delivers an international perspective on the latest news about Internet technology, business and culture.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 115,
+    "fields": {
+      "name": "The Sport Bible",
+      "news_api_id": "the-sport-bible",
+      "rss_url": "",
+      "website_url": "https://www.thesportbible.com",
+      "logo_url": "",
+      "description": "TheSPORTbible is one of the largest communities for sports fans across the world. Send us your sporting pictures and videos!",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 116,
+    "fields": {
+      "name": "The Times of India",
+      "news_api_id": "the-times-of-india",
+      "rss_url": "",
+      "website_url": "http://timesofindia.indiatimes.com",
+      "logo_url": "",
+      "description": "Times of India brings the Latest News and Top Breaking headlines on Politics and Current Affairs in India and around the World, Sports, Business, Bollywood News and Entertainment, Science, Technology, Health and Fitness news, Cricket and opinions from leading columnists.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 117,
+    "fields": {
+      "name": "The Verge",
+      "news_api_id": "the-verge",
+      "rss_url": "",
+      "website_url": "http://www.theverge.com",
+      "logo_url": "",
+      "description": "The Verge covers the intersection of technology, science, art, and culture.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 118,
+    "fields": {
+      "name": "The Wall Street Journal",
+      "news_api_id": "the-wall-street-journal",
+      "rss_url": "",
+      "website_url": "https://www.wsj.com",
+      "logo_url": "",
+      "description": "WSJ online coverage of breaking news and current headlines from the US and around the world. Top stories, photos, videos, detailed analysis and in-depth reporting.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 119,
+    "fields": {
+      "name": "The Washington Post",
+      "news_api_id": "the-washington-post",
+      "rss_url": "",
+      "website_url": "https://www.washingtonpost.com",
+      "logo_url": "",
+      "description": "Breaking news and analysis on politics, business, world national news, entertainment more. In-depth DC, Virginia, Maryland news coverage including traffic, weather, crime, education, restaurant reviews and more.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 120,
+    "fields": {
+      "name": "The Washington Times",
+      "news_api_id": "the-washington-times",
+      "rss_url": "",
+      "website_url": "https://www.washingtontimes.com/",
+      "logo_url": "",
+      "description": "The Washington Times delivers breaking news and commentary on the issues that affect the future of our nation.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 121,
+    "fields": {
+      "name": "Time",
+      "news_api_id": "time",
+      "rss_url": "",
+      "website_url": "http://time.com",
+      "logo_url": "",
+      "description": "Breaking news and analysis from TIME.com. Politics, world news, photos, video, tech reviews, health, science and entertainment news.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 122,
+    "fields": {
+      "name": "USA Today",
+      "news_api_id": "usa-today",
+      "rss_url": "",
+      "website_url": "http://www.usatoday.com/news",
+      "logo_url": "",
+      "description": "Get the latest national, international, and political news at USATODAY.com.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 123,
+    "fields": {
+      "name": "Vice News",
+      "news_api_id": "vice-news",
+      "rss_url": "",
+      "website_url": "https://news.vice.com",
+      "logo_url": "",
+      "description": "Vice News is Vice Media, Inc.'s current affairs channel, producing daily documentary essays and video through its website and YouTube channel. It promotes itself on its coverage of \"under - reported stories\".",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 124,
+    "fields": {
+      "name": "Wired",
+      "news_api_id": "wired",
+      "rss_url": "",
+      "website_url": "https://www.wired.com",
+      "logo_url": "",
+      "description": "Wired is a monthly American magazine, published in print and online editions, that focuses on how emerging technologies affect culture, the economy, and politics.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 125,
+    "fields": {
+      "name": "Wired.de",
+      "news_api_id": "wired-de",
+      "rss_url": "",
+      "website_url": "https://www.wired.de",
+      "logo_url": "",
+      "description": "Wired reports on how emerging technologies affect culture, the economy and politics.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 126,
+    "fields": {
+      "name": "Wirtschafts Woche",
+      "news_api_id": "wirtschafts-woche",
+      "rss_url": "",
+      "website_url": "http://www.wiwo.de",
+      "logo_url": "",
+      "description": "Das Online-Portal des f\u00fchrenden Wirtschaftsmagazins in Deutschland. Das Entscheidende zu Unternehmen, Finanzen, Erfolg und Technik.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 127,
+    "fields": {
+      "name": "Xinhua Net",
+      "news_api_id": "xinhua-net",
+      "rss_url": "",
+      "website_url": "http://xinhuanet.com/",
+      "logo_url": "",
+      "description": "\u4e2d\u56fd\u4e3b\u8981\u91cd\u70b9\u65b0\u95fb\u7f51\u7ad9,\u4f9d\u6258\u65b0\u534e\u793e\u904d\u5e03\u5168\u7403\u7684\u91c7\u7f16\u7f51\u7edc,\u8bb0\u8005\u904d\u5e03\u4e16\u754c100\u591a\u4e2a\u56fd\u5bb6\u548c\u5730\u533a,\u5730\u65b9\u9891\u9053\u5206\u5e03\u5168\u56fd31\u4e2a\u7701\u5e02\u81ea\u6cbb\u533a,\u6bcf\u592924\u5c0f\u65f6\u540c\u65f6\u4f7f\u75286\u79cd\u8bed\u8a00\u6eda\u52a8\u53d1\u7a3f,\u6743\u5a01\u3001\u51c6\u786e\u3001\u53ca\u65f6\u64ad\u53d1\u56fd\u5185\u5916\u91cd\u8981\u65b0\u95fb\u548c\u91cd\u5927\u7a81\u53d1\u4e8b\u4ef6,\u53d7\u4f17\u8986\u76d6200\u591a\u4e2a\u56fd\u5bb6\u548c\u5730\u533a,\u53d1\u5c55\u8bba\u575b\u662f\u5168\u7403\u77e5\u540d\u7684\u4e2d\u6587\u8bba\u575b\u3002",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 128,
+    "fields": {
+      "name": "Ynet",
+      "news_api_id": "ynet",
+      "rss_url": "",
+      "website_url": "http://www.ynet.co.il",
+      "logo_url": "",
+      "description": "ynet \u05d3\u05e3 \u05d4\u05d1\u05d9\u05ea: \u05d0\u05ea\u05e8 \u05d4\u05d7\u05d3\u05e9\u05d5\u05ea \u05d4\u05de\u05d5\u05d1\u05d9\u05dc \u05d1\u05d9\u05e9\u05e8\u05d0\u05dc \u05de\u05d1\u05d9\u05ea \u05d9\u05d3\u05d9\u05e2\u05d5\u05ea \u05d0\u05d7\u05e8\u05d5\u05e0\u05d5\u05ea. \u05e1\u05d9\u05e7\u05d5\u05e8 \u05de\u05dc\u05d0 \u05e9\u05dc \u05d7\u05d3\u05e9\u05d5\u05ea \u05de\u05d9\u05e9\u05e8\u05d0\u05dc \u05d5\u05d4\u05e2\u05d5\u05dc\u05dd, \u05e1\u05e4\u05d5\u05e8\u05d8, \u05db\u05dc\u05db\u05dc\u05d4, \u05ea\u05e8\u05d1\u05d5\u05ea, \u05d0\u05d5\u05db\u05dc, \u05de\u05d3\u05e2 \u05d5\u05d8\u05d1\u05e2, \u05db\u05dc \u05de\u05d4 \u05e9\u05e7\u05d5\u05e8\u05d4 \u05d5\u05db\u05dc \u05de\u05d4 \u05e9\u05de\u05e2\u05e0\u05d9\u05d9\u05df \u05d1 ynet.",
+      "authority": 7.5,
+      "created_at": "2025-05-02T00:00:00Z",
+      "updated_at": "2025-05-02T00:00:00Z"
+    }
+  }
+]

@@ -1,10 +1,27 @@
 import { DefaultSession } from "next-auth"
+import 'next-auth';
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
+      django_user_id?: number
+      django_token?: string
+      has_completed_onboarding?: boolean
     } & DefaultSession["user"]
+  }
+
+  interface User {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+    django_user_id?: number
+    django_token?: string
+    has_completed_onboarding?: boolean
   }
 }
 
@@ -29,5 +46,15 @@ declare namespace JSX {
     section: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>
     html: React.DetailedHTMLProps<React.HtmlHTMLAttributes<HTMLHtmlElement>, HTMLHtmlElement>
     body: React.DetailedHTMLProps<React.HTMLAttributes<HTMLBodyElement>, HTMLBodyElement>
+  }
+}
+
+// Extend the built-in JWT types
+declare module 'next-auth/jwt' {
+  interface JWT {
+    user_id?: string
+    django_user_id?: number
+    django_token?: string
+    has_completed_onboarding?: boolean
   }
 } 
