@@ -1,20 +1,16 @@
 "use client"
 
-import Image from "next/image"
 import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Newspaper, Globe, Languages, BookMarked } from "lucide-react"
 
-interface WelcomeStepProps {
-  onNext: () => void
-}
-
-export function WelcomeStep({ onNext }: WelcomeStepProps) {
+export function WelcomeStep() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="relative w-full"
     >
       <Card className="border-none shadow-none">
         <CardHeader className="pb-4">
@@ -25,55 +21,39 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         </CardHeader>
         
         <CardContent className="space-y-6">
-          <div className="flex justify-center py-4">
-            <div className="relative w-64 h-64">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary-foreground/5 rounded-full animate-pulse" />
-              <Image
-                src="/images/onboarding-welcome.svg"
-                alt="Welcome illustration"
-                width={240}
-                height={240}
-                className="relative z-10"
-                priority
-              />
-            </div>
-          </div>
-          
-          <div className="space-y-4 text-center">
-            <p>
-              In the next few steps, we'll help you customize your news experience based on:
+          <div className="space-y-5 text-center">
+            <p className="text-muted-foreground">
+              In the next few steps, we'll help you customize your news feed:
             </p>
             
-            <ul className="space-y-3 text-left mx-auto max-w-xs">
+            <ul className="space-y-4 text-left mx-auto max-w-xs">
               <li className="flex items-center">
-                <span className="flex items-center justify-center bg-primary/10 text-primary w-8 h-8 rounded-full mr-3">1</span>
+                <span className="flex items-center justify-center bg-primary/10 text-primary w-10 h-10 rounded-full mr-3">
+                  <Newspaper size={20} />
+                </span>
                 <span>Topics you're interested in</span>
               </li>
               <li className="flex items-center">
-                <span className="flex items-center justify-center bg-primary/10 text-primary w-8 h-8 rounded-full mr-3">2</span>
+                <span className="flex items-center justify-center bg-primary/10 text-primary w-10 h-10 rounded-full mr-3">
+                  <Globe size={20} />
+                </span>
                 <span>Regions you want to follow</span>
               </li>
               <li className="flex items-center">
-                <span className="flex items-center justify-center bg-primary/10 text-primary w-8 h-8 rounded-full mr-3">3</span>
+                <span className="flex items-center justify-center bg-primary/10 text-primary w-10 h-10 rounded-full mr-3">
+                  <Languages size={20} />
+                </span>
                 <span>Languages you prefer</span>
               </li>
               <li className="flex items-center">
-                <span className="flex items-center justify-center bg-primary/10 text-primary w-8 h-8 rounded-full mr-3">4</span>
+                <span className="flex items-center justify-center bg-primary/10 text-primary w-10 h-10 rounded-full mr-3">
+                  <BookMarked size={20} />
+                </span>
                 <span>News sources you trust</span>
               </li>
             </ul>
           </div>
         </CardContent>
-        
-        <CardFooter>
-          <Button 
-            onClick={onNext} 
-            className="w-full"
-            size="lg"
-          >
-            Let's Get Started
-          </Button>
-        </CardFooter>
       </Card>
     </motion.div>
   )

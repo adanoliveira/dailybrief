@@ -3,31 +3,24 @@
 import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import Image from "next/image" 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { Publication } from "@/lib/onboarding-service"
 
 interface PublicationsStepProps {
   publications: Publication[]
   selectedPublications: number[]
   onChange: (publicationIds: number[]) => void
-  onNext: () => void
-  onBack: () => void
-  isSubmitting: boolean
+  error?: string | null
 }
 
 export function PublicationsStep({
   publications,
   selectedPublications,
   onChange,
-  onNext,
-  onBack,
-  isSubmitting
+  error
 }: PublicationsStepProps) {
   const [selected, setSelected] = useState<number[]>(selectedPublications)
-  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
 
   // Update local state when props change
@@ -64,8 +57,6 @@ export function PublicationsStep({
 
   // Toggle publication selection
   const togglePublication = (publicationId: number) => {
-    setError(null)
-    
     if (selected.includes(publicationId)) {
       // Remove publication if it's already selected
       const newSelected = selected.filter(id => id !== publicationId)
@@ -79,16 +70,6 @@ export function PublicationsStep({
     }
   }
 
-  // Handle next step
-  const handleNext = () => {
-    if (selected.length === 0) {
-      setError("Please select at least one news source")
-      return
-    }
-    
-    onNext()
-  }
-
   // Default placeholder image for publications without a logo
   const defaultLogo = (pubName: string) => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(pubName)}&background=random&color=fff&size=128`
@@ -96,10 +77,10 @@ export function PublicationsStep({
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 50 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -50 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
+      className="relative w-full"
     >
       <Card className="border-none shadow-none">
         <CardHeader className="pb-4">
@@ -124,7 +105,7 @@ export function PublicationsStep({
             />
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {sortedPublications.map((publication) => (
               <button
                 key={publication.id}
@@ -179,34 +160,7 @@ export function PublicationsStep({
               No publications matched your search
             </div>
           )}
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>You've selected {selected.length} publications</p>
-          </div>
         </CardContent>
-        
-        <CardFooter className="flex justify-between">
-          <Button 
-            onClick={onBack} 
-            variant="outline"
-            disabled={isSubmitting}
-          >
-            Back
-          </Button>
-          <Button 
-            onClick={handleNext}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <div className="flex items-center">
-                <LoadingSpinner size="sm" className="mr-2" />
-                <span>Saving...</span>
-              </div>
-            ) : (
-              "Complete Setup"
-            )}
-          </Button>
-        </CardFooter>
       </Card>
     </motion.div>
   )

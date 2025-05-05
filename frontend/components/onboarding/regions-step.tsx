@@ -2,28 +2,26 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Region } from "@/lib/onboarding-service"
+import { getRegionFlag } from "@/lib/region-flags"
+import { Check } from "lucide-react"
 
 interface RegionsStepProps {
   regions: Region[]
   selectedRegions: string[]
   onChange: (regionCodes: string[]) => void
-  onNext: () => void
-  onBack: () => void
+  error?: string | null
 }
 
 export function RegionsStep({
   regions,
   selectedRegions,
   onChange,
-  onNext,
-  onBack
+  error
 }: RegionsStepProps) {
   const [selected, setSelected] = useState<string[]>(selectedRegions)
-  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
 
   // Update local state when props change
@@ -62,8 +60,6 @@ export function RegionsStep({
 
   // Toggle region selection
   const toggleRegion = (regionCode: string) => {
-    setError(null)
-    
     if (selected.includes(regionCode)) {
       // Remove region if it's already selected
       const newSelected = selected.filter(code => code !== regionCode)
@@ -77,22 +73,12 @@ export function RegionsStep({
     }
   }
 
-  // Handle next step
-  const handleNext = () => {
-    if (selected.length === 0) {
-      setError("Please select at least one region")
-      return
-    }
-    
-    onNext()
-  }
-
   return (
     <motion.div
-      initial={{ opacity: 0, x: 50 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -50 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
+      className="relative w-full"
     >
       <Card className="border-none shadow-none">
         <CardHeader className="pb-4">
@@ -117,37 +103,26 @@ export function RegionsStep({
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {sortedRegions.map((region) => (
               <button
                 key={region.code}
                 onClick={() => toggleRegion(region.code)}
-                className={`p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
+                className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
                   selected.includes(region.code)
                     ? "bg-primary/10 border-primary shadow-sm"
                     : "bg-card hover:bg-background"
                 }`}
               >
-                <div className="flex items-center">
-                  <span className="font-medium">{region.name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">({region.code.toUpperCase()})</span>
-                </div>
-                {selected.includes(region.code) && (
-                  <span className="ml-2 text-primary">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
+                <div className="flex items-center overflow-hidden">
+                  <span className="flex items-center justify-center bg-primary/10 w-10 h-10 rounded-full flex-shrink-0 mr-3">
+                    {getRegionFlag(region.code)}
                   </span>
+                  <span className="font-medium truncate">{region.name}</span>
+                </div>
+                
+                {selected.includes(region.code) && (
+                  <Check size={18} className="text-primary flex-shrink-0 ml-2" />
                 )}
               </button>
             ))}
@@ -158,25 +133,7 @@ export function RegionsStep({
               No regions matched your search
             </div>
           )}
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>You've selected {selected.length} regions</p>
-          </div>
         </CardContent>
-        
-        <CardFooter className="flex justify-between">
-          <Button 
-            onClick={onBack} 
-            variant="outline"
-          >
-            Back
-          </Button>
-          <Button 
-            onClick={handleNext}
-          >
-            Continue
-          </Button>
-        </CardFooter>
       </Card>
     </motion.div>
   )

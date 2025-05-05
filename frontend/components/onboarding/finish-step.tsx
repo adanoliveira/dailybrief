@@ -5,77 +5,45 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle } from "lucide-react"
 
-interface FinishStepProps {
-  onFinish: () => void
-}
-
-export function FinishStep({ onFinish }: FinishStepProps) {
+export function FinishStep() {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="relative w-full"
     >
-      <Card className="border-none shadow-none text-center">
-        <CardHeader className="pb-4">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-10 h-10 text-primary" />
-            </div>
+      <div className="flex flex-col items-center justify-center space-y-6 py-4">
+        <div className="relative flex items-center justify-center w-24 h-24">
+          <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-25"></div>
+          <div className="relative bg-green-100 rounded-full p-5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-green-600"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
           </div>
-          <CardTitle className="text-3xl font-bold">All Set!</CardTitle>
-        </CardHeader>
+        </div>
+
+        <h2 className="text-2xl font-bold text-center">All set!</h2>
         
-        <CardContent className="space-y-4">
-          <p className="text-lg">
-            Thanks for personalizing your DailyBrief experience. Your preferences have been saved.
-          </p>
-          
-          <div className="py-4 space-y-4">
-            <p>We'll use your preferences to:</p>
-            <ul className="space-y-3 text-left mx-auto max-w-xs">
-              <li className="flex items-start">
-                <span className="text-primary mr-2 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </span>
-                <span>Customize your news feed with relevant content</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </span>
-                <span>Prioritize stories from sources you trust</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2 mt-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </span>
-                <span>Send you a daily digest of important news</span>
-              </li>
-            </ul>
-          </div>
-          
-          <p>
-            You can always update these preferences later in your account settings.
-          </p>
-        </CardContent>
+        <p className="text-center text-muted-foreground max-w-xs">
+          Your preferences have been saved. We'll use them to personalize your news feed.
+        </p>
         
-        <CardFooter>
-          <Button 
-            onClick={onFinish} 
-            className="w-full"
-            size="lg"
-          >
-            Go to My Feed
-          </Button>
-        </CardFooter>
-      </Card>
+        <div className="py-4 text-center">
+          <p className="text-muted-foreground">You can update your preferences anytime from the settings page.</p>
+        </div>
+      </div>
     </motion.div>
   )
 } 

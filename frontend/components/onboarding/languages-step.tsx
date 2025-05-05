@@ -2,27 +2,41 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Language } from "@/lib/onboarding-service"
+import { getLanguageAutonym } from "@/lib/language-autonyms"
+import { Check } from "lucide-react"
 
 interface LanguagesStepProps {
   languages: Language[]
   selectedLanguages: string[]
   onChange: (languageCodes: string[]) => void
-  onNext: () => void
-  onBack: () => void
+  error?: string | null
+}
+
+/**
+ * Get language abbreviation suitable for display in a circle
+ */
+function getLanguageAbbreviation(languageCode: string): string {
+  // For languages with non-Latin scripts, use first character
+  const autonym = getLanguageAutonym(languageCode);
+  
+  // Use language code directly for Latin script languages
+  if (['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'sv', 'no', 'fi', 'da', 'cs', 'ro', 'hu'].includes(languageCode.toLowerCase())) {
+    return languageCode.toUpperCase();
+  }
+  
+  // For non-Latin scripts, use the first character
+  return autonym.charAt(0);
 }
 
 export function LanguagesStep({
   languages,
   selectedLanguages,
   onChange,
-  onNext,
-  onBack
+  error
 }: LanguagesStepProps) {
   const [selected, setSelected] = useState<string[]>(selectedLanguages)
-  const [error, setError] = useState<string | null>(null)
 
   // Update local state when props change
   useEffect(() => {
@@ -39,11 +53,8 @@ export function LanguagesStep({
 
   // Toggle language selection
   const toggleLanguage = (languageCode: string) => {
-    setError(null)
-    
     if (selected.includes(languageCode)) {
       if (selected.length <= 1) {
-        setError("You must select at least one language")
         return
       }
       
@@ -59,22 +70,12 @@ export function LanguagesStep({
     }
   }
 
-  // Handle next step
-  const handleNext = () => {
-    if (selected.length === 0) {
-      setError("Please select at least one language")
-      return
-    }
-    
-    onNext()
-  }
-
   return (
     <motion.div
-      initial={{ opacity: 0, x: 50 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -50 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
+      className="relative w-full"
     >
       <Card className="border-none shadow-none">
         <CardHeader className="pb-4">
@@ -89,57 +90,38 @@ export function LanguagesStep({
             </div>
           )}
           
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {sortedLanguages.map((language) => (
               <button
                 key={language.iso_code}
                 onClick={() => toggleLanguage(language.iso_code)}
-                className={`p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
+                className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
                   selected.includes(language.iso_code)
                     ? "bg-primary/10 border-primary shadow-sm"
                     : "bg-card hover:bg-background"
                 }`}
               >
-                <span className="font-medium">{language.name}</span>
-                {selected.includes(language.iso_code) && (
-                  <span className="ml-2 text-primary">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
+                <div className="flex items-center overflow-hidden">
+                  <span className="flex items-center justify-center bg-background dark:bg-gray-800 w-9 h-9 rounded-full flex-shrink-0 mr-3">
+                    <span className="font-mono text-sm tracking-wider font-semibold">
+                      {language.iso_code.toUpperCase()}
+                    </span>
                   </span>
+                  <div className="flex flex-col items-start overflow-hidden">
+                    <span className="font-medium text-left truncate">{language.name}</span>
+                    <span className="text-xs text-left text-muted-foreground truncate">
+                      {getLanguageAutonym(language.iso_code)}
+                    </span>
+                  </div>
+                </div>
+                
+                {selected.includes(language.iso_code) && (
+                  <Check size={18} className="text-primary flex-shrink-0 ml-2" />
                 )}
               </button>
             ))}
           </div>
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>You've selected {selected.length} languages</p>
-          </div>
         </CardContent>
-        
-        <CardFooter className="flex justify-between">
-          <Button 
-            onClick={onBack} 
-            variant="outline"
-          >
-            Back
-          </Button>
-          <Button 
-            onClick={handleNext}
-          >
-            Continue
-          </Button>
-        </CardFooter>
       </Card>
     </motion.div>
   )
