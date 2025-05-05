@@ -1,0 +1,45 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="120" cy="120" r="110" fill="#F3F4F6" />
+
+  <!-- Newspaper -->
+  <rect x="60" y="70" width="130" height="110" rx="4" fill="white" stroke="#374151" stroke-width="2" />
+
+  <!-- Newspaper folds -->
+  <line x1="125" y1="70" x2="125" y2="180" stroke="#E5E7EB" stroke-width="2" />
+
+  <!-- Headline -->
+  <rect x="70" y="85" width="45" height="7" rx="2" fill="#2563EB" />
+  <rect x="70" y="97" width="35" height="5" rx="2" fill="#4B5563" />
+  <rect x="70" y="107" width="40" height="5" rx="2" fill="#4B5563" />
+  <rect x="70" y="117" width="35" height="5" rx="2" fill="#4B5563" />
+
+  <!-- Image -->
+  <rect x="70" y="130" width="45" height="30" rx="2" fill="#E5E7EB" />
+  
+  <!-- Text columns - left side -->
+  <rect x="70" y="165" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="70" y="171" width="45" height="3" rx="1" fill="#9CA3AF" />
+
+  <!-- Right side -->
+  <rect x="135" y="85" width="45" height="7" rx="2" fill="#2563EB" />
+  <rect x="135" y="97" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="103" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="109" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="115" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="125" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="131" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="137" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="143" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="154" width="35" height="7" rx="2" fill="#2563EB" />
+  <rect x="135" y="166" width="45" height="3" rx="1" fill="#9CA3AF" />
+  <rect x="135" y="172" width="45" height="3" rx="1" fill="#9CA3AF" />
+
+  <!-- Magnifying glass -->
+  <circle cx="90" cy="60" r="18" fill="#DBEAFE" stroke="#2563EB" stroke-width="2" />
+  <rect x="102" y="72" width="6" height="22" rx="2" transform="rotate(-45 102 72)" fill="#2563EB" />
+  <circle cx="90" cy="60" r="10" fill="#DBEAFE" />
+
+  <!-- Star/notification - top right -->
+  <path d="M160 45L163 50L168 51L164 55L165 60L160 58L155 60L156 55L152 51L157 50L160 45Z" fill="#FCD34D" />
+</svg> 
