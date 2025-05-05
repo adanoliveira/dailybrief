@@ -16,8 +16,6 @@ from django.db import transaction
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from .utils import create_cors_response, handle_options_request
 
-# Create your views here.
-
 # Unified endpoint for user sync and status
 def user_sync_and_status(request):
     """

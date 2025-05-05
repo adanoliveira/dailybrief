@@ -175,6 +175,7 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           scope: "openid email profile",
@@ -222,6 +223,29 @@ export const authOptions: NextAuthOptions = {
     verifyRequest: "/auth/verify-request",
   },
   callbacks: {
+    async signIn({ user, account, profile, email, credentials }) {
+      // Allow sign in if:
+      // 1. This is the first sign in (no account exists yet)
+      // 2. The account is already linked to the user
+      // 3. There's an existing user with the same email (auto-link)
+      
+      const { email: userEmail } = user;
+      
+      if (!userEmail) {
+        console.log("Sign in denied: User has no email");
+        return false;
+      }
+      
+      // For safety, only allow automatic account linking for verified emails
+      // Google accounts are already verified, but for email provider check the verification
+      if (account?.provider === "email" && !(user as any).emailVerified) {
+        console.log("Sign in denied: Email not verified for email provider");
+        return "/auth/verify-request";
+      }
+      
+      console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
+      return true;
+    },
     async jwt({ token, user, account }): Promise<JWT> {
       // Add debugging for incoming token and user data
       console.log("JWT callback received:", JSON.stringify({
