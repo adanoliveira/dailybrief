@@ -228,13 +228,17 @@ export default function AuthPage() {
             Continue with Google
           </button>
           
+          {/* Apple Sign-in button commented out - will be enabled later
           <button 
-            className={cn(buttonVariants({ variant: "outline" }), "w-full")}
-            onClick={handleAppleSignIn}
+            className={cn(buttonVariants({ variant: "outline" }), "w-full opacity-60 cursor-not-allowed")}
+            disabled={true}
+            title="Apple Sign-in coming soon"
           >
             <FaApple className="mr-2" size={16} />
             Continue with Apple
+            <span className="ml-2 text-xs bg-muted px-1.5 py-0.5 rounded-md">Soon</span>
           </button>
+          */}
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

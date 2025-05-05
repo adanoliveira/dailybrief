@@ -175,11 +175,29 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          scope: "openid email profile",
+          prompt: "select_account"
+        }
+      }
     }),
-    AppleProvider({
-      clientId: process.env.APPLE_ID!,
-      clientSecret: process.env.APPLE_SECRET!,
-    }),
+    // Apple Sign-in temporarily disabled - will be enabled later
+    // @ts-ignore - The types for Apple provider don't have clientSecret as an object, but it actually accepts this format
+    // AppleProvider({
+    //   clientId: process.env.APPLE_ID!,
+    //   clientSecret: {
+    //     teamId: process.env.APPLE_TEAM_ID as string,
+    //     privateKey: process.env.APPLE_SECRET as string,
+    //     keyId: process.env.APPLE_KEY_ID as string,
+    //   },
+    //   authorization: {
+    //     params: {
+    //       scope: "name email",
+    //       response_mode: "form_post"
+    //     }
+    //   }
+    // }),
     EmailProvider({
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM || "noreply@dailybrief.com",
