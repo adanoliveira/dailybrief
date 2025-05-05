@@ -1,90 +1,119 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useRouter, usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { usePathname } from "next/navigation"
+import { useEffect, useState, ReactNode, useRef } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Extend the user type to include our custom fields
-interface ExtendedUser {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-  django_user_id?: number;
-  django_token?: string;
-  has_completed_onboarding?: boolean;
+interface SessionRedirectProps {
+  children: ReactNode;
 }
 
-interface ExtendedSession {
-  user?: ExtendedUser;
-  expires: string;
-}
-
-export default function SessionRedirect() {
-  const { data: session, status } = useSession() as { 
-    data: ExtendedSession | null;
-    status: "loading" | "authenticated" | "unauthenticated"
-  }
-  const router = useRouter()
+export default function SessionRedirect({ children }: SessionRedirectProps) {
+  const { status, data: session, update: updateSession } = useSession()
   const pathname = usePathname() || "/"
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRedirecting, setIsRedirecting] = useState(false)
+  const hasUpdatedSession = useRef(false)
   
   useEffect(() => {
     // Only run on client
     if (typeof window === "undefined") return
     
-    console.log("SessionRedirect checking auth status:", status, "path:", pathname);
+    // If we're already redirecting, don't do anything
+    if (isRedirecting) return
     
-    // If we're loading, don't do anything yet
+    console.log("SessionRedirect: Auth check on", pathname)
+    
+    // Always show loading initially
+    setIsLoading(true)
+    
+    // If we're still loading the session, wait
     if (status === "loading") return
     
-    // If the user is authenticated
-    if (status === "authenticated" && session?.user) {
-      console.log("User is authenticated, session data:", JSON.stringify({
-        user_data: session.user ? "exists" : "missing",
-        onboarding_status: session.user.has_completed_onboarding
-      }));
-      
-      // Routes that should redirect to /home or /onboarding for authenticated users
-      const publicRoutes = ["/", "/auth", "/auth/verify-request", "/auth/error"]
-      
-      if (publicRoutes.includes(pathname)) {
-        // Check if user has completed onboarding
-        if (session.user.has_completed_onboarding) {
-          console.log("Redirecting authenticated user to /home");
-          router.push("/home")
-        } else {
-          console.log("Redirecting authenticated user to /onboarding");
-          router.push("/onboarding")
-        }
-      }
-    } 
-    // If the user is not authenticated
-    else if (status === "unauthenticated") {
-      console.log("User is unauthenticated");
-      
-      // Routes that require authentication
-      const protectedRoutes = [
-        "/home", 
-        "/onboarding",
-        "/profile",
-        "/settings",
-        "/world",
-        "/article",
-        "/digest"
-      ]
-      
-      // Check if the current path starts with any protected route
-      const isProtectedRoute = protectedRoutes.some(route => 
-        pathname === route || pathname.startsWith(`${route}/`)
-      )
-      
-      if (isProtectedRoute) {
-        console.log("Unauthenticated user trying to access protected route, redirecting to /auth");
-        router.push("/auth")
-      }
+    // List of public routes that don't require authentication
+    const publicRoutes = ["/", "/auth", "/auth/verify-request", "/auth/error"]
+    
+    // List of auth-only routes that should redirect to /loading for initial check
+    const protectedRoutes = [
+      "/home", 
+      "/onboarding",
+      "/profile",
+      "/settings",
+      "/world",
+      "/article",
+      "/digest"
+    ]
+    
+    const isPublicRoute = publicRoutes.includes(pathname)
+    const isProtectedRoute = protectedRoutes.some(route => 
+      pathname === route || pathname.startsWith(`${route}/`)
+    )
+    
+    // Check if user has completed onboarding according to localStorage
+    const hasDoneOnboarding = localStorage.getItem('has_completed_onboarding') === 'true'
+    
+    // IMPORTANT: Only update session once to prevent update loops
+    if (hasDoneOnboarding && session?.user && !session.user.has_completed_onboarding && !hasUpdatedSession.current) {
+      console.log("SessionRedirect: Fixing session based on localStorage (one-time update)")
+      hasUpdatedSession.current = true
+      updateSession({ has_completed_onboarding: true })
+        .catch(err => console.error("Error updating session:", err))
     }
-  }, [status, session, router, pathname])
+    
+    // Loading page handles its own redirects, don't interfere
+    if (pathname === "/loading") {
+      console.log("SessionRedirect: On loading page, not redirecting")
+      setIsLoading(false)
+      return
+    }
+    
+    // Onboarding page handles its own redirects if localStorage says completed
+    if (pathname === "/onboarding" && hasDoneOnboarding) {
+      console.log("SessionRedirect: User already completed onboarding, will be handled by onboarding page")
+      setIsLoading(false)
+      return
+    }
+    
+    // Case 1: Unauthenticated user trying to access protected route
+    if (status === "unauthenticated" && isProtectedRoute) {
+      console.log("SessionRedirect: Unauthenticated user on protected route, redirecting to /auth")
+      setIsRedirecting(true)
+      window.location.replace("/auth")
+      return
+    }
+    
+    // Case 2: Authenticated user on public route
+    if (status === "authenticated" && isPublicRoute) {
+      // If localStorage says user has completed onboarding, go straight to home
+      if (hasDoneOnboarding) {
+        console.log("SessionRedirect: User has completed onboarding (localStorage), going to home")
+        setIsRedirecting(true)
+        window.location.replace("/home")
+        return
+      }
+      
+      console.log("SessionRedirect: Authenticated user on public route, redirecting to /loading")
+      setIsRedirecting(true)
+      window.location.replace("/loading")
+      return
+    }
+    
+    // All other cases: Show the page content after a brief delay
+    setTimeout(() => {
+      setIsLoading(false)
+    }, 100)
+  }, [status, pathname, session, updateSession, isRedirecting])
   
-  // This component doesn't render anything
-  return null
+  // Simple loading spinner for brief transitions
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    )
+  }
+  
+  // When not loading, show the children
+  return <>{children}</>
 } 

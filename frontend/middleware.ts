@@ -8,18 +8,25 @@ export async function middleware(request: NextRequest) {
   
   // Check for special query parameters
   const searchParams = request.nextUrl.searchParams
-  const isNewSession = searchParams.get('new_session') === 'true'
+  const skipChecks = 
+    searchParams.get('skip_check') === 'true' || 
+    searchParams.get('force') === 'true' ||
+    searchParams.get('new_session') === 'true'
 
-  // Check if this is a protected path 
-  const isAuthPage = path === "/auth" || 
-                     path.startsWith("/auth/") ||
-                     path === "/terms" ||
-                     path === "/privacy"
-  const isOnboardingPage = path.startsWith("/onboarding")
-  const isTestPage = path.startsWith("/test")
+  // If any bypass parameters are present, skip all checks
+  if (skipChecks) {
+    console.log(`Middleware: Skip parameter detected, allowing access to ${path}`)
+    return NextResponse.next()
+  }
+
+  // Define route types
   const isPublicPath = 
     path.startsWith("/_next") ||
     path.startsWith("/api") ||
+    path === "/auth" ||
+    path.startsWith("/auth/") ||
+    path === "/terms" ||
+    path === "/privacy" ||
     path === "/" ||
     path.endsWith(".svg") ||
     path.endsWith(".png") ||
@@ -27,41 +34,53 @@ export async function middleware(request: NextRequest) {
     path.endsWith(".ico") ||
     path.endsWith(".json")
 
+  const isLoadingCheckPage = path === "/loading-check"
+  const isOnboardingPage = path.startsWith("/onboarding")
+  const isAuthenticatedPath = !isPublicPath && !isLoadingCheckPage && !isOnboardingPage
+
   // Get the token from the request
   const token = await getToken({ req: request })
+  
+  console.log(`Middleware: Path ${path}, isAuthenticated: ${!!token}, hasCompletedOnboarding: ${token?.has_completed_onboarding}`)
 
-  // If the user is not authenticated and trying to access a protected route
-  if (!token && !isAuthPage && !isTestPage && !isPublicPath) {
+  // --- MAIN REDIRECT LOGIC ---
+  
+  // 1. Access control: Unauthenticated users can only access public routes and auth
+  if (!token && isAuthenticatedPath) {
+    console.log(`Middleware: Redirecting unauthenticated user from ${path} to /auth`)
     return NextResponse.redirect(new URL("/auth", request.url))
   }
 
-  // If the user is authenticated but trying to access auth pages
-  if (token && isAuthPage) {
-    return NextResponse.redirect(new URL("/home", request.url))
-  }
-
-  // Check if the user has completed onboarding
-  const hasCompletedOnboarding = token?.has_completed_onboarding === true
-
-  // If we have a direct request with new_session=true to /home, allow it
-  // This is a special case for after onboarding completion
-  if (token && path === "/home" && isNewSession) {
-    // Allow the request to proceed to /home even if onboarding is not completed
-    // The session will be refreshed on the client side
+  // 2. Loading check is special - always allow if user is authenticated
+  if (token && isLoadingCheckPage) {
+    console.log(`Middleware: Allowing access to loading-check page`)
     return NextResponse.next()
   }
+  
+  // 3. Direct authenticated users away from auth pages
+  if (token && path === "/auth") {
+    console.log(`Middleware: Redirecting authenticated user from /auth to /loading-check`)
+    return NextResponse.redirect(new URL("/loading-check", request.url))
+  }
 
-  // If the user is authenticated but hasn't completed onboarding
-  if (
-    token &&
-    !hasCompletedOnboarding &&
-    !isOnboardingPage &&
-    !isTestPage &&
-    !isPublicPath
-  ) {
+  // 4. Handle onboarding check only for authenticated protected routes
+  const hasCompletedOnboarding = token?.has_completed_onboarding === true
+  
+  if (token && !hasCompletedOnboarding && isAuthenticatedPath && !isOnboardingPage) {
+    console.log(`Middleware: Redirecting to onboarding: ${path} → /onboarding`)
     return NextResponse.redirect(new URL("/onboarding", request.url))
   }
 
+  // 5. Root path handling - redirect to appropriate place
+  if (path === "/") {
+    if (token) {
+      return NextResponse.redirect(new URL("/loading-check", request.url))
+    } else {
+      return NextResponse.redirect(new URL("/auth", request.url))
+    }
+  }
+
+  // Allow all other requests
   return NextResponse.next()
 }
 

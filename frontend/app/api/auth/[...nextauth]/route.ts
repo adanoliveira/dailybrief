@@ -87,8 +87,10 @@ async function syncUserWithBackend(user: any): Promise<any> {
     // Remove trailing slash if present
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     // Check if baseUrl already contains /api
-    const apiPath = cleanBaseUrl.endsWith('/api') ? '/auth/sync/' : '/api/auth/sync/';
+    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/sync/' : '/api/accounts/sync/';
     const apiUrl = `${cleanBaseUrl}${apiPath}`;
+    
+    console.log(`Syncing user with backend at: ${apiUrl}`);
     
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -107,6 +109,8 @@ async function syncUserWithBackend(user: any): Promise<any> {
     })
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Backend sync failed with status ${response.status}: ${errorText}`);
       throw new Error(`Backend sync failed: ${response.status}`)
     }
     
@@ -134,8 +138,10 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     // Remove trailing slash if present
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     // Check if baseUrl already contains /api
-    const apiPath = cleanBaseUrl.endsWith('/api') ? '/auth/onboarding-status/' : '/api/auth/onboarding-status/';
+    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/user/status/' : '/api/accounts/user/status/';
     const apiUrl = `${cleanBaseUrl}${apiPath}`;
+    
+    console.log(`Checking user status at: ${apiUrl}`);
     
     const response = await fetch(apiUrl, {
       method: "GET",
@@ -148,15 +154,18 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     })
     
     if (!response.ok) {
-      console.error(`Failed to check onboarding status: ${response.status}`)
-      return false
+      console.error(`Failed to check user status: ${response.status}`);
+      const responseText = await response.text();
+      console.error(`Response body: ${responseText}`);
+      return false;
     }
     
-    const data = await response.json()
-    return !!data.has_completed_onboarding
+    const data = await response.json();
+    console.log(`User status response:`, data);
+    return !!data.has_completed_onboarding;
   } catch (error) {
-    console.error("Error checking onboarding status:", error)
-    return false
+    console.error("Error checking user status:", error);
+    return false;
   }
 }
 
@@ -237,6 +246,23 @@ export const authOptions: NextAuthOptions = {
         }
       }
       
+      // If token already exists with django_token, check the onboarding status directly
+      // This ensures we get the latest onboarding status on each token refresh
+      if (token.django_token && token.django_token !== "offline_mode_token") {
+        try {
+          console.log("Checking onboarding status for existing session");
+          const onboardingCompleted = await checkOnboardingStatus(token.django_token);
+          
+          if (onboardingCompleted) {
+            console.log("User has completed onboarding according to backend");
+            token.has_completed_onboarding = true;
+          }
+        } catch (error) {
+          console.error("Error checking onboarding status:", error);
+          // Don't update the token if the check fails, keep the existing value
+        }
+      }
+      
       // Log the token being returned
       console.log("JWT callback returning token with:", JSON.stringify({
         user_id: (token.user as any)?.id || "not set",
@@ -281,43 +307,26 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl, token }: { url: string; baseUrl: string; token?: JWT }) {
-      // Check if this is a verification or error page
+      // Simplified redirect logic - only handle core auth flows
+      console.log(`NextAuth redirect callback: url=${url}, hasToken=${!!token}`);
+      
+      // Handle only authentication-specific URLs
+      
+      // For callback and sign-in URLs, always redirect to loading-check
+      if (url.includes("/api/auth/callback") || url.includes("/api/auth/signin")) {
+        console.log("NextAuth redirect: Auth flow completed, redirecting to loading-check");
+        return `${baseUrl}/loading-check`;
+      }
+      
+      // For verification and error URLs, keep them as is
       if (url.includes("/auth/verify-request") || url.includes("/auth/error")) {
+        console.log("NextAuth redirect: Allowing auth verification or error page");
         return url;
       }
       
-      // For callback and sign-in URLs, always redirect to onboarding
-      // This handles the post-authentication redirect
-      if (url.includes("/callback") || url.includes("/signin")) {
-        console.log("Auth flow completed, redirecting to onboarding");
-        return `${baseUrl}/onboarding`;
-      }
-      
-      // For homepage requests, direct to onboarding if token exists, otherwise auth
-      if (url === baseUrl || url === `${baseUrl}/`) {
-        if (token) {
-          console.log("Token exists for homepage request, redirecting to onboarding");
-          return `${baseUrl}/onboarding`;
-        } else {
-          console.log("No token for homepage request, redirecting to auth");
-          return `${baseUrl}/auth`;
-        }
-      }
-      
-      // Default redirects for all other URLs
-      if (url.startsWith("/")) {
-        // Relative URLs are allowed
-        console.log(`Default redirect to: ${baseUrl}${url}`);
-        return `${baseUrl}${url}`;
-      } else if (new URL(url).origin === baseUrl) {
-        // URLs with the same origin are allowed
-        console.log(`Default redirect to same origin: ${url}`);
-        return url;
-      }
-      
-      // Default to redirecting to the base URL
-      console.log(`Fallback redirect to base URL: ${baseUrl}`);
-      return baseUrl;
+      // For all other URLs, don't interfere with the destination
+      console.log(`NextAuth redirect: Passing through to destination: ${url}`);
+      return url;
     },
   },
   session: {

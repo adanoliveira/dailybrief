@@ -2,6 +2,7 @@ import type React from "react"
 import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/components/language-provider"
 import { AuthProvider } from "@/components/auth-provider"
+import { UserProvider } from "@/lib/user-context"
 import { Toaster } from "@/components/ui/toaster"
 import { Inter } from "next/font/google"
 import "./globals.css"
@@ -44,12 +45,15 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            <LanguageProvider>
-              <SessionRedirect />
-              {children}
-              <Toaster />
-              <ServiceWorkerRegistration />
-            </LanguageProvider>
+            <UserProvider>
+              <LanguageProvider>
+                <SessionRedirect>
+                  {children}
+                </SessionRedirect>
+                <Toaster />
+                <ServiceWorkerRegistration />
+              </LanguageProvider>
+            </UserProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

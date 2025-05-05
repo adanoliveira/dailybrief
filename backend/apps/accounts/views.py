@@ -17,28 +17,56 @@ from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 
 # Create your views here.
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
 def sync_user(request):
     """
-    Endpoint for NextAuth to sync user data with Django.
+    Direct Django view (no DRF) for NextAuth to sync user data with Django.
     Creates or updates a Django user based on the NextAuth user data.
     """
     try:
+        # For OPTIONS requests (preflight CORS)
+        if request.method == 'OPTIONS':
+            response = JsonResponse({})
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            return response
+            
+        # Only allow POST method
+        if request.method != 'POST':
+            error_response = JsonResponse(
+                {"error": "Method not allowed, use POST"},
+                status=405
+            )
+            error_response["Access-Control-Allow-Origin"] = "*"
+            return error_response
+        
+        # Parse request body
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            error_response = JsonResponse(
+                {"error": "Invalid JSON in request body"},
+                status=400
+            )
+            error_response["Access-Control-Allow-Origin"] = "*"
+            return error_response
+
         # Validate request data
         required_fields = ['email', 'name', 'provider', 'nextauth_id']
         for field in required_fields:
-            if field not in request.data:
-                return Response(
-                    {'error': f'Missing required field: {field}'},
-                    status=status.HTTP_400_BAD_REQUEST
+            if field not in data:
+                error_response = JsonResponse(
+                    {"error": f"Missing required field: {field}"},
+                    status=400
                 )
+                error_response["Access-Control-Allow-Origin"] = "*"
+                return error_response
         
-        email = request.data['email']
-        name = request.data['name']
-        provider = request.data['provider']
-        nextauth_id = request.data['nextauth_id']
-        image = request.data.get('image', '')
+        email = data['email']
+        name = data['name']
+        provider = data['provider']
+        nextauth_id = data['nextauth_id']
+        image = data.get('image', '')
         
         # Try to find existing user by email
         try:
@@ -88,52 +116,85 @@ def sync_user(request):
             profile.save()
         
         # Return user data and token
-        return Response({
+        response = JsonResponse({
             'id': user.id,
             'public_id': str(profile.public_id),
             'email': user.email,
             'name': user.first_name,
             'django_token': token,
             'has_completed_onboarding': has_completed_onboarding,
-        }, status=status.HTTP_200_OK)
+        })
+        
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
         
     except Exception as e:
-        return Response(
-            {'error': f'User sync failed: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        print(f"Error in sync_user: {e}")
+        print(traceback.format_exc())
+        error_response = JsonResponse(
+            {"error": f"User sync failed: {str(e)}"},
+            status=500
         )
+        error_response["Access-Control-Allow-Origin"] = "*"
+        return error_response
 
-@api_view(['GET'])
-def check_onboarding_status(request):
+def check_user_status(request):
     """
-    Check if the authenticated user has completed onboarding.
-    Uses the auth token to identify the user.
+    Consolidated endpoint to check user status, including:
+    - Onboarding completion status
+    - Basic user information
     """
     try:
-        user = request.user
-        
-        # Ensure user is authenticated
-        if not user.is_authenticated:
-            return Response(
-                {'error': 'Authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
+        # For OPTIONS requests (preflight CORS)
+        if request.method == 'OPTIONS':
+            response = JsonResponse({})
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            return response
+            
+        # Only allow GET method
+        if request.method != 'GET':
+            error_response = JsonResponse(
+                {"error": "Method not allowed, use GET"},
+                status=405
             )
+            error_response["Access-Control-Allow-Origin"] = "*"
+            return error_response
+            
+        # Authenticate the request
+        authenticated, user, error = authenticate_request(request)
+        if not authenticated:
+            return get_auth_response(error)
         
-        # Get the profile which now has the onboarding_completed field
+        # Get the profile which has the onboarding_completed field
         profile = UserProfile.objects.get(user=user)
         
-        # Return the onboarding status
-        return Response({
+        # Return the user status with essential information
+        response = JsonResponse({
             'user_id': user.id,
             'public_id': str(profile.public_id),
             'email': user.email,
+            'name': user.first_name,
             'has_completed_onboarding': profile.onboarding_completed,
         })
+        
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
+        
     except Exception as e:
-        return Response(
-            {'error': f'Failed to check onboarding status: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        print(f"Error in check_user_status: {e}")
+        print(traceback.format_exc())
+        error_response = JsonResponse(
+            {"error": f"Failed to check user status: {str(e)}"},
+            status=500
         )
+        error_response["Access-Control-Allow-Origin"] = "*"
+        return error_response
 
 @api_view(['POST'])
 def save_onboarding(request):

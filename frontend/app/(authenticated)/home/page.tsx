@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { useUser } from "@/lib/user-context"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Filter, Search } from "lucide-react"
@@ -10,35 +11,85 @@ import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
-import { api } from "@/lib/api"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function Home() {
+  // Declare all hooks at the top level
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const isNewSession = searchParams?.get('new_session') === 'true'
-  const { data: session, update: updateSession } = useSession()
-
-  // Check onboarding status directly from backend if this is a new session
+  const { data: session } = useSession()
+  const { userStatus, isLoading: isLoadingUser } = useUser()
+  const { toast } = useToast()
+  const [isVerifying, setIsVerifying] = useState(true)
+  
+  // Check if user has completed onboarding
   useEffect(() => {
-    async function checkOnboardingStatus() {
-      if (isNewSession) {
-        try {
-          console.log("New session detected, checking onboarding status...")
-          // Remove the query parameter by replacing the URL without it
-          window.history.replaceState({}, document.title, '/home')
-          
-          // Force session refresh
-          await updateSession({ has_completed_onboarding: true })
-          console.log("Session updated with completed onboarding")
-        } catch (error) {
-          console.error("Error updating session:", error)
-        }
-      }
+    const forceParam = searchParams?.get('force') === 'true'
+    
+    // Skip verification if force parameter is present
+    if (forceParam) {
+      setIsVerifying(false)
+      return
     }
     
-    checkOnboardingStatus()
-  }, [isNewSession, updateSession])
+    // Wait for user status to be loaded
+    if (isLoadingUser) {
+      return
+    }
+    
+    // If we have user status, check onboarding status
+    if (userStatus) {
+      if (!userStatus.has_completed_onboarding) {
+        console.log("Home: User has NOT completed onboarding, redirecting")
+        router.replace('/onboarding?skip_check=true')
+        return
+      }
+      
+      // User has completed onboarding, allow access to home
+      setIsVerifying(false)
+    }
+    
+    // If user status isn't available yet but session is, check localStorage as fallback
+    if (!userStatus && session) {
+      const hasDoneOnboarding = localStorage.getItem('has_completed_onboarding') === 'true'
+      if (!hasDoneOnboarding) {
+        console.log("Home: User has NOT completed onboarding (localStorage), redirecting")
+        router.replace('/onboarding?skip_check=true')
+        return
+      }
+      
+      // Onboarding is complete according to localStorage, allow access to home
+      setIsVerifying(false)
+    }
+  }, [userStatus, isLoadingUser, session, router, searchParams])
 
-  return (
+  // Check if user just completed onboarding
+  useEffect(() => {
+    const justCompletedOnboarding = searchParams?.get('onboarding_complete') === 'true' || 
+                                    searchParams?.get('new_session') === 'true'
+    
+    if (justCompletedOnboarding) {
+      // Remove the query parameter without navigation
+      window.history.replaceState({}, document.title, '/home')
+      
+      toast({
+        title: "Setup complete!",
+        description: "Welcome to your personalized news feed.",
+        duration: 3000,
+      })
+    }
+  }, [searchParams, toast])
+
+  // Define render functions for different states
+  const renderVerifying = () => (
+    <div className="container py-6">
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <p className="text-muted-foreground">Loading your personalized feed...</p>
+      </div>
+    </div>
+  )
+
+  const renderMainContent = () => (
     <div className="container py-6">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -82,4 +133,11 @@ export default function Home() {
       </div>
     </div>
   )
+
+  // Now render the appropriate content after all hooks have been called
+  if (isVerifying) {
+    return renderVerifying()
+  }
+
+  return renderMainContent()
 }
