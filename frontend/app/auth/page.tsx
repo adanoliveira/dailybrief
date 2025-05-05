@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import Link from "next/link"
 import { FaGoogle, FaApple } from "react-icons/fa"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
+import { useUser } from "@/lib/user-context"
 
 // Rate limiting constants
 const COOLDOWN_PERIOD_MS = 20000; // 20 seconds
@@ -22,6 +24,62 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null)
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [lastRequestTime, setLastRequestTime] = useState<number | null>(null)
+  const [isRedirecting, setIsRedirecting] = useState(false)
+  const { data: session, status: sessionStatus } = useSession()
+  const { userStatus, isLoading: isUserLoading, refreshUserStatus } = useUser()
+  const router = useRouter()
+
+  // Redirect based on auth status - use direct approach rather than depending on SessionRedirect
+  useEffect(() => {
+    // Skip if we're already in the process of redirecting
+    if (isRedirecting) return;
+
+    // Only run when we have definitive session and user status info
+    if (sessionStatus === "loading" || isUserLoading) {
+      console.log("Auth page: Still loading session or user data...");
+      return;
+    }
+
+    // If authenticated, check onboarding status and redirect
+    if (sessionStatus === "authenticated" && session?.user) {
+      console.log("Auth page: User authenticated with token. Checking onboarding status...");
+      setIsRedirecting(true);
+      
+      // Check for onboarding status directly from session first
+      if (session.user.has_completed_onboarding === true) {
+        console.log("Auth page: Session indicates onboarding completed. Redirecting to home...");
+        router.replace("/home");
+        return;
+      }
+      
+      // If we have user status from context, use it
+      if (userStatus) {
+        if (userStatus.has_completed_onboarding === true) {
+          console.log("Auth page: Context indicates onboarding completed. Redirecting to home...");
+          router.replace("/home");
+        } else {
+          console.log("Auth page: Context indicates onboarding not completed. Redirecting to onboarding...");
+          router.replace("/onboarding");
+        }
+        return;
+      }
+      
+      // If we don't have user status yet, refresh and then decide
+      refreshUserStatus().then(refreshedStatus => {
+        if (refreshedStatus?.has_completed_onboarding === true) {
+          console.log("Auth page: Refreshed status indicates onboarding completed. Redirecting to home...");
+          router.replace("/home");
+        } else {
+          console.log("Auth page: Refreshed status indicates onboarding not completed. Redirecting to onboarding...");
+          router.replace("/onboarding");
+        }
+      }).catch(err => {
+        console.error("Auth page: Failed to refresh user status", err);
+        // Default to onboarding if we can't determine status
+        router.replace("/onboarding");
+      });
+    }
+  }, [sessionStatus, session, userStatus, isUserLoading, router, refreshUserStatus, isRedirecting]);
 
   useEffect(() => {
     // Check if there's a cooldown in localStorage
@@ -86,7 +144,6 @@ export default function AuthPage() {
       const result = await signIn("email", { 
         email, 
         redirect: false,
-        callbackUrl: "/onboarding",
       })
       
       if (result?.error) {
@@ -109,13 +166,48 @@ export default function AuthPage() {
   }
 
   const handleGoogleSignIn = async () => {
-    await signIn("google", { callbackUrl: "/onboarding" })
+    await signIn("google", { redirect: false })
   }
 
   const handleAppleSignIn = async () => {
-    await signIn("apple", { callbackUrl: "/onboarding" })
+    await signIn("apple", { redirect: false })
   }
 
+  // Show loading state if session is loading, user data is loading, or we're redirecting
+  if (sessionStatus === "loading" || (sessionStatus === "authenticated" && (isUserLoading || isRedirecting))) {
+    return (
+      <div className="container flex flex-col items-center justify-center min-h-screen py-12">
+        <div className="mb-8">
+          <LogoHorizontal width={200} priority />
+        </div>
+        <div className="w-full max-w-md text-center">
+          <div className="flex justify-center my-8">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+          </div>
+          <p className="text-muted-foreground">Setting up your account...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If authenticated but not yet redirected, show loading
+  if (sessionStatus === "authenticated") {
+    return (
+      <div className="container flex flex-col items-center justify-center min-h-screen py-12">
+        <div className="mb-8">
+          <LogoHorizontal width={200} priority />
+        </div>
+        <div className="w-full max-w-md text-center">
+          <div className="flex justify-center my-8">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+          </div>
+          <p className="text-muted-foreground">Redirecting you to the right place...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show login UI for unauthenticated users
   return (
     <div className="container flex flex-col items-center justify-center min-h-screen py-12">
       <div className="mb-8">

@@ -312,10 +312,10 @@ export const authOptions: NextAuthOptions = {
       
       // Handle only authentication-specific URLs
       
-      // For callback and sign-in URLs, always redirect to loading-check
+      // For callback and sign-in URLs, redirect to auth page (client will handle further routing)
       if (url.includes("/api/auth/callback") || url.includes("/api/auth/signin")) {
-        console.log("NextAuth redirect: Auth flow completed, redirecting to loading-check");
-        return `${baseUrl}/loading-check`;
+        console.log("NextAuth redirect: Auth flow completed, redirecting to /auth");
+        return `${baseUrl}/auth`;
       }
       
       // For verification and error URLs, keep them as is

@@ -1,117 +1,95 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { usePathname } from "next/navigation"
-import { useEffect, useState, ReactNode, useRef } from "react"
-import { Skeleton } from "@/components/ui/skeleton"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState, useRef, ReactNode } from "react"
+import { LoadingState } from "@/components/ui/loading-state"
 
 interface SessionRedirectProps {
   children: ReactNode;
 }
 
+/**
+ * SessionRedirect - Handles basic authentication protection
+ * 
+ * This component has a reduced scope: it only redirects unauthenticated users 
+ * away from protected routes. All other redirection logic (like onboarding status)
+ * is now handled by individual pages.
+ */
 export default function SessionRedirect({ children }: SessionRedirectProps) {
-  const { status, data: session, update: updateSession } = useSession()
+  const { status: sessionStatus } = useSession()
   const pathname = usePathname() || "/"
   const [isLoading, setIsLoading] = useState(true)
-  const [isRedirecting, setIsRedirecting] = useState(false)
-  const hasUpdatedSession = useRef(false)
+  const router = useRouter()
+  const lastRedirectTime = useRef<number>(0)
+  const isRedirecting = useRef<boolean>(false)
+  
+  // Function to handle redirects with rate limiting
+  const handleRedirect = (destination: string, reason: string) => {
+    const now = Date.now()
+    // Prevent redirect if we've redirected in the last 2 seconds or already redirecting
+    if (isRedirecting.current || (now - lastRedirectTime.current < 2000)) {
+      console.log(`SessionRedirect: Skipping redirect to ${destination} - too frequent`)
+      return
+    }
+    
+    console.log(`SessionRedirect: Redirecting to ${destination} - ${reason}`)
+    isRedirecting.current = true
+    lastRedirectTime.current = now
+    
+    // Use setTimeout to prevent immediate navigation
+    // This helps prevent potential redirect loops
+    setTimeout(() => {
+      router.replace(destination)
+      // Reset redirecting flag after timeout
+      setTimeout(() => {
+        isRedirecting.current = false
+      }, 500)
+    }, 100)
+  }
   
   useEffect(() => {
     // Only run on client
     if (typeof window === "undefined") return
     
-    // If we're already redirecting, don't do anything
-    if (isRedirecting) return
+    console.log("SessionRedirect: Basic protection check", {
+      path: pathname,
+      authStatus: sessionStatus,
+    })
     
-    console.log("SessionRedirect: Auth check on", pathname)
-    
-    // Always show loading initially
-    setIsLoading(true)
-    
-    // If we're still loading the session, wait
-    if (status === "loading") return
-    
-    // List of public routes that don't require authentication
-    const publicRoutes = ["/", "/auth", "/auth/verify-request", "/auth/error"]
-    
-    // List of auth-only routes that should redirect to /loading for initial check
-    const protectedRoutes = [
-      "/home", 
-      "/onboarding",
-      "/profile",
-      "/settings",
-      "/world",
-      "/article",
-      "/digest"
-    ]
-    
-    const isPublicRoute = publicRoutes.includes(pathname)
-    const isProtectedRoute = protectedRoutes.some(route => 
-      pathname === route || pathname.startsWith(`${route}/`)
-    )
-    
-    // Check if user has completed onboarding according to localStorage
-    const hasDoneOnboarding = localStorage.getItem('has_completed_onboarding') === 'true'
-    
-    // IMPORTANT: Only update session once to prevent update loops
-    if (hasDoneOnboarding && session?.user && !session.user.has_completed_onboarding && !hasUpdatedSession.current) {
-      console.log("SessionRedirect: Fixing session based on localStorage (one-time update)")
-      hasUpdatedSession.current = true
-      updateSession({ has_completed_onboarding: true })
-        .catch(err => console.error("Error updating session:", err))
-    }
-    
-    // Loading page handles its own redirects, don't interfere
-    if (pathname === "/loading") {
-      console.log("SessionRedirect: On loading page, not redirecting")
-      setIsLoading(false)
+    // If session is still loading, wait
+    if (sessionStatus === "loading") {
+      console.log("SessionRedirect: Session still loading, waiting...")
       return
     }
     
-    // Onboarding page handles its own redirects if localStorage says completed
-    if (pathname === "/onboarding" && hasDoneOnboarding) {
-      console.log("SessionRedirect: User already completed onboarding, will be handled by onboarding page")
-      setIsLoading(false)
+    // Define public routes that don't require authentication
+    const isPublicRoute = 
+      pathname === "/" || 
+      pathname === "/auth" || 
+      pathname.startsWith("/auth/") ||
+      pathname === "/terms" || 
+      pathname === "/privacy" ||
+      pathname.endsWith(".svg") || 
+      pathname.endsWith(".png") || 
+      pathname.endsWith(".jpg") ||
+      pathname.endsWith(".ico") ||
+      pathname.endsWith(".json")
+    
+    // Very basic protection: only redirect unauthenticated users from protected routes
+    if (sessionStatus === "unauthenticated" && !isPublicRoute) {
+      handleRedirect("/auth", "protected route to auth (unauthenticated)")
       return
     }
     
-    // Case 1: Unauthenticated user trying to access protected route
-    if (status === "unauthenticated" && isProtectedRoute) {
-      console.log("SessionRedirect: Unauthenticated user on protected route, redirecting to /auth")
-      setIsRedirecting(true)
-      window.location.replace("/auth")
-      return
-    }
-    
-    // Case 2: Authenticated user on public route
-    if (status === "authenticated" && isPublicRoute) {
-      // If localStorage says user has completed onboarding, go straight to home
-      if (hasDoneOnboarding) {
-        console.log("SessionRedirect: User has completed onboarding (localStorage), going to home")
-        setIsRedirecting(true)
-        window.location.replace("/home")
-        return
-      }
-      
-      console.log("SessionRedirect: Authenticated user on public route, redirecting to /loading")
-      setIsRedirecting(true)
-      window.location.replace("/loading")
-      return
-    }
-    
-    // All other cases: Show the page content after a brief delay
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 100)
-  }, [status, pathname, session, updateSession, isRedirecting])
+    // Otherwise, render the children
+    console.log("SessionRedirect: No protection needed, rendering page")
+    setIsLoading(false)
+  }, [sessionStatus, pathname, router])
   
-  // Simple loading spinner for brief transitions
+  // Show loading state while determining access
   if (isLoading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-      </div>
-    )
+    return <LoadingState fullScreen message="Loading..." />
   }
   
   // When not loading, show the children
