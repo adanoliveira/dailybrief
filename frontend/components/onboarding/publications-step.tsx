@@ -6,6 +6,7 @@ import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Publication } from "@/lib/onboarding-service"
+import { Check } from "lucide-react"
 
 interface PublicationsStepProps {
   publications: Publication[]
@@ -22,6 +23,8 @@ export function PublicationsStep({
 }: PublicationsStepProps) {
   const [selected, setSelected] = useState<number[]>(selectedPublications)
   const [searchTerm, setSearchTerm] = useState("")
+  const [logoErrors, setLogoErrors] = useState<Record<number, boolean>>({})
+  const [faviconErrors, setFaviconErrors] = useState<Record<number, boolean>>({})
 
   // Update local state when props change
   useEffect(() => {
@@ -70,9 +73,36 @@ export function PublicationsStep({
     }
   }
 
-  // Default placeholder image for publications without a logo
-  const defaultLogo = (pubName: string) => {
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(pubName)}&background=random&color=fff&size=128`
+  // Handle logo loading errors
+  const handleLogoError = (pubId: number) => {
+    setLogoErrors(prev => ({ ...prev, [pubId]: true }))
+  }
+
+  // Handle favicon loading errors
+  const handleFaviconError = (pubId: number) => {
+    setFaviconErrors(prev => ({ ...prev, [pubId]: true }))
+  }
+
+  // Get favicon URL from website URL
+  const getFaviconUrl = (websiteUrl: string) => {
+    if (!websiteUrl) return null
+    try {
+      const url = new URL(websiteUrl)
+      return `${url.origin}/favicon.ico`
+    } catch {
+      return null
+    }
+  }
+
+  // Text-based avatar as final fallback
+  const getTextAvatar = (pubName: string) => {
+    // Get first 2 letters of publication name
+    const initials = pubName.trim().substring(0, 2).toUpperCase()
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-primary/20 font-mono text-xs font-semibold">
+        {initials}
+      </div>
+    )
   }
 
   return (
@@ -106,53 +136,66 @@ export function PublicationsStep({
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {sortedPublications.map((publication) => (
-              <button
-                key={publication.id}
-                onClick={() => togglePublication(publication.id)}
-                className={`p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
-                  selected.includes(publication.id)
-                    ? "bg-primary/10 border-primary shadow-sm"
-                    : "bg-card hover:bg-background"
-                }`}
-              >
-                <div className="flex items-center">
-                  <div className="w-8 h-8 rounded overflow-hidden mr-3 bg-muted flex-shrink-0">
-                    <Image
-                      src={publication.logo_url || defaultLogo(publication.name)}
-                      alt={publication.name}
-                      width={32}
-                      height={32}
-                      className="w-full h-full object-cover"
-                      unoptimized
-                    />
+            {sortedPublications.map((publication) => {
+              const hasLogoError = logoErrors[publication.id]
+              const hasFaviconError = faviconErrors[publication.id]
+              const faviconUrl = getFaviconUrl(publication.website_url)
+              
+              return (
+                <button
+                  key={publication.id}
+                  onClick={() => togglePublication(publication.id)}
+                  className={`p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
+                    selected.includes(publication.id)
+                      ? "bg-primary/10 border-primary shadow-sm"
+                      : "bg-card hover:bg-background"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <div className="flex items-center justify-center bg-background dark:bg-gray-800 w-9 h-9 rounded-full flex-shrink-0 mr-3 overflow-hidden">
+                      {!hasLogoError && publication.logo_url ? (
+                        <div className="flex items-center justify-center w-full h-full bg-primary/5">
+                          <Image
+                            src={publication.logo_url}
+                            alt={publication.name}
+                            width={24}
+                            height={24}
+                            className="max-w-[24px] max-h-[24px] rounded-full object-contain"
+                            onError={() => handleLogoError(publication.id)}
+                            unoptimized
+                          />
+                        </div>
+                      ) : !hasFaviconError && faviconUrl ? (
+                        <div className="flex items-center justify-center w-full h-full bg-primary/5">
+                          <Image
+                            src={faviconUrl}
+                            alt={publication.name}
+                            width={24}
+                            height={24}
+                            className="max-w-[24px] max-h-[24px] rounded-full object-contain"
+                            onError={() => handleFaviconError(publication.id)}
+                            unoptimized
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-mono text-sm tracking-wider font-semibold">
+                          {publication.name.substring(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start text-left">
+                      <span className="font-medium">{publication.name}</span>
+                      <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                        {publication.description ? publication.description.substring(0, 40) + (publication.description.length > 40 ? '...' : '') : ''}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-start text-left">
-                    <span className="font-medium">{publication.name}</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                      {publication.description ? publication.description.substring(0, 40) + (publication.description.length > 40 ? '...' : '') : ''}
-                    </span>
-                  </div>
-                </div>
-                {selected.includes(publication.id) && (
-                  <span className="ml-2 text-primary">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  </span>
-                )}
-              </button>
-            ))}
+                  {selected.includes(publication.id) && (
+                    <Check size={18} className="text-primary flex-shrink-0 ml-2" />
+                  )}
+                </button>
+              )
+            })}
           </div>
           
           {filteredPublications.length === 0 && (
