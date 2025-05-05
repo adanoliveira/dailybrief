@@ -138,7 +138,7 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     // Remove trailing slash if present
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     // Check if baseUrl already contains /api
-    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/user/status/' : '/api/accounts/user/status/';
+    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/sync/' : '/api/accounts/sync/';
     const apiUrl = `${cleanBaseUrl}${apiPath}`;
     
     console.log(`Checking user status at: ${apiUrl}`);
