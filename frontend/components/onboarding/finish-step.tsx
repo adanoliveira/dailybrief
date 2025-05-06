@@ -3,9 +3,21 @@
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, Book, Globe, Languages, Newspaper, ChevronRight } from "lucide-react"
+import { UserPreferences } from "@/lib/onboarding-service"
+import Link from "next/link"
 
-export function FinishStep() {
+interface FinishStepProps {
+  preferences?: UserPreferences
+}
+
+export function FinishStep({ preferences = { topics: [], regions: [], languages: [], publications: [] } }: FinishStepProps) {
+  // Count selected preferences
+  const topicCount = preferences.topics?.length || 0
+  const regionCount = preferences.regions?.length || 0
+  const languageCount = preferences.languages?.length || 0
+  const publicationCount = preferences.publications?.length || 0
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -40,8 +52,47 @@ export function FinishStep() {
           Your preferences have been saved. We'll use them to personalize your news feed.
         </p>
         
-        <div className="py-4 text-center">
-          <p className="text-muted-foreground">You can update your preferences anytime from the settings page.</p>
+        {/* Preference summary */}
+        <div className="w-full max-w-xs bg-muted/30 rounded-lg p-4 border">
+          <h3 className="font-medium text-sm mb-3 text-center">Your Selections</h3>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Book size={16} className="text-primary" />
+                <span className="text-sm">Topics</span>
+              </div>
+              <span className="text-sm font-medium">{topicCount}</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Globe size={16} className="text-primary" />
+                <span className="text-sm">Regions</span>
+              </div>
+              <span className="text-sm font-medium">{regionCount}</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Languages size={16} className="text-primary" />
+                <span className="text-sm">Languages</span>
+              </div>
+              <span className="text-sm font-medium">{languageCount}</span>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Newspaper size={16} className="text-primary" />
+                <span className="text-sm">Publications</span>
+              </div>
+              <span className="text-sm font-medium">{publicationCount}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="py-2 text-center">
+          <p className="text-center text-muted-foreground max-w-xs">You can update your preferences anytime from the <Link className="underline" href="/profile">profile page</Link>.</p>
         </div>
       </div>
     </motion.div>

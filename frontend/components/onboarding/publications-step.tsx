@@ -151,16 +151,20 @@ export function PublicationsStep({
         filterMode: tabMode
       }
       
-      // Include topic and region filters
-      if (selectedTopics.length > 0) {
+      // Always use selected topics and regions from props first
+      if (selectedTopics && selectedTopics.length > 0) {
         filters.topicIds = [...selectedTopics]
       }
       
-      if (selectedRegions.length > 0) {
+      if (selectedRegions && selectedRegions.length > 0) {
         filters.regionCodes = [...selectedRegions]
       }
       
-      // Override with explicit UI filters for the specific tab
+      // Log the actual values we're using
+      console.log(`Using selected topics for ${tabMode} query:`, filters.topicIds)
+      console.log(`Using selected regions for ${tabMode} query:`, filters.regionCodes)
+      
+      // Only override with UI filters if they're set
       if (tabMode === "recommended" && recommendedTopicFilter.length > 0) {
         filters.topicIds = [...recommendedTopicFilter]
       } else if (tabMode === "other" && otherTopicFilter.length > 0) {

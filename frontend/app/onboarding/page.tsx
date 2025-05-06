@@ -149,6 +149,7 @@ export default function OnboardingPage() {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasLoadedOptions, setHasLoadedOptions] = useState(false)
   
   // Validation error
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -180,36 +181,44 @@ export default function OnboardingPage() {
     // Check if user has already completed onboarding
     const hasCompletedOnboarding = userStatus?.has_completed_onboarding === true || session?.user?.has_completed_onboarding === true
     
-    if (hasCompletedOnboarding) {
+    // Only redirect if:
+    // 1. Onboarding is complete AND 
+    // 2. We're not already on the finish step AND
+    // 3. We're not in the process of submitting preferences (which will go to finish step)
+    if (hasCompletedOnboarding && currentStep !== "finish" && !isSubmitting) {
       console.log("Onboarding page: User has already completed onboarding, redirecting to home")
       setIsRedirecting(true)
       router.replace("/home")
       return
     }
     
-    // Fetch options from API
-    const loadOptions = async () => {
-      try {
-        console.log("Onboarding page: Fetching preference options")
-        setIsLoading(true)
-        const data = await fetchOnboardingOptions()
-        setOptions(data)
-        
-        // Set smart defaults
-        const defaultPrefs = getDefaultPreferences(data)
-        setPreferences(defaultPrefs)
-        
-        console.log("Onboarding page: Options loaded, defaults set", defaultPrefs)
-      } catch (err) {
-        console.error("Onboarding page: Failed to load options", err)
-        setError("Failed to load options. Please try again.")
-      } finally {
-        setIsLoading(false)
+    // Only fetch options and set defaults once
+    if (!hasLoadedOptions) {
+      // Fetch options from API
+      const loadOptions = async () => {
+        try {
+          console.log("Onboarding page: Fetching preference options")
+          setIsLoading(true)
+          const data = await fetchOnboardingOptions()
+          setOptions(data)
+          
+          // Set smart defaults
+          const defaultPrefs = getDefaultPreferences(data)
+          setPreferences(defaultPrefs)
+          
+          console.log("Onboarding page: Options loaded, defaults set", defaultPrefs)
+          setHasLoadedOptions(true)
+        } catch (err) {
+          console.error("Onboarding page: Failed to load options", err)
+          setError("Failed to load options. Please try again.")
+        } finally {
+          setIsLoading(false)
+        }
       }
+      
+      loadOptions()
     }
-    
-    loadOptions()
-  }, [sessionStatus, userStatus, isUserLoading, session, router, isRedirecting])
+  }, [sessionStatus, userStatus, isUserLoading, session, router, isRedirecting, currentStep, hasLoadedOptions, isSubmitting])
   
   // Navigation handlers
   const goToNextStep = () => {
@@ -232,7 +241,7 @@ export default function OnboardingPage() {
       return
     }
     
-    // Handle special case for the final step
+    // Handle special case for the final step (publications)
     if (currentStep === "publications") {
       submitPreferences()
       return
@@ -305,10 +314,11 @@ export default function OnboardingPage() {
       }
       
       // Go to final step
+      console.log("Onboarding page: Moving to finish step")
       setCurrentStep("finish")
       setStepIndex(STEPS.indexOf("finish"))
       
-      console.log("Onboarding page: Preferences saved successfully")
+      console.log("Onboarding page: Preferences saved successfully, showing finish step")
     } catch (err) {
       console.error("Onboarding page: Failed to save preferences", err)
       setError("Failed to save preferences. Please try again.")
@@ -320,7 +330,12 @@ export default function OnboardingPage() {
   // Handle finish
   const finishOnboarding = () => {
     console.log("Onboarding page: finishOnboarding called, redirecting to /home")
-    router.replace("/home")
+    setIsRedirecting(true)
+    
+    // Add a small delay for a smoother transition
+    setTimeout(() => {
+      router.replace("/home")
+    }, 100)
   }
   
   // Log step changes
@@ -435,7 +450,7 @@ export default function OnboardingPage() {
           )}
           
           {currentStep === "finish" && (
-            <FinishStep />
+            <FinishStep preferences={preferences} />
           )}
         </div>
       </main>
