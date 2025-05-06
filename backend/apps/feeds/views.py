@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from .models import Topic, Region, Language, Publication
 from .serializers import TopicSerializer, RegionSerializer, LanguageSerializer, PublicationSerializer
 import json
@@ -10,8 +11,27 @@ import logging
 import traceback
 from rest_framework.permissions import AllowAny
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
+from django.conf import settings
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
+
+# Custom pagination class
+class PublicationPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    
+    def get_paginated_response(self, data):
+        return Response({
+            'results': data,
+            'pagination': {
+                'page': self.page.number,
+                'page_size': self.page_size,
+                'total_count': self.page.paginator.count,
+                'total_pages': self.page.paginator.num_pages
+            }
+        })
 
 # Create your views here.
 
@@ -45,28 +65,117 @@ def get_languages(request):
 @api_view(['GET'])
 def get_publications(request):
     """
-    Get all available publications.
-    Optionally filter by topic_id, region_code, or language_code.
+    Get publications with pagination and flexible filtering.
+    
+    Parameters:
+    - filter_mode: 'recommended' (default) or 'other'
+        'recommended': Returns publications that match BOTH selected topics AND regions
+        'other': Returns publications that DON'T match both criteria (complement)
+    
+    - topic_id: Can be specified multiple times for multiple topics (OR condition)
+    - region_code: Can be specified multiple times for multiple regions (OR condition)
+    - language_code: Filter by language
+    - page: Page number (default: 1)
+    - page_size: Results per page (default: 20)
     """
-    publications = Publication.objects.all().order_by('name')
+    # For OPTIONS requests (preflight CORS)
+    if request.method == 'OPTIONS':
+        response = Response({})
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
     
-    # Filter by topic if provided
-    topic_id = request.query_params.get('topic_id')
-    if topic_id:
-        publications = publications.filter(topics__id=topic_id)
+    # Get the filter mode (recommended or other)
+    filter_mode = request.query_params.get('filter_mode', 'recommended')
     
-    # Filter by region if provided
-    region_code = request.query_params.get('region_code')
-    if region_code:
-        publications = publications.filter(regions__code=region_code)
+    # Get all topic IDs from query params (can be multiple)
+    topic_ids = request.query_params.getlist('topic_id')
     
-    # Filter by language if provided
+    # Get all region codes from query params (can be multiple)
+    region_codes = request.query_params.getlist('region_code')
+    
+    # Get language code (single)
     language_code = request.query_params.get('language_code')
+    
+    # Start with all publications - always order by authority DESC, then ID ASC
+    # This ensures deterministic ordering and prevents pagination duplicates
+    publications = Publication.objects.all().order_by('-authority', 'id')
+    
+    # Apply topic and region filtering based on filter_mode
+    if topic_ids and region_codes:
+        if filter_mode == 'recommended':
+            # For recommended: Get publications that match ANY of the topics AND ANY of the regions
+            publications = publications.filter(
+                topics__id__in=topic_ids,
+                regions__code__in=region_codes
+            ).distinct()
+        elif filter_mode == 'other':
+            # For other: Get publications that DON'T match (ANY topic AND ANY region)
+            matching_pubs = Publication.objects.filter(
+                topics__id__in=topic_ids,
+                regions__code__in=region_codes
+            ).distinct()
+            publications = publications.exclude(id__in=matching_pubs.values_list('id', flat=True))
+    elif topic_ids:
+        # If only topics specified, filter by topics
+        if filter_mode == 'recommended':
+            publications = publications.filter(topics__id__in=topic_ids).distinct()
+        else:
+            publications = publications.exclude(topics__id__in=topic_ids).distinct()
+    elif region_codes:
+        # If only regions specified, filter by regions
+        if filter_mode == 'recommended':
+            publications = publications.filter(regions__code__in=region_codes).distinct()
+        else:
+            publications = publications.exclude(regions__code__in=region_codes).distinct()
+    
+    # Apply language filter if provided (always filter, not affected by filter_mode)
     if language_code:
         publications = publications.filter(languages__iso_code=language_code)
     
-    serializer = PublicationSerializer(publications, many=True)
-    return Response(serializer.data)
+    # Log the query for debugging pagination issues
+    logger.info(f"Publications query - Filter mode: {filter_mode}, Topics: {topic_ids}, Regions: {region_codes}")
+    logger.info(f"Total matching publications: {publications.count()}")
+    
+    # Use DRF's pagination
+    paginator = PublicationPagination()
+    paginator.page_size = int(request.query_params.get('page_size', 20))
+    paginated_publications = paginator.paginate_queryset(publications, request)
+    
+    # Check for duplicates in debug mode
+    if settings.DEBUG:
+        pub_ids = [p.id for p in paginated_publications]
+        if len(pub_ids) != len(set(pub_ids)):
+            logger.warning(f"Duplicate publication IDs detected: {pub_ids}")
+    
+    # Add related entities to each publication
+    publications_list = []
+    for pub in paginated_publications:
+        pub_data = {
+            'id': pub.id,
+            'name': pub.name,
+            'website_url': pub.website_url,
+            'logo_url': pub.logo_url if pub.logo_url else '',
+            'description': pub.description if pub.description else '',
+            'authority': float(pub.authority) if pub.authority else 1.0,
+            'news_api_id': pub.news_api_id if pub.news_api_id else '',
+            # Get related IDs
+            'topic_ids': list(pub.topics.values_list('id', flat=True)),
+            'region_ids': list(pub.regions.values_list('code', flat=True)),
+            'language_ids': list(pub.languages.values_list('iso_code', flat=True)),
+        }
+        publications_list.append(pub_data)
+    
+    # Use paginator to create response with pagination metadata
+    paginated_response = paginator.get_paginated_response(publications_list)
+    
+    # Add CORS headers
+    paginated_response["Access-Control-Allow-Origin"] = "*"
+    paginated_response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    paginated_response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    
+    return paginated_response
 
 @api_view(['GET'])
 @permission_classes([AllowAny])  # Allow any user (no authentication required)
@@ -132,10 +241,10 @@ def basic_data(request):
                 'description': pub.description if pub.description else '',
                 'authority': float(pub.authority) if pub.authority else 1.0,
                 'news_api_id': pub.news_api_id if pub.news_api_id else '',
-                # Get related IDs
+                # Get related IDs - use codes for regions and languages to be consistent with get_publications
                 'topic_ids': list(pub.topics.values_list('id', flat=True)),
-                'region_ids': list(pub.regions.values_list('id', flat=True)),
-                'language_ids': list(pub.languages.values_list('id', flat=True)),
+                'region_ids': list(pub.regions.values_list('code', flat=True)),
+                'language_ids': list(pub.languages.values_list('iso_code', flat=True)),
             }
             publications_list.append(pub_data)
         

@@ -46,7 +46,8 @@ function StepNavigation({
   isSubmitting = false,
   isFinalStep = false,
   isFirstStep = false,
-  selectionCount = 0
+  selectionCount = 0,
+  isValid = true
 }: { 
   currentStep: Step,
   onNext: () => void, 
@@ -54,7 +55,8 @@ function StepNavigation({
   isSubmitting?: boolean,
   isFinalStep?: boolean,
   isFirstStep?: boolean,
-  selectionCount?: number
+  selectionCount?: number,
+  isValid?: boolean
 }) {
   let leftButton = (
     <Button 
@@ -69,7 +71,7 @@ function StepNavigation({
   let rightButton = (
     <Button 
       onClick={onNext}
-      disabled={isSubmitting}
+      disabled={isSubmitting || !isValid}
     >
       {isSubmitting ? (
         <>
@@ -393,6 +395,10 @@ export default function OnboardingPage() {
           {currentStep === "publications" && options && (
             <PublicationsStep
               publications={options.publications}
+              topics={options.topics}
+              regions={options.regions}
+              selectedTopics={preferences.topics}
+              selectedRegions={preferences.regions}
               selectedPublications={preferences.publications}
               onChange={(selected) => updatePreferences('publications', selected)}
               error={validationError}
@@ -419,6 +425,12 @@ export default function OnboardingPage() {
             currentStep === "regions" ? preferences.regions.length :
             currentStep === "languages" ? preferences.languages.length :
             currentStep === "publications" ? preferences.publications.length : 0
+          }
+          isValid={
+            currentStep === "topics" ? preferences.topics.length > 0 :
+            currentStep === "regions" ? preferences.regions.length > 0 :
+            currentStep === "languages" ? preferences.languages.length > 0 :
+            currentStep === "publications" ? preferences.publications.length > 0 : true
           }
         />
       </div>
