@@ -1,17 +1,6 @@
-import warnings
-
-warnings.warn(
-    "This module is deprecated. Use utils.http instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backward compatibility
-from utils.http import create_cors_response, handle_options_request
-
-# Keep the type annotations for documentation
-from typing import Dict, Any, Optional, Union
 from django.http import JsonResponse
+from rest_framework.response import Response
+from typing import Dict, Any, Optional, Union
 
 
 def create_cors_response(
@@ -57,4 +46,20 @@ def handle_options_request(allowed_methods: str = "GET, POST, OPTIONS") -> JsonR
     Returns:
         JsonResponse with appropriate CORS headers
     """
-    return create_cors_response({}, allowed_methods=allowed_methods) 
+    return create_cors_response({}, allowed_methods=allowed_methods)
+
+
+def add_cors_headers(response: Union[Response, JsonResponse]) -> Union[Response, JsonResponse]:
+    """
+    Add CORS headers to an existing response object.
+    
+    Args:
+        response: Django or DRF response object
+        
+    Returns:
+        The same response with CORS headers added
+    """
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response 

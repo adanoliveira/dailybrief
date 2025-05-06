@@ -281,10 +281,28 @@ export default function OnboardingPage() {
       setIsSubmitting(true)
       setError(null)
       
-      await saveUserPreferences(preferences)
+      const response = await saveUserPreferences(preferences)
+      console.log("Onboarding page: Save response", response)
       
       // Update user context
       setOnboardingComplete(true)
+      
+      // Force refresh of session with updated onboarding status
+      try {
+        const sessionResponse = await fetch('/api/auth/session-update', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        
+        if (sessionResponse.ok) {
+          const updatedSession = await sessionResponse.json()
+          console.log("Onboarding page: Session updated", updatedSession)
+        } else {
+          console.error("Failed to update session: ", await sessionResponse.text())
+        }
+      } catch (sessionErr) {
+        console.error("Error updating session", sessionErr)
+      }
       
       // Go to final step
       setCurrentStep("finish")
@@ -301,8 +319,19 @@ export default function OnboardingPage() {
   
   // Handle finish
   const finishOnboarding = () => {
+    console.log("Onboarding page: finishOnboarding called, redirecting to /home")
     router.replace("/home")
   }
+  
+  // Log step changes
+  useEffect(() => {
+    console.log(`Onboarding page: Step changed to "${currentStep}"`)
+    
+    // Special logging for finish step
+    if (currentStep === "finish") {
+      console.log("Onboarding page: Rendering finish step")
+    }
+  }, [currentStep])
   
   // Loading state
   if (isLoading || !options || isRedirecting) {

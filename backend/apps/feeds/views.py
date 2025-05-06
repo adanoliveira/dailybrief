@@ -13,6 +13,7 @@ from rest_framework.permissions import AllowAny
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from django.conf import settings
 from django.db.models import Q
+from utils.http import create_cors_response, handle_options_request, add_cors_headers
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class PublicationPagination(PageNumberPagination):
     max_page_size = 100
     
     def get_paginated_response(self, data):
-        return Response({
+        response = Response({
             'results': data,
             'pagination': {
                 'page': self.page.number,
@@ -32,6 +33,8 @@ class PublicationPagination(PageNumberPagination):
                 'total_pages': self.page.paginator.num_pages
             }
         })
+        # Add CORS headers to the response
+        return add_cors_headers(response)
 
 # Create your views here.
 
@@ -80,11 +83,7 @@ def get_publications(request):
     """
     # For OPTIONS requests (preflight CORS)
     if request.method == 'OPTIONS':
-        response = Response({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
+        return handle_options_request("GET, OPTIONS")
     
     # Get the filter mode (recommended or other)
     filter_mode = request.query_params.get('filter_mode', 'recommended')
@@ -170,11 +169,6 @@ def get_publications(request):
     # Use paginator to create response with pagination metadata
     paginated_response = paginator.get_paginated_response(publications_list)
     
-    # Add CORS headers
-    paginated_response["Access-Control-Allow-Origin"] = "*"
-    paginated_response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    paginated_response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    
     return paginated_response
 
 @api_view(['GET'])
@@ -209,11 +203,7 @@ def basic_data(request):
     try:
         # For OPTIONS requests (preflight CORS)
         if request.method == 'OPTIONS':
-            response = JsonResponse({})
-            response["Access-Control-Allow-Origin"] = "*"
-            response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-            response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-            return response
+            return handle_options_request("GET, OPTIONS")
             
         # Authenticate the request
         skip_auth = True  # Set to False in production for strict auth
@@ -257,17 +247,11 @@ def basic_data(request):
         }
         
         # Return as JSON response with CORS headers
-        response = JsonResponse(data, safe=False)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
+        return create_cors_response(data)
     except Exception as e:
         logger.error(f"Error in basic_data view: {e}")
         logger.error(traceback.format_exc())
-        error_response = JsonResponse({"error": str(e)}, status=500)
-        error_response["Access-Control-Allow-Origin"] = "*"
-        return error_response
+        return create_cors_response({}, status=500, error=str(e))
 
 @api_view(['GET'])
 @permission_classes([AllowAny])  # Allow any user (no authentication required)
