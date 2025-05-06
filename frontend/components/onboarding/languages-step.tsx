@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Language } from "@/lib/onboarding-service"
@@ -44,12 +44,23 @@ export function LanguagesStep({
   }, [selectedLanguages])
 
   // Sort languages alphabetically
-  const sortedLanguages = [...languages].sort((a, b) => {
-    // English first, then alphabetical
-    if (a.iso_code === 'en') return -1
-    if (b.iso_code === 'en') return 1
-    return a.name.localeCompare(b.name)
-  })
+  const sortedLanguages = useMemo(() => {
+    return [...languages].sort((a, b) => {
+      // First, sort by selection status (selected languages first)
+      const aSelected = selected.includes(a.iso_code);
+      const bSelected = selected.includes(b.iso_code);
+      
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      
+      // Then English first
+      if (a.iso_code === 'en') return -1;
+      if (b.iso_code === 'en') return 1;
+      
+      // Then sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+  }, [languages, selected]);
 
   // Toggle language selection
   const toggleLanguage = (languageCode: string) => {

@@ -620,10 +620,10 @@ export function PublicationsStep({
                 </span>
               )}
             </div>
-            <div className="flex flex-col items-start text-left">
+            <div className="flex flex-col items-start text-left w-full">
               <span className="font-medium">{publication.name}</span>
-              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                {publication.description ? publication.description.substring(0, 40) + (publication.description.length > 40 ? '...' : '') : ''}
+              <span className="text-xs text-muted-foreground line-clamp-2 w-full">
+                {publication.description ? publication.description.substring(0, 80) + (publication.description.length > 80 ? '...' : '') : ''}
               </span>
             </div>
           </div>
