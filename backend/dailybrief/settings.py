@@ -225,8 +225,37 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
+# Celery Beat Schedule
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Top Headlines - Twice daily at 5am and 2pm
+    'sync-top-headlines-morning': {
+        'task': 'newsapi.sync_headlines',
+        'schedule': crontab(hour=5, minute=0),  # 5:00 AM
+    },
+    'sync-top-headlines-afternoon': {
+        'task': 'newsapi.sync_headlines',
+        'schedule': crontab(hour=14, minute=0),  # 2:00 PM
+    },
+    
+    # Recent Articles by Sources - Once per day at 4am to get previous day's news
+    'sync-recent-by-sources-daily': {
+        'task': 'newsapi.sync_recent_by_sources',
+        'schedule': crontab(hour=4, minute=0),  # 4:00 AM
+        'kwargs': {'hours': 24, 'batch_size': 20},
+    },
+    
+    # Sources update - Weekly on Sunday at 3:00 AM
+    'sync-sources-weekly': {
+        'task': 'newsapi.sync_sources',
+        'schedule': crontab(hour=3, minute=0, day_of_week=0),  # Sunday at 3:00 AM
+        'kwargs': {'update_existing': True},
+    },
+}
+
 # News API
-NEWS_API_KEY = os.getenv('NEWS_API_KEY', '')
+NEWSAPI_API_KEY = os.getenv('NEWS_API_KEY', '')
 
 # AI Providers
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')

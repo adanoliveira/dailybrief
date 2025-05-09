@@ -45,6 +45,8 @@ class Publication(models.Model):
     """
     name = models.CharField(max_length=255)
     news_api_id = models.CharField(max_length=255, null=True, blank=True)
+    domain = models.CharField(max_length=255, null=True, blank=True, db_index=True, 
+                             help_text="Normalized domain name (e.g., nytimes.com)")
     rss_url = models.URLField(null=True, blank=True)
     website_url = models.URLField()
     logo_url = models.URLField(null=True, blank=True)

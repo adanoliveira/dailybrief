@@ -112,6 +112,30 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 
+  # Celery Flower (for task monitoring)
+  flower:
+    build:
+      context: ./backend
+    command: sh -c "cd /app && PYTHONPATH=/app celery -A dailybrief flower --port=5555 --broker=redis://redis:6379/0"
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+      - celery_worker
+      - celery_beat
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-replace-in-production
+      - SUPABASE_DB_NAME=${SUPABASE_DB_NAME:-dailybrief}
+      - SUPABASE_DB_USER=${SUPABASE_DB_USER:-postgres}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - SUPABASE_DB_HOST=db
+      - SUPABASE_DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
   # Next.js Frontend
   frontend:
     build: 

@@ -38,4 +38,29 @@ Brand      → Use Tailwind classes from frontend/tailwind.brand.ts
 * Use worldclass UI pattern for mobile webs apps.
 * Be a masterful UX copywriter.
 * Always apply good UX principles and patters.
+
+# Softare Architecture & Engineering Principles
+Use worldclass software engineering principles as made popular by tought leaders such as Robert C. Martin:
+* SOLID Principles
+- Single Responsibility – one reason to change.
+- Open/Closed – extend without modifying core code.
+- Liskov Substitution – subtypes must be drop-in replacements.
+- Interface Segregation – small, focused contracts.
+- Dependency Inversion – depend on abstractions, inject concretions.
+
+* Code Quality
+- High cohesion, low coupling.
+- Clear, intention-revealing names.
+- Small, pure functions where possible.
+- Fail fast with explicit error handling.
+
+* Default to the simplicity & elegance
+- KISS, DRY, YAGNI – avoid accidental complexity.
+- Refactor continuously to keep design supple.
+- Elegance = Simple, complete, robust and performant code
+
+* Clean Architecture
+- Isolate business rules from UI, frameworks, and databases.
+- Prefer hexagonal / ports-and-adapters layout.
+
 # ---------------------------------------------------------------------

@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/accounts/', include('apps.accounts.urls')),
     path('api/feeds/', include('apps.feeds.urls')),
     path('api/core/', include('apps.core.urls')),
+    path('api/newsapi/', include('apps.newsapi.urls')),
 ]

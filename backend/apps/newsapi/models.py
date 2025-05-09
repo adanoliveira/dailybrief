@@ -1,4 +1,5 @@
 from django.db import models
+from apps.articles.models import Article
 
 # Create your models here.
 
@@ -55,6 +56,8 @@ class NewsAPISyncLog(models.Model):
         ('top_headlines', 'Top Headlines'),
         ('everything', 'Everything'),
         ('sources', 'Sources'),
+        ('everything_by_publication', 'Everything By Publication'),
+        ('everything_by_sources_batched', 'Everything By Sources Batched'),
     )
     
     STATUS_CHOICES = (
@@ -63,7 +66,7 @@ class NewsAPISyncLog(models.Model):
         ('failed', 'Failed'),
     )
     
-    sync_type = models.CharField(max_length=20, choices=SYNC_TYPES)
+    sync_type = models.CharField(max_length=50, choices=SYNC_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='started')
     
     # Sync parameters
@@ -91,3 +94,52 @@ class NewsAPISyncLog(models.Model):
     
     def __str__(self):
         return f"{self.sync_type} sync {self.status} at {self.started_at.strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+class NewsAPIArticle(models.Model):
+    """
+    Stores NewsAPI-specific data for an article.
+    Creates a clean separation between our domain model and the external API.
+    """
+    # Relationship to our core Article model
+    article = models.OneToOneField(
+        Article,
+        on_delete=models.CASCADE,
+        related_name='newsapi_data'
+    )
+    
+    # NewsAPI specific fields
+    source_id = models.CharField(max_length=255, blank=True, null=True)
+    source_name = models.CharField(max_length=255, blank=True)
+    domain = models.CharField(max_length=255, blank=True, null=True, db_index=True,
+                             help_text="Normalized domain name extracted from article URL")
+    newsapi_id = models.CharField(max_length=255, blank=True, null=True)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Original JSON response
+    raw_data = models.JSONField(default=dict)
+    
+    # Sync metadata
+    sync_log = models.ForeignKey(
+        NewsAPISyncLog, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='articles'
+    )
+    is_top_headline = models.BooleanField(default=False)
+    
+    # Timestamps
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['source_id']),
+            models.Index(fields=['newsapi_id']),
+            models.Index(fields=['fetched_at']),
+        ]
+        verbose_name = "NewsAPI Article"
+        verbose_name_plural = "NewsAPI Articles"
+    
+    def __str__(self):
+        return f"NewsAPI: {self.source_name} - {self.article.title[:50]}"
