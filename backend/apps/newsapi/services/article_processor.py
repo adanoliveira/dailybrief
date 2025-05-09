@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.db import transaction, models
 from apps.articles.models import Article, StoryGroup
 from apps.feeds.models import Publication, Language, Topic, Region
+from apps.feeds.utils import generate_logo_url
 from apps.newsapi.models import NewsAPIArticle
 from apps.newsapi.utils import extract_domain
 
@@ -110,21 +111,41 @@ class ArticleProcessor:
                     publication.domain = domain
                     publication.save(update_fields=['domain'])
                 
+                # Update logo_url if missing
+                if domain and not publication.logo_url:
+                    logo_url = generate_logo_url(domain)
+                    if logo_url:
+                        publication.logo_url = logo_url
+                        publication.save(update_fields=['logo_url'])
+                
                 return publication
         
         # Try to find publication by domain
         if domain:
             domain_key = f"domain:{domain.lower()}"
             if domain_key in self.publication_mapping:
-                return self.publication_mapping[domain_key]
+                publication = self.publication_mapping[domain_key]
+                
+                # Update logo_url if missing
+                if not publication.logo_url:
+                    logo_url = generate_logo_url(domain)
+                    if logo_url:
+                        publication.logo_url = logo_url
+                        publication.save(update_fields=['logo_url'])
+                        
+                return publication
         
         # Create new publication if not found
         if source_name and (source_id or domain):
+            # Generate logo URL
+            logo_url = generate_logo_url(domain) if domain else None
+            
             publication = Publication(
                 name=source_name,
                 news_api_id=source_id,
                 domain=domain,
-                website_url=f"https://{domain}" if domain else ""
+                website_url=f"https://{domain}" if domain else "",
+                logo_url=logo_url
             )
             publication.save()
             

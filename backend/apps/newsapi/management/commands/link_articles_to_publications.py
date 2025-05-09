@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import F, Count
 from apps.feeds.models import Publication
+from apps.feeds.utils import generate_logo_url
 from apps.articles.models import Article
 from apps.newsapi.models import NewsAPIArticle
 from apps.newsapi.utils import extract_domain
@@ -220,7 +221,8 @@ class Command(BaseCommand):
                     name=source_name,
                     domain=domain,
                     website_url=f"https://{domain}" if domain else "",
-                    authority=1.0
+                    authority=1.0,
+                    logo_url=generate_logo_url(domain) if domain else None
                 )
                 publication.save()
                 created_count += 1

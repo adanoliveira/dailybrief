@@ -3,7 +3,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count
 from apps.feeds.models import Publication
+from apps.feeds.utils import generate_logo_url
 from apps.newsapi.models import NewsAPIArticle
+from apps.newsapi.utils import extract_domain
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +73,16 @@ class Command(BaseCommand):
                     source_name = domain.split('.')[0].title()
                 
                 if not dry_run:
+                    # Generate logo URL
+                    logo_url = generate_logo_url(domain) if domain else None
+                    
                     # Create publication
                     publication = Publication(
                         name=source_name,
                         domain=domain,
-                        website_url=f"https://{domain}",
-                        authority=1.0
+                        website_url=f"https://{domain}" if domain else "",
+                        authority=1.0,
+                        logo_url=logo_url
                     )
                     publication.save()
                     created_count += 1
