@@ -3,8 +3,19 @@ from django.conf import settings
 import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 import logging
+from utils.http import create_cors_response
 
 logger = logging.getLogger(__name__)
+
+def create_jwt_token(user):
+    """
+    Creates a JWT token for the given user
+    """
+    payload = {
+        'user_id': user.id,
+        'email': user.email,
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
 def authenticate_request(request):
     """

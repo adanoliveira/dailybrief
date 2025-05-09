@@ -1,3 +1,6 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -5,8 +8,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Filter, Search } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { WorldNewsFeed } from "@/components/world-news-feed"
 
 export default function World() {
+  const [selectedTopic, setSelectedTopic] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  
+  // Handle search debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 500) // 500ms debounce
+    
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+  
   return (
     <div className="container py-6">
       <div className="flex flex-col gap-6">
@@ -15,7 +32,13 @@ export default function World() {
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-[260px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search articles..." className="w-full pl-8" />
+              <Input 
+                type="search" 
+                placeholder="Search articles..." 
+                className="w-full pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
@@ -36,7 +59,11 @@ export default function World() {
           </div>
         </div>
 
-        <Tabs defaultValue="all">
+        <Tabs 
+          defaultValue="all"
+          value={selectedTopic}
+          onValueChange={setSelectedTopic}
+        >
           <TabsList className="mb-4 overflow-auto py-1 w-full justify-start">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
@@ -46,10 +73,11 @@ export default function World() {
             <TabsTrigger value="entertainment">Entertainment</TabsTrigger>
             <TabsTrigger value="sports">Sports</TabsTrigger>
           </TabsList>
-          <TabsContent value="all" className="space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <NewsCard key={i} />
-            ))}
+          <TabsContent value={selectedTopic}>
+            <WorldNewsFeed 
+              topicSlug={selectedTopic}
+              searchQuery={debouncedSearch}
+            />
           </TabsContent>
         </Tabs>
       </div>

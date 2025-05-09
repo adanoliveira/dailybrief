@@ -22,6 +22,21 @@ export default function Home() {
   const { toast } = useToast()
   const [isVerifying, setIsVerifying] = useState(true)
   
+  // Article filtering state
+  const [selectedTopic, setSelectedTopic] = useState('for-you')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sortOrder, setSortOrder] = useState<'relevance' | 'newest' | 'oldest'>('relevance')
+  
+  // Handle search debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 500) // 500ms debounce
+    
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+  
   // Check if user has completed onboarding
   useEffect(() => {
     const forceParam = searchParams?.get('force') === 'true'
@@ -97,13 +112,22 @@ export default function Home() {
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-[260px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search articles..." className="w-full pl-8" />
+              <Input 
+                type="search" 
+                placeholder="Search articles..." 
+                className="w-full pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
               <span className="sr-only">Filter</span>
             </Button>
-            <Select defaultValue="relevance">
+            <Select 
+              defaultValue={sortOrder}
+              onValueChange={(value) => setSortOrder(value as 'relevance' | 'newest' | 'oldest')}
+            >
               <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
@@ -118,16 +142,23 @@ export default function Home() {
 
         <DailyDigest />
 
-        <Tabs defaultValue="for-you">
+        <Tabs 
+          defaultValue="for-you"
+          value={selectedTopic}
+          onValueChange={setSelectedTopic}
+        >
           <TabsList className="mb-4 overflow-auto py-1 w-full justify-start">
             <TabsTrigger value="for-you">For You</TabsTrigger>
-            <TabsTrigger value="business">Business</TabsTrigger>
-            <TabsTrigger value="technology">Technology</TabsTrigger>
-            <TabsTrigger value="science">Science</TabsTrigger>
-            <TabsTrigger value="health">Health</TabsTrigger>
+            {userStatus?.topics_details?.map(topic => (
+              <TabsTrigger key={topic.id} value={topic.slug}>{topic.name}</TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value="for-you">
-            <InfiniteNewsFeed />
+          <TabsContent value={selectedTopic}>
+            <InfiniteNewsFeed 
+              topicSlug={selectedTopic} 
+              searchQuery={debouncedSearch}
+              sortOrder={sortOrder}
+            />
           </TabsContent>
         </Tabs>
       </div>

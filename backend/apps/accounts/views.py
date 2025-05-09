@@ -15,116 +15,43 @@ from .serializers import OnboardingDataSerializer
 from django.db import transaction
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from utils.http import create_cors_response, handle_options_request
+from django.views.decorators.csrf import csrf_exempt
 
 # Unified endpoint for user sync and status
+@csrf_exempt
 def user_sync_and_status(request):
     """
-    Unified endpoint to handle user synchronization and status checking.
-    - POST: Syncs user data from NextAuth, creates/updates Django user
-    - GET: Returns current authenticated user status
+    Sync user status and get onboarding status.
+    Used by frontend to check user state on app start.
     """
-    try:
-        # Handle OPTIONS requests (preflight CORS)
-        if request.method == 'OPTIONS':
-            return handle_options_request("GET, POST, OPTIONS")
-            
-        # Handle GET method (status)
-        if request.method == 'GET':
-            # Authenticate the request
-            authenticated, user, error = authenticate_request(request)
-            if not authenticated:
-                return create_cors_response(
-                    {}, 
-                    status=401, 
-                    error=error
-                )
-            
-            # Get the profile which has the onboarding_completed field
+    # Handle OPTIONS requests (preflight CORS)
+    if request.method == 'OPTIONS':
+        return handle_options_request("GET, POST, OPTIONS")
+        
+    if request.method == 'GET':
+        # Validate authentication
+        user, error = authenticate_request(request)
+        if error:
+            return error
+
+        try:
+            # Get user profile 
             profile = UserProfile.objects.get(user=user)
             
-            # Return the user status with essential information
-            return create_cors_response({
-                'user_id': user.id,
-                'public_id': str(profile.public_id),
-                'email': user.email,
-                'name': user.first_name,
-                'has_completed_onboarding': profile.onboarding_completed,
-            })
+            # Create a new token for the user
+            token = create_jwt_token(user)
             
-        # Handle POST method (sync)
-        elif request.method == 'POST':
-            # Parse request body
-            try:
-                data = json.loads(request.body)
-            except json.JSONDecodeError:
-                return create_cors_response(
-                    {}, 
-                    status=400, 
-                    error="Invalid JSON in request body"
-                )
-
-            # Validate request data
-            required_fields = ['email', 'name', 'provider', 'nextauth_id']
-            for field in required_fields:
-                if field not in data:
-                    return create_cors_response(
-                        {}, 
-                        status=400, 
-                        error=f"Missing required field: {field}"
-                    )
-            
-            email = data['email']
-            name = data['name']
-            provider = data['provider']
-            nextauth_id = data['nextauth_id']
-            image = data.get('image', '')
-            
-            # Try to find existing user by email
-            try:
-                user = User.objects.get(email=email)
-                # Update user data if needed
-                if user.first_name != name:
-                    user.first_name = name
-                    user.save()
-            except User.DoesNotExist:
-                # Create new user
-                username = f"{email.split('@')[0]}_{uuid.uuid4().hex[:8]}"
-                user = User.objects.create_user(
-                    username=username,
-                    email=email,
-                    first_name=name,
-                    # No password for social/magic link users
-                    password=None
-                )
-            
-            # Get or create user profile
-            try:
-                profile = UserProfile.objects.get(user=user)
-            except UserProfile.DoesNotExist:
-                profile = UserProfile.objects.create(
-                    user=user,
-                    # Use default timezone, can be updated later
-                )
-            
-            # Generate JWT token with Django user ID
-            payload = {
-                'user_id': user.id,
-                'email': user.email,
-                'django_user_id': user.id,
-                'nextauth_id': nextauth_id,
-                'profile_id': str(profile.public_id)
-            }
-            
-            token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
-            
+            from apps.feeds.models import UserTopic, Topic
             # Check if user has completed onboarding
-            from apps.feeds.models import UserTopic
             has_completed_onboarding = UserTopic.objects.filter(user=user).exists()
             
-            # If the user has completed onboarding, update the profile
-            if has_completed_onboarding and not profile.onboarding_completed:
-                profile.onboarding_completed = True
-                profile.save()
+            # Get user topics with details
+            user_topic_ids = UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
+            
+            # Get the topic details (name and slug)
+            topics_details = []
+            if user_topic_ids:
+                topics_details = list(Topic.objects.filter(id__in=user_topic_ids).values('id', 'name', 'slug'))
             
             # Return user data and token
             return create_cors_response({
@@ -134,24 +61,68 @@ def user_sync_and_status(request):
                 'name': user.first_name,
                 'django_token': token,
                 'has_completed_onboarding': has_completed_onboarding,
+                'topics': list(user_topic_ids),
+                'topics_details': topics_details,
             })
             
-        # Reject other methods
-        else:
-            return create_cors_response(
-                {}, 
-                status=405, 
-                error="Method not allowed, use GET or POST"
-            )
-            
-    except Exception as e:
-        print(f"Error in user_sync_and_status: {e}")
-        print(traceback.format_exc())
-        return create_cors_response(
-            {}, 
-            status=500, 
-            error=f"Operation failed: {str(e)}"
+        except Exception as e:
+            return create_cors_response({'error': str(e)}, status=500)
+    
+    # Handle POST method (sync)
+    elif request.method == 'POST':
+        # Get the data from the request body
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except json.JSONDecodeError:
+            return create_cors_response({'error': 'Invalid JSON'}, status=400)
+        
+        if not data.get('email'):
+            return create_cors_response({'error': 'Email is required'}, status=400)
+        
+        # Find or create the user by email
+        email = data.get('email')
+        name = data.get('name', '')
+        
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'username': email,  # Use email as username
+                'first_name': name,
+            }
         )
+        
+        # If user exists but no name, update it
+        if not created and name and not user.first_name:
+            user.first_name = name
+            user.save()
+        
+        # Create or get user profile with a public_id
+        profile, _ = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                'public_id': uuid.uuid4(),
+            }
+        )
+        
+        # Create a new token for the user
+        token = create_jwt_token(user)
+        
+        # Check if user has completed onboarding
+        from apps.feeds.models import UserTopic
+        has_completed_onboarding = UserTopic.objects.filter(user=user).exists()
+        
+        # Return user data and token
+        return create_cors_response({
+            'id': user.id,
+            'public_id': str(profile.public_id),
+            'email': user.email,
+            'name': user.first_name,
+            'django_token': token,
+            'has_completed_onboarding': has_completed_onboarding,
+        })
+    
+    # If method not allowed
+    return create_cors_response({'error': 'Method not allowed'}, status=405)
 
 # Consolidated preferences handling
 def user_preferences(request):
