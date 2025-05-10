@@ -13,7 +13,7 @@ import uuid
 from .models import UserProfile
 from .serializers import OnboardingDataSerializer
 from django.db import transaction
-from apps.accounts.auth_helpers import authenticate_request, get_auth_response
+from apps.accounts.auth_helpers import authenticate_request, get_auth_response, create_jwt_token
 from utils.http import create_cors_response, handle_options_request
 from django.views.decorators.csrf import csrf_exempt
 
@@ -29,10 +29,10 @@ def user_sync_and_status(request):
         return handle_options_request("GET, POST, OPTIONS")
         
     if request.method == 'GET':
-        # Validate authentication
-        user, error = authenticate_request(request)
-        if error:
-            return error
+        # Validate authentication - unpack 3 values, not 2
+        is_authenticated, user, error_message = authenticate_request(request)
+        if not is_authenticated:
+            return get_auth_response(error_message)
 
         try:
             # Get user profile 

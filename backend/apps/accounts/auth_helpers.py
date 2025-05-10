@@ -13,6 +13,7 @@ def create_jwt_token(user):
     """
     payload = {
         'user_id': user.id,
+        'django_user_id': user.id,  # Add this for compatibility
         'email': user.email,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
@@ -42,10 +43,10 @@ def authenticate_request(request):
             # Decode JWT token
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
             
-            # Get user from payload
-            user_id = payload.get('django_user_id')
+            # Get user from payload - check both keys for backwards compatibility
+            user_id = payload.get('django_user_id') or payload.get('user_id')
             if not user_id:
-                logger.warning("No django_user_id in JWT payload")
+                logger.warning("No user_id or django_user_id in JWT payload")
                 return False, None, "Invalid token payload"
                 
             # Get user from database

@@ -97,12 +97,17 @@ def personalized_feed(request):
         # Get article topics
         topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
         
+        # Get publication details
+        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+        publication_logo = article.publication.logo_url if article.publication else None
+        
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
             'description': article.description or '',
             'source': {
-                'name': article.source_name or (article.publication.name if article.publication else 'Unknown')
+                'name': publication_name,
+                'logoUrl': publication_logo
             },
             'publishedAt': article.published_at.isoformat(),
             'imageUrl': article.image_url,
@@ -184,12 +189,17 @@ def world_feed(request):
         # Get article topics
         topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
         
+        # Get publication details
+        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+        publication_logo = article.publication.logo_url if article.publication else None
+        
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
             'description': article.description or '',
             'source': {
-                'name': article.source_name or (article.publication.name if article.publication else 'Unknown')
+                'name': publication_name,
+                'logoUrl': publication_logo
             },
             'publishedAt': article.published_at.isoformat(),
             'imageUrl': article.image_url,

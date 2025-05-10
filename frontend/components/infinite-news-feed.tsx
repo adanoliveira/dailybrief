@@ -373,7 +373,24 @@ function NewsCard({ article, formatDate }: NewsCardProps) {
               </Link>
             </CardTitle>
             <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
-              <span>{article.source.name}</span>
+              {article.source.logoUrl ? (
+                <div className="flex items-center gap-1.5">
+                  <div className="h-4 w-4 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                    <img 
+                      src={article.source.logoUrl} 
+                      alt={article.source.name}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        // Hide the image on error and show just the name
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  <span>{article.source.name}</span>
+                </div>
+              ) : (
+                <span>{article.source.name}</span>
+              )}
               <span>•</span>
               <span>{formatDate(article.publishedAt)}</span>
             </CardDescription>
