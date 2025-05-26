@@ -120,10 +120,6 @@ export default function Home() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-              <span className="sr-only">Filter</span>
-            </Button>
             <Select 
               defaultValue={sortOrder}
               onValueChange={(value) => setSortOrder(value as 'relevance' | 'newest' | 'oldest')}
