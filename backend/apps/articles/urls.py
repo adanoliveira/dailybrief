@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 
 app_name = 'articles'
-
+ 
 urlpatterns = [
     path('api/articles/feed', views.personalized_feed, name='personalized_feed'),
     path('api/articles/world', views.world_feed, name='world_feed'),

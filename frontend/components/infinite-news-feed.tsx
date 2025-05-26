@@ -67,7 +67,7 @@ export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQ
           // No articles found
           setReachedEnd(false)
         } else {
-          setReachedEnd(true)
+        setReachedEnd(true)
         }
       } else {
         setHasMore(true)

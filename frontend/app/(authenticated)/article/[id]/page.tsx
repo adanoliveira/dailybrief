@@ -128,7 +128,7 @@ export default function Article({ params }: { params: { id: string } }) {
             <span>{article.source.name}</span>
             {article.readTime && (
               <>
-                <span>•</span>
+            <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {article.readTime} min read
@@ -142,14 +142,14 @@ export default function Article({ params }: { params: { id: string } }) {
         </div>
 
         {article.summary && article.summary.abstract && (
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4">
-              <h2 className="font-semibold mb-2">AI-Generated Abstract</h2>
-              <p className="text-sm">
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4">
+            <h2 className="font-semibold mb-2">AI-Generated Abstract</h2>
+            <p className="text-sm">
                 {article.summary.abstract}
-              </p>
-            </CardContent>
-          </Card>
+            </p>
+          </CardContent>
+        </Card>
         )}
 
         <div className="prose max-w-none">

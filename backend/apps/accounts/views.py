@@ -33,7 +33,7 @@ def user_sync_and_status(request):
         is_authenticated, user, error_message = authenticate_request(request)
         if not is_authenticated:
             return get_auth_response(error_message)
-
+            
         try:
             # Get user profile 
             profile = UserProfile.objects.get(user=user)
@@ -67,7 +67,7 @@ def user_sync_and_status(request):
             
         except Exception as e:
             return create_cors_response({'error': str(e)}, status=500)
-    
+            
     # Handle POST method (sync)
     elif request.method == 'POST':
         # Get the data from the request body
@@ -75,7 +75,7 @@ def user_sync_and_status(request):
             data = json.loads(request.body.decode('utf-8'))
         except json.JSONDecodeError:
             return create_cors_response({'error': 'Invalid JSON'}, status=400)
-        
+
         if not data.get('email'):
             return create_cors_response({'error': 'Email is required'}, status=400)
         
@@ -103,10 +103,10 @@ def user_sync_and_status(request):
                 'public_id': uuid.uuid4(),
             }
         )
-        
+            
         # Create a new token for the user
         token = create_jwt_token(user)
-        
+            
         # Check if user has completed onboarding
         from apps.feeds.models import UserTopic
         has_completed_onboarding = UserTopic.objects.filter(user=user).exists()
@@ -120,7 +120,7 @@ def user_sync_and_status(request):
             'django_token': token,
             'has_completed_onboarding': has_completed_onboarding,
         })
-    
+            
     # If method not allowed
     return create_cors_response({'error': 'Method not allowed'}, status=405)
 
@@ -150,9 +150,15 @@ def user_preferences(request):
             
             # Get user preferences
             user_topics = list(UserTopic.objects.filter(user=user).values_list('topic_id', flat=True))
-            user_regions = list(UserRegion.objects.filter(user=user).values_list('region_id', flat=True))
-            user_languages = list(UserLanguage.objects.filter(user=user).values_list('language_id', flat=True))
+            user_regions = list(UserRegion.objects.filter(user=user).values_list('region__code', flat=True))
+            user_languages = list(UserLanguage.objects.filter(user=user).values_list('language__iso_code', flat=True))
             user_publications = list(UserPublication.objects.filter(user=user).values_list('publication_id', flat=True))
+            
+            # Get topic details for the frontend
+            from apps.feeds.models import Topic
+            user_topics_details = list(
+                Topic.objects.filter(id__in=user_topics).values('id', 'name', 'slug')
+            )
             
             # Get profile
             profile = UserProfile.objects.get(user=user)
@@ -160,6 +166,7 @@ def user_preferences(request):
             # Return preferences
             return create_cors_response({
                 'topics': user_topics,
+                'topics_details': user_topics_details,
                 'regions': user_regions,
                 'languages': user_languages,
                 'publications': user_publications,

@@ -16,6 +16,7 @@ const translations: Record<Language, Record<string, string>> = {
   en: {
     home: "Home",
     world: "World",
+    headlines: "Headlines",
     profile: "Profile",
     daily_brief: "Your Daily Brief",
     read_more: "Read more",
@@ -27,6 +28,7 @@ const translations: Record<Language, Record<string, string>> = {
   es: {
     home: "Inicio",
     world: "Mundo",
+    headlines: "Titulares",
     profile: "Perfil",
     daily_brief: "Tu Resumen Diario",
     read_more: "Leer más",
@@ -38,6 +40,7 @@ const translations: Record<Language, Record<string, string>> = {
   fr: {
     home: "Accueil",
     world: "Monde",
+    headlines: "Titres",
     profile: "Profil",
     daily_brief: "Votre Résumé Quotidien",
     read_more: "Lire plus",

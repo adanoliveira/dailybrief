@@ -49,15 +49,24 @@ def personalized_feed(request):
     # Base query - get all articles
     queryset = Article.objects.select_related('language', 'publication').prefetch_related('topics')
     
-    # Filter by user preferences (topics AND publications)
+    # Filter by user preferences (topics AND publications if available)
     user_topic_ids = UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
     user_publication_ids = UserPublication.objects.filter(user=user).values_list('publication_id', flat=True)
     
-    # Articles must be from user's preferred topics AND from preferred publications
-    preference_filter = Q(topics__in=user_topic_ids) & Q(publication__in=user_publication_ids)
-    queryset = queryset.filter(preference_filter).distinct()
+    # Always filter by user's preferred topics
+    if user_topic_ids:
+        queryset = queryset.filter(topics__in=user_topic_ids)
+    else:
+        # If user has no topic preferences, return empty queryset
+        queryset = queryset.none()
     
-    # Apply topic filter if specified
+    # Additionally filter by publications if user has publication preferences
+    if user_publication_ids:
+        queryset = queryset.filter(publication__in=user_publication_ids)
+    
+    queryset = queryset.distinct()
+    
+    # Apply additional topic filter if specified (and not "for-you" which shows all user topics)
     if topic_slug and topic_slug != 'for-you':
         queryset = queryset.filter(topics__slug=topic_slug)
     
@@ -134,7 +143,7 @@ def personalized_feed(request):
 @require_http_methods(["GET", "OPTIONS"])
 def world_feed(request):
     """
-    Get world feed articles (top headlines across all sources)
+    Get world feed articles (top headlines from user's preferred regions)
     
     Query parameters:
     - page: page number (default: 1)
@@ -150,6 +159,11 @@ def world_feed(request):
         response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         return response
 
+    # Authenticate user to get their region preferences
+    is_authenticated, user, error_message = authenticate_request(request)
+    if not is_authenticated:
+        return get_auth_response(error_message)
+
     # Parse query parameters
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 10))
@@ -158,6 +172,12 @@ def world_feed(request):
     
     # Base query - get top headlines
     queryset = Article.objects.filter(is_top_headline=True).select_related('language', 'publication').prefetch_related('topics')
+    
+    # Filter by user's preferred regions
+    user_region_codes = UserRegion.objects.filter(user=user).values_list('region__code', flat=True)
+    if user_region_codes:
+        # Filter articles from publications that serve the user's preferred regions
+        queryset = queryset.filter(publication__regions__code__in=user_region_codes).distinct()
     
     # Apply topic filter if specified
     if topic_slug and topic_slug != 'all':
