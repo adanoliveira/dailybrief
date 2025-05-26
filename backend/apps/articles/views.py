@@ -1,7 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.db.models import Q, F, Value, Count, Case, When, OuterRef, Subquery, Exists
-from django.db.models.functions import Coalesce
+from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
@@ -76,13 +75,10 @@ def personalized_feed(request):
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
     else:  # Default relevance sorting
-        # Complex sorting based on relevance criteria
-        queryset = queryset.annotate(
-            pub_authority=Coalesce('publication__authority', Value(1.0)),
-        ).order_by(
+        # Simplified sorting: relevance score → headlines → recency
+        queryset = queryset.order_by(
             '-relevance_score',
             '-is_top_headline',
-            '-pub_authority',
             '-published_at'
         )
     
