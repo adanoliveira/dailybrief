@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Check, Clock, Coffee, Newspaper, AlertTriangle, Tag } from "lucide-react"
 import { ArticlePreview as BaseArticlePreview, getWorldFeed, ArticleQueryParams } from "@/lib/api"
-import { format } from "date-fns"
+import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getTopicIcon } from "@/lib/topic-icons"
 
@@ -188,24 +188,19 @@ export function WorldNewsFeed({ topicSlug, searchQuery }: WorldNewsFeedProps) {
     </div>
   )
 
-  // Format date
+  // Format date with enhanced relative time
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
       const now = new Date()
+      const oneWeekAgo = subDays(now, 7)
       
-      // If within the last 24 hours, show relative time
-      const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
-      
-      if (diffHours < 24) {
-        return diffHours === 0 
-          ? 'Just now'
-          : diffHours === 1 
-            ? '1 hour ago'
-            : `${diffHours} hours ago`
+      // If within the last week, show relative time
+      if (isWithinInterval(date, { start: oneWeekAgo, end: now })) {
+        return formatDistanceToNow(date, { addSuffix: true })
       }
       
-      // Otherwise, show the date in format "Mar 15, 2023"
+      // For older articles, show the date in format "Mar 15, 2023"
       return format(date, 'MMM d, yyyy')
     } catch (e) {
       return dateString
@@ -326,85 +321,84 @@ function NewsCard({ article, formatDate }: NewsCardProps) {
   const TopicIcon = getTopicIcon(displayTopic.slug);
 
   return (
-    <Card className="overflow-hidden transition-all hover:shadow-md">
-      <div className="flex flex-col md:flex-row">
-        {/* Image section - conditional rendering based on image availability */}
-        {hasImage && (
-          <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
-            <div 
-              className="w-full h-full bg-cover bg-center md:rounded-l" 
-              style={{ 
-                backgroundImage: `url(${article.imageUrl})`, 
-                backgroundPosition: 'center',
-                backgroundSize: 'cover'
-              }}
-              role="img"
-              aria-label={article.title}
-              onError={() => setImageError(true)}
-            />
-            {/* Absolute positioned topic tag at the top right of the image */}
-            <div className="absolute top-2 right-2">
-              <div className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-black/70 text-white backdrop-blur-sm">
-                <TopicIcon className="h-3 w-3 mr-1" />
-                {displayTopic.name}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Content section */}
-        <div className={`flex flex-col ${hasImage ? 'md:w-2/3' : 'w-full'}`}>
-          <CardHeader>
-            {/* Topic tag if not showing image (or showing in a prominent way if there's no image) */}
-            {!hasImage && (
-              <div className="mb-2">
-                <div className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-primary/10 text-primary">
+    <Link href={`/article/${article.id}`} className="block">
+      <Card className="overflow-hidden transition-all hover:shadow-lg cursor-pointer">
+        <div className="flex flex-col md:flex-row">
+          {/* Image section - conditional rendering based on image availability */}
+          {hasImage && (
+            <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
+              <div 
+                className="w-full h-full bg-cover bg-center md:rounded-l" 
+                style={{ 
+                  backgroundImage: `url(${article.imageUrl})`, 
+                  backgroundPosition: 'center',
+                  backgroundSize: 'cover'
+                }}
+                role="img"
+                aria-label={article.title}
+                onError={() => setImageError(true)}
+              />
+              {/* Absolute positioned topic tag at the top right of the image */}
+              <div className="absolute top-2 right-2">
+                <div className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-black/70 text-white backdrop-blur-sm">
                   <TopicIcon className="h-3 w-3 mr-1" />
                   {displayTopic.name}
                 </div>
               </div>
-            )}
-            
-            <CardTitle className="line-clamp-2 text-lg">
-              <Link href={`/article/${article.id}`} className="hover:underline">
-                {article.title}
-              </Link>
-            </CardTitle>
-            <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
-              {article.source.logoUrl ? (
-                <div className="flex items-center gap-1.5">
-                  <div className="h-4 w-4 rounded-full overflow-hidden bg-muted flex items-center justify-center">
-                    <img 
-                      src={article.source.logoUrl} 
-                      alt={article.source.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        // Hide the image on error and show just the name
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+            </div>
+          )}
+          
+          {/* Content section */}
+          <div className={`flex flex-col ${hasImage ? 'md:w-2/3' : 'w-full'}`}>
+            <CardHeader className="pb-3">
+              {/* Topic tag if not showing image (or showing in a prominent way if there's no image) */}
+              {!hasImage && (
+                <div className="mb-2">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-primary/10 text-primary">
+                    <TopicIcon className="h-3 w-3 mr-1" />
+                    {displayTopic.name}
                   </div>
-                  <span>{article.source.name}</span>
                 </div>
-              ) : (
-                <span>{article.source.name}</span>
               )}
-              <span>•</span>
-              <span>{formatDate(article.publishedAt)}</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground line-clamp-3">{article.description}</p>
-          </CardContent>
-          <CardFooter className="pt-0">
-            <Link href={`/article/${article.id}`}>
-              <Button variant="ghost" size="sm">
-                Read more
-              </Button>
-            </Link>
-          </CardFooter>
+              
+              <CardTitle className="line-clamp-2 text-lg hover:underline">
+                {article.title}
+              </CardTitle>
+              <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
+                {article.source.logoUrl ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-4 w-4 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                      <img 
+                        src={article.source.logoUrl} 
+                        alt={article.source.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          // Hide the image on error and show just the name
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <span>{article.source.name}</span>
+                  </div>
+                ) : (
+                  <span>{article.source.name}</span>
+                )}
+                <span>•</span>
+                <span>{formatDate(article.publishedAt)}</span>
+                {article.readTime && (
+                  <>
+                    <span>•</span>
+                    <span>{article.readTime} min read</span>
+                  </>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-sm text-muted-foreground line-clamp-3">{article.description}</p>
+            </CardContent>
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   );
 }
