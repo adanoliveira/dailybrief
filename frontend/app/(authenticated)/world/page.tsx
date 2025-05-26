@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Filter, Search } from "lucide-react"
-import Link from "next/link"
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { WorldNewsFeed } from "@/components/world-news-feed"
+import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 
 export default function World() {
   const [selectedTopic, setSelectedTopic] = useState('all')
@@ -74,7 +74,8 @@ export default function World() {
             <TabsTrigger value="sports">Sports</TabsTrigger>
           </TabsList>
           <TabsContent value={selectedTopic}>
-            <WorldNewsFeed 
+            <InfiniteNewsFeed 
+              feedType="world"
               topicSlug={selectedTopic}
               searchQuery={debouncedSearch}
             />
@@ -85,34 +86,4 @@ export default function World() {
   )
 }
 
-function NewsCard() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="line-clamp-2">
-          <Link href="/article/1" className="hover:underline">
-            Global Summit Addresses Climate Change Initiatives
-          </Link>
-        </CardTitle>
-        <CardDescription className="flex items-center gap-2 text-xs">
-          <span>World News</span>
-          <span>•</span>
-          <span>3 hours ago</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground line-clamp-3">
-          World leaders gathered to discuss ambitious new targets for reducing carbon emissions and funding renewable
-          energy projects in developing nations.
-        </p>
-      </CardContent>
-      <CardFooter>
-        <Link href="/article/1">
-          <Button variant="ghost" size="sm">
-            Read more
-          </Button>
-        </Link>
-      </CardFooter>
-    </Card>
-  )
-}
+
