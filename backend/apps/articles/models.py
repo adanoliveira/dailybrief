@@ -128,6 +128,19 @@ class Article(models.Model):
     content_completeness = models.FloatField(null=True, blank=True)  # 0.0-1.0
     content_quality_score = models.FloatField(null=True, blank=True)  # 0.0-1.0
     
+    # Rich content fields
+    rich_content = models.JSONField(default=dict, blank=True)  # Structured content blocks
+    media_assets = models.JSONField(default=list, blank=True)  # Media metadata and URLs
+    formatting_data = models.JSONField(default=dict, blank=True)  # Typography and structure info
+    content_structure = models.JSONField(default=dict, blank=True)  # Article structure map
+    
+    # Rich content metadata
+    has_images = models.BooleanField(default=False)
+    has_videos = models.BooleanField(default=False)
+    has_audio = models.BooleanField(default=False)
+    media_count = models.PositiveIntegerField(default=0)
+    formatting_score = models.FloatField(default=0.0)  # 0.0-1.0 richness score
+    
     # Processing tracking
     processing_status = models.CharField(
         max_length=20,
@@ -163,6 +176,10 @@ class Article(models.Model):
             models.Index(fields=['content_status']),
             models.Index(fields=['processing_status']),
             models.Index(fields=['content_status', 'processing_status']),
+            models.Index(fields=['has_images']),
+            models.Index(fields=['has_videos']),
+            models.Index(fields=['media_count']),
+            models.Index(fields=['formatting_score']),
         ]
     
     def __str__(self):
@@ -191,6 +208,72 @@ class Article(models.Model):
             self.content_status in [ContentStatus.CONTENT_AVAILABLE, ContentStatus.PARTIAL_CONTENT] or
             (self.content_status == ContentStatus.METADATA_ONLY and self.description)
         )
+    
+    @property
+    def has_rich_content(self):
+        """Check if article has rich content (media or formatting)."""
+        return (
+            self.has_images or 
+            self.has_videos or 
+            self.has_audio or 
+            self.formatting_score > 0.0
+        )
+    
+    @property
+    def rich_content_summary(self):
+        """Get a summary of rich content features."""
+        features = []
+        if self.has_images:
+            image_count = len([asset for asset in self.media_assets if asset.get('type') == 'image'])
+            features.append(f"{image_count} image{'s' if image_count != 1 else ''}")
+        if self.has_videos:
+            video_count = len([asset for asset in self.media_assets if 'video' in asset.get('type', '')])
+            features.append(f"{video_count} video{'s' if video_count != 1 else ''}")
+        if self.has_audio:
+            audio_count = len([asset for asset in self.media_assets if asset.get('type') == 'audio'])
+            features.append(f"{audio_count} audio file{'s' if audio_count != 1 else ''}")
+        
+        if self.formatting_score > 0.5:
+            features.append("rich formatting")
+        
+        return ", ".join(features) if features else "text only"
+    
+    def update_rich_content_metadata(self):
+        """Update rich content metadata fields based on current data."""
+        # Update media flags
+        media_types = [asset.get('type', '') for asset in self.media_assets]
+        self.has_images = any('image' in media_type for media_type in media_types)
+        self.has_videos = any('video' in media_type for media_type in media_types)
+        self.has_audio = any('audio' in media_type for media_type in media_types)
+        self.media_count = len(self.media_assets)
+        
+        # Calculate formatting score
+        formatting_elements = 0
+        if self.formatting_data:
+            for category, items in self.formatting_data.items():
+                if isinstance(items, list):
+                    formatting_elements += len(items)
+        
+        # Normalize formatting score (0.0-1.0)
+        # More than 20 formatting elements = 1.0
+        self.formatting_score = min(formatting_elements / 20.0, 1.0)
+    
+    def get_content_blocks_by_type(self, block_type: str):
+        """Get content blocks of a specific type."""
+        if not self.rich_content or 'blocks' not in self.rich_content:
+            return []
+        
+        return [
+            block for block in self.rich_content['blocks'] 
+            if block.get('type') == block_type
+        ]
+    
+    def get_media_assets_by_type(self, media_type: str):
+        """Get media assets of a specific type."""
+        return [
+            asset for asset in self.media_assets 
+            if asset.get('type') == media_type
+        ]
 
 
 class UserArticleInteraction(models.Model):

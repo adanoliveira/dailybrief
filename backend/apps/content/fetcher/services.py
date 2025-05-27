@@ -176,6 +176,22 @@ class ContentFetcher:
             if result.author and not article.author:
                 article.author = result.author
             
+            # Store rich content data
+            if result.rich_content:
+                article.rich_content = result.rich_content
+            
+            if result.media_assets:
+                article.media_assets = result.media_assets
+            
+            if result.formatting_data:
+                article.formatting_data = result.formatting_data
+            
+            if result.content_structure:
+                article.content_structure = result.content_structure
+            
+            # Update rich content metadata
+            article.update_rich_content_metadata()
+            
             # Recalculate content metrics
             self._update_content_metrics(article, result.content)
             

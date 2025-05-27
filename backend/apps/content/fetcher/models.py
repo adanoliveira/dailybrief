@@ -64,6 +64,14 @@ class ContentFetchLog(models.Model):
     has_main_content = models.BooleanField(default=False)
     content_completeness = models.FloatField(null=True, blank=True)  # 0.0-1.0
     
+    # Rich content tracking
+    media_assets_count = models.IntegerField(default=0)
+    has_images = models.BooleanField(default=False)
+    has_videos = models.BooleanField(default=False)
+    has_audio = models.BooleanField(default=False)
+    formatting_score = models.FloatField(default=0.0)  # 0.0-1.0
+    content_blocks_count = models.IntegerField(default=0)
+    
     # Timestamps
     started_at = models.DateTimeField(default=timezone.now)
     completed_at = models.DateTimeField(null=True, blank=True)

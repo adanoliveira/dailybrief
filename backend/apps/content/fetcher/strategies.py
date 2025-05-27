@@ -56,11 +56,25 @@ class ExtractionResult:
     paywall_indicators: list = None
     quality_metrics: dict = None
     
+    # Rich content fields
+    rich_content: dict = None  # Structured content blocks
+    media_assets: list = None  # Media metadata and URLs
+    formatting_data: dict = None  # Typography and structure info
+    content_structure: dict = None  # Article structure map
+    
     def __post_init__(self):
         if self.paywall_indicators is None:
             self.paywall_indicators = []
         if self.quality_metrics is None:
             self.quality_metrics = {}
+        if self.rich_content is None:
+            self.rich_content = {"blocks": []}
+        if self.media_assets is None:
+            self.media_assets = []
+        if self.formatting_data is None:
+            self.formatting_data = {}
+        if self.content_structure is None:
+            self.content_structure = {}
 
 
 class ExtractionStrategy(ABC):
@@ -216,6 +230,10 @@ class BeautifulSoupStrategy(ExtractionStrategy):
             
             soup = BeautifulSoup(html, 'html.parser')
             
+            # Extract rich content
+            rich_extractor = RichContentExtractor()
+            rich_content, media_assets, formatting_data = rich_extractor.extract_rich_content(soup, url)
+            
             # Extract title
             title = ""
             title_selectors = ['h1', 'title', '[property="og:title"]', '[name="title"]']
@@ -273,7 +291,10 @@ class BeautifulSoupStrategy(ExtractionStrategy):
                 title=title,
                 author=author,
                 strategy_used=self.name,
-                quality_metrics=quality_metrics
+                quality_metrics=quality_metrics,
+                rich_content=rich_content,
+                media_assets=media_assets,
+                formatting_data=formatting_data
             )
             
         except Exception as e:
@@ -1270,8 +1291,8 @@ class PaywallBypassStrategy(ExtractionStrategy):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Extract content before any JavaScript paywall can activate
-            content = self._extract_article_content(soup)
+            # Extract rich content before any JavaScript paywall can activate
+            content, rich_content, media_assets, formatting_data = self._extract_rich_article_content(soup, url)
             title = self._extract_title(soup)
             author = self._extract_author(soup)
             
@@ -1289,7 +1310,10 @@ class PaywallBypassStrategy(ExtractionStrategy):
                     strategy_used=self.name,
                     quality_metrics=quality_metrics,
                     paywall_detected=is_truncated,
-                    paywall_indicators=["Content truncation detected"] if is_truncated else []
+                    paywall_indicators=["Content truncation detected"] if is_truncated else [],
+                    rich_content=rich_content,
+                    media_assets=media_assets,
+                    formatting_data=formatting_data
                 )
             
             return ExtractionResult(success=False, error_message="Insufficient content extracted")
@@ -1382,8 +1406,8 @@ class PaywallBypassStrategy(ExtractionStrategy):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Apply reader mode content extraction
-            content = self._extract_reader_content(soup)
+            # Apply reader mode content extraction with rich content
+            content, rich_content, media_assets, formatting_data = self._extract_rich_article_content(soup, url)
             title = self._extract_title(soup)
             author = self._extract_author(soup)
             
@@ -1396,7 +1420,10 @@ class PaywallBypassStrategy(ExtractionStrategy):
                     title=title,
                     author=author,
                     strategy_used=self.name,
-                    quality_metrics=quality_metrics
+                    quality_metrics=quality_metrics,
+                    rich_content=rich_content,
+                    media_assets=media_assets,
+                    formatting_data=formatting_data
                 )
             
             return ExtractionResult(success=False, error_message="Insufficient reader mode content")
@@ -1578,8 +1605,8 @@ class PaywallBypassStrategy(ExtractionStrategy):
             self._remove_javascript_paywalls(soup)
             self._remove_css_paywalls(soup)
             
-            # Extract content
-            content = self._extract_article_content(soup)
+            # Extract rich content
+            content, rich_content, media_assets, formatting_data = self._extract_rich_article_content(soup, url)
             title = self._extract_title(soup)
             author = self._extract_author(soup)
             
@@ -1592,7 +1619,10 @@ class PaywallBypassStrategy(ExtractionStrategy):
                     title=title,
                     author=author,
                     strategy_used=self.name,
-                    quality_metrics=quality_metrics
+                    quality_metrics=quality_metrics,
+                    rich_content=rich_content,
+                    media_assets=media_assets,
+                    formatting_data=formatting_data
                 )
             
             return ExtractionResult(success=False, error_message="Insufficient content after paywall removal")
@@ -1648,8 +1678,8 @@ class PaywallBypassStrategy(ExtractionStrategy):
             # Remove paywall modal elements
             self._remove_modal_elements(soup)
             
-            # Extract content
-            content = self._extract_article_content(soup)
+            # Extract rich content
+            content, rich_content, media_assets, formatting_data = self._extract_rich_article_content(soup, url)
             title = self._extract_title(soup)
             author = self._extract_author(soup)
             
@@ -1667,7 +1697,10 @@ class PaywallBypassStrategy(ExtractionStrategy):
                     strategy_used=self.name,
                     quality_metrics=quality_metrics,
                     paywall_detected=paywall_detected,
-                    paywall_indicators=paywall_indicators
+                    paywall_indicators=paywall_indicators,
+                    rich_content=rich_content,
+                    media_assets=media_assets,
+                    formatting_data=formatting_data
                 )
             
             return ExtractionResult(success=False, error_message="Insufficient content after modal removal")
@@ -1834,6 +1867,26 @@ class PaywallBypassStrategy(ExtractionStrategy):
         
         return ""
     
+    def _extract_rich_article_content(self, soup: BeautifulSoup, url: str) -> Tuple[str, dict, list, dict]:
+        """Extract rich article content including media and formatting."""
+        try:
+            # Initialize rich content extractor
+            rich_extractor = RichContentExtractor()
+            
+            # Extract rich content
+            rich_content, media_assets, formatting_data = rich_extractor.extract_rich_content(soup, url)
+            
+            # Also extract plain text content for backward compatibility
+            text_content = self._extract_article_content(soup)
+            
+            return text_content, rich_content, media_assets, formatting_data
+            
+        except Exception as e:
+            logger.warning(f"Rich content extraction failed: {str(e)}")
+            # Fallback to plain text extraction
+            text_content = self._extract_article_content(soup)
+            return text_content, {"blocks": []}, [], {}
+    
     def _extract_title(self, soup: BeautifulSoup) -> str:
         """Extract article title."""
         title_selectors = [
@@ -1922,6 +1975,468 @@ class PaywallBypassStrategy(ExtractionStrategy):
         ))
         
         return len(paywall_elements) > 0
+
+
+class RichContentExtractor:
+    """Extracts rich content including media, formatting, and structure."""
+    
+    def __init__(self):
+        self.position_counter = 0
+    
+    def extract_rich_content(self, soup: BeautifulSoup, base_url: str) -> Tuple[dict, list, dict]:
+        """
+        Extract rich content from BeautifulSoup object.
+        
+        Returns:
+            Tuple[dict, list, dict]: (rich_content, media_assets, formatting_data)
+        """
+        self.position_counter = 0
+        
+        # Extract media assets
+        media_assets = []
+        media_assets.extend(self.extract_images(soup, base_url))
+        media_assets.extend(self.extract_videos(soup, base_url))
+        media_assets.extend(self.extract_audio(soup, base_url))
+        
+        # Build structured content blocks
+        rich_content = self.build_content_structure(soup, media_assets)
+        
+        # Extract formatting data
+        formatting_data = self.extract_formatting(soup)
+        
+        return rich_content, media_assets, formatting_data
+    
+    def extract_images(self, soup: BeautifulSoup, base_url: str) -> list:
+        """Extract images with metadata."""
+        images = []
+        
+        for img in soup.find_all('img'):
+            try:
+                src = img.get('src', '')
+                if not src:
+                    continue
+                
+                # Convert relative URLs to absolute
+                if src.startswith('//'):
+                    src = 'https:' + src
+                elif src.startswith('/'):
+                    from urllib.parse import urljoin
+                    src = urljoin(base_url, src)
+                elif not src.startswith(('http://', 'https://')):
+                    from urllib.parse import urljoin
+                    src = urljoin(base_url, src)
+                
+                # Get image metadata
+                alt_text = img.get('alt', '')
+                title = img.get('title', '')
+                width = img.get('width')
+                height = img.get('height')
+                
+                # Try to find caption
+                caption = self._find_image_caption(img)
+                
+                # Get surrounding context
+                context = self._get_surrounding_text(img)
+                
+                image_data = {
+                    "type": "image",
+                    "src": src,
+                    "alt": alt_text,
+                    "title": title,
+                    "caption": caption,
+                    "position": self._get_element_position(img),
+                    "context": context,
+                    "metadata": {
+                        "width": int(width) if width and width.isdigit() else None,
+                        "height": int(height) if height and height.isdigit() else None,
+                        "format": self._get_image_format(src),
+                        "classes": img.get('class', []),
+                        "style": img.get('style', '')
+                    }
+                }
+                
+                images.append(image_data)
+                
+            except Exception as e:
+                logger.warning(f"Error extracting image: {str(e)}")
+                continue
+        
+        return images
+    
+    def extract_videos(self, soup: BeautifulSoup, base_url: str) -> list:
+        """Extract videos with metadata."""
+        videos = []
+        
+        # Extract HTML5 video elements
+        for video in soup.find_all('video'):
+            try:
+                src = video.get('src')
+                if not src:
+                    # Check for source elements
+                    source = video.find('source')
+                    if source:
+                        src = source.get('src')
+                
+                if src:
+                    # Convert relative URLs to absolute
+                    if src.startswith('/'):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    
+                    video_data = {
+                        "type": "video",
+                        "src": src,
+                        "poster": video.get('poster', ''),
+                        "caption": self._find_video_caption(video),
+                        "position": self._get_element_position(video),
+                        "context": self._get_surrounding_text(video),
+                        "metadata": {
+                            "width": video.get('width'),
+                            "height": video.get('height'),
+                            "controls": video.has_attr('controls'),
+                            "autoplay": video.has_attr('autoplay'),
+                            "loop": video.has_attr('loop'),
+                            "muted": video.has_attr('muted')
+                        }
+                    }
+                    
+                    videos.append(video_data)
+                    
+            except Exception as e:
+                logger.warning(f"Error extracting video: {str(e)}")
+                continue
+        
+        # Extract embedded videos (YouTube, Vimeo, etc.)
+        for iframe in soup.find_all('iframe'):
+            try:
+                src = iframe.get('src', '')
+                if any(domain in src for domain in ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com']):
+                    video_data = {
+                        "type": "video_embed",
+                        "src": src,
+                        "platform": self._get_video_platform(src),
+                        "caption": self._find_video_caption(iframe),
+                        "position": self._get_element_position(iframe),
+                        "context": self._get_surrounding_text(iframe),
+                        "metadata": {
+                            "width": iframe.get('width'),
+                            "height": iframe.get('height'),
+                            "frameborder": iframe.get('frameborder'),
+                            "allowfullscreen": iframe.has_attr('allowfullscreen')
+                        }
+                    }
+                    
+                    videos.append(video_data)
+                    
+            except Exception as e:
+                logger.warning(f"Error extracting embedded video: {str(e)}")
+                continue
+        
+        return videos
+    
+    def extract_audio(self, soup: BeautifulSoup, base_url: str) -> list:
+        """Extract audio files with metadata."""
+        audio_files = []
+        
+        for audio in soup.find_all('audio'):
+            try:
+                src = audio.get('src')
+                if not src:
+                    # Check for source elements
+                    source = audio.find('source')
+                    if source:
+                        src = source.get('src')
+                
+                if src:
+                    # Convert relative URLs to absolute
+                    if src.startswith('/'):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    
+                    audio_data = {
+                        "type": "audio",
+                        "src": src,
+                        "caption": self._find_audio_caption(audio),
+                        "position": self._get_element_position(audio),
+                        "context": self._get_surrounding_text(audio),
+                        "metadata": {
+                            "controls": audio.has_attr('controls'),
+                            "autoplay": audio.has_attr('autoplay'),
+                            "loop": audio.has_attr('loop'),
+                            "muted": audio.has_attr('muted'),
+                            "preload": audio.get('preload', 'metadata')
+                        }
+                    }
+                    
+                    audio_files.append(audio_data)
+                    
+            except Exception as e:
+                logger.warning(f"Error extracting audio: {str(e)}")
+                continue
+        
+        return audio_files
+    
+    def build_content_structure(self, soup: BeautifulSoup, media_assets: list) -> dict:
+        """Build structured content blocks preserving order and formatting."""
+        blocks = []
+        self.position_counter = 0
+        
+        # Find main content area
+        content_area = self._find_main_content_area(soup)
+        if not content_area:
+            content_area = soup
+        
+        # Process elements in order
+        for element in content_area.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'pre', 'code', 'img', 'video', 'audio', 'iframe']):
+            try:
+                block = self._element_to_block(element, media_assets)
+                if block:
+                    blocks.append(block)
+            except Exception as e:
+                logger.warning(f"Error processing element {element.name}: {str(e)}")
+                continue
+        
+        return {"blocks": blocks}
+    
+    def extract_formatting(self, soup: BeautifulSoup) -> dict:
+        """Extract formatting and typography information."""
+        formatting = {
+            "headings": [],
+            "emphasis": [],
+            "links": [],
+            "lists": [],
+            "quotes": [],
+            "code_blocks": []
+        }
+        
+        # Extract headings
+        for heading in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+            formatting["headings"].append({
+                "level": int(heading.name[1]),
+                "text": heading.get_text(strip=True),
+                "id": heading.get('id', ''),
+                "classes": heading.get('class', [])
+            })
+        
+        # Extract emphasis (bold, italic)
+        for em in soup.find_all(['em', 'i', 'strong', 'b']):
+            formatting["emphasis"].append({
+                "type": em.name,
+                "text": em.get_text(strip=True),
+                "context": self._get_surrounding_text(em, 50)
+            })
+        
+        # Extract links
+        for link in soup.find_all('a', href=True):
+            formatting["links"].append({
+                "text": link.get_text(strip=True),
+                "href": link['href'],
+                "title": link.get('title', ''),
+                "target": link.get('target', '')
+            })
+        
+        # Extract lists
+        for list_elem in soup.find_all(['ul', 'ol']):
+            items = [li.get_text(strip=True) for li in list_elem.find_all('li')]
+            formatting["lists"].append({
+                "type": list_elem.name,
+                "items": items,
+                "classes": list_elem.get('class', [])
+            })
+        
+        # Extract quotes
+        for quote in soup.find_all('blockquote'):
+            formatting["quotes"].append({
+                "text": quote.get_text(strip=True),
+                "cite": quote.get('cite', ''),
+                "classes": quote.get('class', [])
+            })
+        
+        # Extract code blocks
+        for code in soup.find_all(['pre', 'code']):
+            formatting["code_blocks"].append({
+                "type": code.name,
+                "content": code.get_text(),
+                "language": self._detect_code_language(code),
+                "classes": code.get('class', [])
+            })
+        
+        return formatting
+    
+    # Helper methods
+    def _find_image_caption(self, img) -> str:
+        """Find caption for an image."""
+        # Check for figcaption
+        figure = img.find_parent('figure')
+        if figure:
+            figcaption = figure.find('figcaption')
+            if figcaption:
+                return figcaption.get_text(strip=True)
+        
+        # Check for nearby caption elements
+        for sibling in [img.next_sibling, img.previous_sibling]:
+            if sibling and hasattr(sibling, 'get_text'):
+                text = sibling.get_text(strip=True)
+                if text and len(text) < 200 and any(word in text.lower() for word in ['caption', 'photo', 'image']):
+                    return text
+        
+        return ""
+    
+    def _find_video_caption(self, video) -> str:
+        """Find caption for a video."""
+        # Similar logic to image captions
+        figure = video.find_parent('figure')
+        if figure:
+            figcaption = figure.find('figcaption')
+            if figcaption:
+                return figcaption.get_text(strip=True)
+        return ""
+    
+    def _find_audio_caption(self, audio) -> str:
+        """Find caption for an audio element."""
+        figure = audio.find_parent('figure')
+        if figure:
+            figcaption = figure.find('figcaption')
+            if figcaption:
+                return figcaption.get_text(strip=True)
+        return ""
+    
+    def _get_surrounding_text(self, element, max_length: int = 100) -> str:
+        """Get surrounding text context for an element."""
+        context_parts = []
+        
+        # Get previous text
+        prev = element.previous_sibling
+        while prev and len(' '.join(context_parts)) < max_length // 2:
+            if hasattr(prev, 'get_text'):
+                text = prev.get_text(strip=True)
+                if text:
+                    context_parts.insert(0, text)
+            prev = prev.previous_sibling
+        
+        # Get next text
+        next_elem = element.next_sibling
+        while next_elem and len(' '.join(context_parts)) < max_length:
+            if hasattr(next_elem, 'get_text'):
+                text = next_elem.get_text(strip=True)
+                if text:
+                    context_parts.append(text)
+            next_elem = next_elem.next_sibling
+        
+        return ' '.join(context_parts)[:max_length]
+    
+    def _get_element_position(self, element) -> int:
+        """Get the position of an element in the document."""
+        self.position_counter += 1
+        return self.position_counter
+    
+    def _get_image_format(self, src: str) -> str:
+        """Extract image format from URL."""
+        import os
+        _, ext = os.path.splitext(src.split('?')[0])  # Remove query params
+        return ext.lower().lstrip('.')
+    
+    def _get_video_platform(self, src: str) -> str:
+        """Identify video platform from URL."""
+        if 'youtube.com' in src or 'youtu.be' in src:
+            return 'youtube'
+        elif 'vimeo.com' in src:
+            return 'vimeo'
+        elif 'dailymotion.com' in src:
+            return 'dailymotion'
+        else:
+            return 'unknown'
+    
+    def _find_main_content_area(self, soup: BeautifulSoup):
+        """Find the main content area of the page."""
+        # Try common content selectors
+        content_selectors = [
+            'article', '[role="main"]', 'main', '.article-content',
+            '.post-content', '.entry-content', '.story-body', '.content'
+        ]
+        
+        for selector in content_selectors:
+            content_area = soup.select_one(selector)
+            if content_area:
+                return content_area
+        
+        return None
+    
+    def _element_to_block(self, element, media_assets: list) -> dict:
+        """Convert an HTML element to a content block."""
+        tag_name = element.name.lower()
+        
+        if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            return {
+                "type": "heading",
+                "level": int(tag_name[1]),
+                "content": element.get_text(strip=True),
+                "position": self._get_element_position(element),
+                "id": element.get('id', ''),
+                "classes": element.get('class', [])
+            }
+        
+        elif tag_name == 'p':
+            text = element.get_text(strip=True)
+            if text:
+                return {
+                    "type": "paragraph",
+                    "content": str(element),  # Preserve inner HTML for formatting
+                    "text": text,
+                    "position": self._get_element_position(element),
+                    "classes": element.get('class', [])
+                }
+        
+        elif tag_name == 'blockquote':
+            return {
+                "type": "quote",
+                "content": element.get_text(strip=True),
+                "cite": element.get('cite', ''),
+                "position": self._get_element_position(element),
+                "classes": element.get('class', [])
+            }
+        
+        elif tag_name in ['ul', 'ol']:
+            items = [li.get_text(strip=True) for li in element.find_all('li')]
+            return {
+                "type": "list",
+                "list_type": tag_name,
+                "items": items,
+                "position": self._get_element_position(element),
+                "classes": element.get('class', [])
+            }
+        
+        elif tag_name in ['pre', 'code']:
+            return {
+                "type": "code",
+                "content": element.get_text(),
+                "language": self._detect_code_language(element),
+                "position": self._get_element_position(element),
+                "classes": element.get('class', [])
+            }
+        
+        elif tag_name in ['img', 'video', 'audio', 'iframe']:
+            # Find corresponding media asset
+            for asset in media_assets:
+                if asset.get('position') == self._get_element_position(element):
+                    return {
+                        "type": asset['type'],
+                        "media_id": len(media_assets),  # Reference to media asset
+                        "position": asset['position'],
+                        **asset
+                    }
+        
+        return None
+    
+    def _detect_code_language(self, element) -> str:
+        """Detect programming language from code element."""
+        classes = element.get('class', [])
+        for cls in classes:
+            if cls.startswith('language-'):
+                return cls.replace('language-', '')
+            elif cls.startswith('lang-'):
+                return cls.replace('lang-', '')
+        return ""
 
 
 class ContentExtractor:
