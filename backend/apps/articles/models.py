@@ -5,6 +5,33 @@ from apps.feeds.models import Publication, Topic, Region, Language
 from django.contrib.postgres.fields import ArrayField
 
 
+class ContentStatus(models.TextChoices):
+    """Content availability status choices."""
+    # Initial states
+    PENDING = 'pending', 'Pending Fetch'
+    FETCHING = 'fetching', 'Fetching Content'
+    
+    # Success states
+    CONTENT_AVAILABLE = 'content_available', 'Full Content Available'
+    PARTIAL_CONTENT = 'partial_content', 'Partial Content Available'
+    METADATA_ONLY = 'metadata_only', 'Metadata Only (No Content)'
+    
+    # Failure states
+    PAYWALL_BLOCKED = 'paywall_blocked', 'Blocked by Paywall'
+    ACCESS_DENIED = 'access_denied', 'Access Denied'
+    TECHNICAL_ERROR = 'technical_error', 'Technical Error'
+    INVALID_URL = 'invalid_url', 'Invalid or Dead URL'
+    TIMEOUT = 'timeout', 'Request Timeout'
+
+
+class ProcessingStatus(models.TextChoices):
+    """AI processing status choices."""
+    PENDING = 'pending', 'Pending Processing'
+    PROCESSING = 'processing', 'AI Processing'
+    COMPLETED = 'completed', 'Processing Completed'
+    FAILED = 'failed', 'Processing Failed'
+
+
 class StoryGroup(models.Model):
     """
     A group of related articles that form a comprehensive story.
@@ -85,6 +112,45 @@ class Article(models.Model):
     is_top_headline = models.BooleanField(default=False)
     summary_ready = models.BooleanField(default=False)
     
+    # Content availability tracking
+    content_status = models.CharField(
+        max_length=20, 
+        choices=ContentStatus.choices, 
+        default=ContentStatus.PENDING,
+        db_index=True
+    )
+    content_fetch_attempts = models.IntegerField(default=0)
+    max_fetch_attempts = models.IntegerField(default=3)
+    last_fetch_attempt = models.DateTimeField(null=True, blank=True)
+    fetch_error_message = models.TextField(blank=True)
+    
+    # Content quality indicators
+    content_completeness = models.FloatField(null=True, blank=True)  # 0.0-1.0
+    content_quality_score = models.FloatField(null=True, blank=True)  # 0.0-1.0
+    
+    # Processing tracking
+    processing_status = models.CharField(
+        max_length=20,
+        choices=ProcessingStatus.choices,
+        default=ProcessingStatus.PENDING,
+        db_index=True
+    )
+    processing_attempts = models.IntegerField(default=0)
+    last_processing_attempt = models.DateTimeField(null=True, blank=True)
+    
+    # Fallback content strategy
+    use_description_as_content = models.BooleanField(default=False)
+    content_source = models.CharField(
+        max_length=20,
+        choices=[
+            ('full_fetch', 'Full Content Fetched'),
+            ('partial_fetch', 'Partial Content Fetched'),
+            ('description', 'Using Description'),
+            ('summary_only', 'Summary Only'),
+        ],
+        null=True, blank=True
+    )
+    
     class Meta:
         ordering = ['-published_at']
         indexes = [
@@ -94,10 +160,37 @@ class Article(models.Model):
             models.Index(fields=['is_top_headline']),
             models.Index(fields=['content_hash']),
             models.Index(fields=['popularity_score']),
+            models.Index(fields=['content_status']),
+            models.Index(fields=['processing_status']),
+            models.Index(fields=['content_status', 'processing_status']),
         ]
     
     def __str__(self):
         return self.title
+    
+    @property
+    def needs_content_fetch(self):
+        """Check if article needs content fetching."""
+        return (
+            self.content_status == ContentStatus.PENDING and 
+            self.content_fetch_attempts < self.max_fetch_attempts
+        )
+    
+    @property
+    def needs_processing(self):
+        """Check if article needs AI processing."""
+        return (
+            self.content_status in [ContentStatus.CONTENT_AVAILABLE, ContentStatus.PARTIAL_CONTENT, ContentStatus.METADATA_ONLY] and
+            self.processing_status == ProcessingStatus.PENDING
+        )
+    
+    @property
+    def has_usable_content(self):
+        """Check if article has content that can be processed or displayed."""
+        return (
+            self.content_status in [ContentStatus.CONTENT_AVAILABLE, ContentStatus.PARTIAL_CONTENT] or
+            (self.content_status == ContentStatus.METADATA_ONLY and self.description)
+        )
 
 
 class UserArticleInteraction(models.Model):

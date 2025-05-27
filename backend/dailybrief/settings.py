@@ -107,6 +107,9 @@ INSTALLED_APPS = [
     'apps.newsapi',
     'apps.aiproviders',
     'apps.notifications',
+    
+    # Content Domain
+    'apps.content.fetcher',
 ]
 
 MIDDLEWARE = [
@@ -251,6 +254,34 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'newsapi.sync_sources',
         'schedule': crontab(hour=3, minute=0, day_of_week=0),  # Sunday at 3:00 AM
         'kwargs': {'update_existing': True},
+    },
+    
+    # Content Fetching Tasks
+    # Process pending articles for content fetching - Every 30 minutes
+    'process-pending-articles': {
+        'task': 'content.process_pending_articles',
+        'schedule': crontab(minute='*/30'),  # Every 30 minutes
+        'kwargs': {'limit': 50},
+    },
+    
+    # Retry failed content fetches - Every 2 hours
+    'retry-failed-fetches': {
+        'task': 'content.retry_failed_fetches',
+        'schedule': crontab(minute=0, hour='*/2'),  # Every 2 hours
+        'kwargs': {'limit': 25},
+    },
+    
+    # Update content metrics - Daily at 6:00 AM
+    'update-content-metrics': {
+        'task': 'content.update_content_metrics',
+        'schedule': crontab(hour=6, minute=0),  # 6:00 AM daily
+    },
+    
+    # Cleanup old fetch logs - Weekly on Monday at 2:00 AM
+    'cleanup-old-fetch-logs': {
+        'task': 'content.cleanup_old_fetch_logs',
+        'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday at 2:00 AM
+        'kwargs': {'days_to_keep': 30},
     },
 }
 

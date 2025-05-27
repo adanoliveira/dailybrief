@@ -1,0 +1,1832 @@
+{
+  "timestamp": "2025-05-27T19:10:46.496590",
+  "summary": {
+    "total_tested": 200,
+    "improved": 105,
+    "same_result": 94,
+    "degraded": 1,
+    "improvement_rate": 52.5
+  },
+  "strategy_usage": {
+    "newspaper3k": 175,
+    "publisher_api": 10,
+    "rss_enhanced": 10,
+    "stealth": 2,
+    "readability": 3
+  },
+  "error_patterns": {},
+  "status_transitions": {
+    "fetching -> content_available": 1,
+    "paywall_blocked -> content_available": 76,
+    "content_available -> content_available": 76,
+    "paywall_blocked -> partial_content": 15,
+    "partial_content -> partial_content": 16,
+    "pending -> metadata_only": 2,
+    "metadata_only -> partial_content": 7,
+    "paywall_blocked -> metadata_only": 4,
+    "content_available -> partial_content": 1,
+    "metadata_only -> metadata_only": 2
+  },
+  "detailed_results": [
+    {
+      "article_id": 15157,
+      "outcome": "improved",
+      "original_status": "fetching",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15158,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15191,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15192,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15193,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15228,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15176,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15242,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15243,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15244,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15194,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15159,
+      "outcome": "improved",
+      "original_status": "pending",
+      "new_status": "metadata_only",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15160,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15215,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15216,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "stealth",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15217,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15162,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15161,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15195,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15196,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15218,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15219,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15177,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "stealth",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15163,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15164,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15245,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15246,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15229,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15197,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15230,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15165,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15247,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15166,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15248,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15167,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15249,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15220,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15168,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15198,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15221,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15199,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15178,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15200,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15169,
+      "outcome": "improved",
+      "original_status": "pending",
+      "new_status": "metadata_only",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15179,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15170,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15171,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15201,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15231,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15250,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15202,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15206,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15172,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15251,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15173,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15207,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15208,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15252,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15174,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15203,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15175,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "metadata_only",
+      "strategy_used": "readability",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15253,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15254,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15180,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15181,
+      "outcome": "degraded",
+      "original_status": "content_available",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15204,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15209,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15076,
+      "outcome": "improved",
+      "original_status": "metadata_only",
+      "new_status": "partial_content",
+      "strategy_used": "rss_enhanced",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14755,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15232,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14758,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14756,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14757,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14614,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14759,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14760,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14998,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14615,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14761,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14530,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14762,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "readability",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14531,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14763,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14764,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14494,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14532,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14765,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14533,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14616,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14766,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14999,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14534,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14767,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14768,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14769,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14694,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14770,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14695,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14535,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14495,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14536,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14696,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14537,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14697,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14539,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14538,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14771,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14541,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14540,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14617,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14542,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14772,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14773,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14543,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14496,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "publisher_api",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14698,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15000,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14699,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14774,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14618,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14775,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "metadata_only",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14619,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14700,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14776,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14544,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14545,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14546,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14777,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "readability",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14620,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14778,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14779,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14780,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15001,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14781,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14782,
+      "outcome": "same_result",
+      "original_status": "metadata_only",
+      "new_status": "metadata_only",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14701,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14983,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "metadata_only",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14547,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14783,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15205,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14784,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14621,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14785,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14786,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14497,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14787,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14622,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14623,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14548,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14788,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14789,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14790,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14624,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14625,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14549,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14702,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14703,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14704,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15255,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14626,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14791,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14793,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14794,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14792,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14984,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15182,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14795,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14985,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15056,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14986,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14796,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "metadata_only",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14705,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14797,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14798,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14799,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14800,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14627,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14801,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14550,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14551,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15002,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14802,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14628,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14803,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14804,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14706,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14805,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14552,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14553,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14806,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14554,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 15256,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14807,
+      "outcome": "same_result",
+      "original_status": "metadata_only",
+      "new_status": "metadata_only",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14808,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14809,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14629,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14707,
+      "outcome": "same_result",
+      "original_status": "content_available",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14708,
+      "outcome": "same_result",
+      "original_status": "partial_content",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14631,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "partial_content",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "article_id": 14630,
+      "outcome": "improved",
+      "original_status": "paywall_blocked",
+      "new_status": "content_available",
+      "strategy_used": "newspaper3k",
+      "success": true,
+      "error_message": ""
+    }
+  ]
+}
