@@ -1169,12 +1169,768 @@ class PublisherAPIStrategy(ExtractionStrategy):
             )
 
 
+class PaywallBypassStrategy(ExtractionStrategy):
+    """Advanced paywall bypass strategy for common paywall patterns."""
+    
+    @property
+    def name(self) -> str:
+        return "paywall_bypass"
+    
+    @property
+    def available(self) -> bool:
+        return BS4_AVAILABLE
+    
+    def extract(self, url: str, html: str = None, headers: dict = None) -> ExtractionResult:
+        """Extract content using paywall bypass techniques."""
+        if not self.available:
+            return ExtractionResult(
+                success=False,
+                error_message="BeautifulSoup library not available",
+                strategy_used=self.name
+            )
+        
+        try:
+            logger.info(f"Attempting paywall bypass extraction for {url}")
+            
+            # Strategy 1: Fast extraction before paywall loads
+            result = self._fast_extraction(url, headers)
+            if result.success:
+                logger.info(f"Fast extraction successful for {url}")
+                return result
+            
+            # Strategy 2: Extract from initial HTML before modal activation
+            if html:
+                result = self._extract_from_initial_html(html, url)
+                if result.success:
+                    logger.info(f"Initial HTML extraction successful for {url}")
+                    return result
+            
+            # Strategy 3: Archive/cache extraction
+            result = self._extract_from_archive(url, headers)
+            if result.success:
+                logger.info(f"Archive extraction successful for {url}")
+                return result
+            
+            # Strategy 4: Reader mode extraction
+            result = self._reader_mode_extraction(url, headers)
+            if result.success:
+                logger.info(f"Reader mode extraction successful for {url}")
+                return result
+            
+            # Strategy 5: Remove paywall elements and extract
+            result = self._remove_paywall_elements(url, headers)
+            if result.success:
+                logger.info(f"Paywall removal extraction successful for {url}")
+                return result
+            
+            # Strategy 6: Extract from JSON-LD or structured data
+            result = self._extract_from_structured_data(url, headers)
+            if result.success:
+                logger.info(f"Structured data extraction successful for {url}")
+                return result
+            
+            # Strategy 7: Social media preview extraction
+            result = self._extract_social_preview(url, headers)
+            if result.success:
+                logger.info(f"Social preview extraction successful for {url}")
+                return result
+            
+            logger.warning(f"All paywall bypass strategies failed for {url}")
+            return ExtractionResult(
+                success=False,
+                error_message="All paywall bypass strategies failed",
+                strategy_used=self.name
+            )
+            
+        except Exception as e:
+            logger.error(f"Paywall bypass extraction failed for {url}: {str(e)}")
+            return ExtractionResult(
+                success=False,
+                error_message=str(e),
+                strategy_used=self.name
+            )
+    
+    def _fast_extraction(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Extract content quickly before paywall mechanisms activate."""
+        try:
+            # Use minimal headers to avoid triggering paywall detection
+            minimal_headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            # Fast request with short timeout
+            response = requests.get(url, headers=minimal_headers, timeout=5)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Extract content before any JavaScript paywall can activate
+            content = self._extract_article_content(soup)
+            title = self._extract_title(soup)
+            author = self._extract_author(soup)
+            
+            if content and len(content.split()) > 50:  # Minimum viable content
+                # Check if this looks like truncated content
+                is_truncated = self._detect_content_truncation(content, soup)
+                
+                quality_metrics = assess_content_quality(content, title)
+                
+                return ExtractionResult(
+                    success=True,
+                    content=content,
+                    title=title,
+                    author=author,
+                    strategy_used=self.name,
+                    quality_metrics=quality_metrics,
+                    paywall_detected=is_truncated,
+                    paywall_indicators=["Content truncation detected"] if is_truncated else []
+                )
+            
+            return ExtractionResult(success=False, error_message="Insufficient content extracted")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Fast extraction failed: {str(e)}")
+    
+    def _extract_from_archive(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Extract content from archive.org or cached versions."""
+        try:
+            from urllib.parse import quote
+            
+            # Try Internet Archive Wayback Machine
+            archive_url = f"https://web.archive.org/web/timemap/link/{url}"
+            
+            try:
+                response = requests.get(archive_url, timeout=10)
+                if response.status_code == 200:
+                    # Parse the timemap to find recent snapshots
+                    lines = response.text.strip().split('\n')
+                    snapshots = []
+                    
+                    for line in lines:
+                        if 'memento' in line and 'datetime=' in line:
+                            # Extract the snapshot URL
+                            parts = line.split()
+                            for part in parts:
+                                if part.startswith('<') and part.endswith('>'):
+                                    snapshot_url = part[1:-1]  # Remove < >
+                                    if 'web.archive.org/web/' in snapshot_url:
+                                        snapshots.append(snapshot_url)
+                    
+                    # Try the most recent snapshots
+                    for snapshot_url in snapshots[-3:]:  # Try last 3 snapshots
+                        try:
+                            snapshot_response = requests.get(snapshot_url, timeout=15)
+                            if snapshot_response.status_code == 200:
+                                soup = BeautifulSoup(snapshot_response.text, 'html.parser')
+                                
+                                # Remove archive.org navigation elements
+                                for element in soup.select('#wm-ipp-base, .wb-autocomplete-suggestions'):
+                                    element.decompose()
+                                
+                                content = self._extract_article_content(soup)
+                                title = self._extract_title(soup)
+                                author = self._extract_author(soup)
+                                
+                                if content and len(content.split()) > 50:
+                                    quality_metrics = assess_content_quality(content, title)
+                                    
+                                    return ExtractionResult(
+                                        success=True,
+                                        content=content,
+                                        title=title,
+                                        author=author,
+                                        strategy_used=self.name,
+                                        quality_metrics=quality_metrics
+                                    )
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+            
+            return ExtractionResult(success=False, error_message="No usable archive content found")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Archive extraction failed: {str(e)}")
+    
+    def _reader_mode_extraction(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Extract content using reader mode techniques."""
+        try:
+            # Use reader-friendly headers
+            reader_headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+            
+            # Try to get content with reader-mode headers
+            response = requests.get(url, headers=reader_headers, timeout=15)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Apply reader mode content extraction
+            content = self._extract_reader_content(soup)
+            title = self._extract_title(soup)
+            author = self._extract_author(soup)
+            
+            if content and len(content.split()) > 50:
+                quality_metrics = assess_content_quality(content, title)
+                
+                return ExtractionResult(
+                    success=True,
+                    content=content,
+                    title=title,
+                    author=author,
+                    strategy_used=self.name,
+                    quality_metrics=quality_metrics
+                )
+            
+            return ExtractionResult(success=False, error_message="Insufficient reader mode content")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Reader mode extraction failed: {str(e)}")
+    
+    def _extract_social_preview(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Extract content from social media preview metadata."""
+        try:
+            # Use social media bot headers
+            social_headers = {
+                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive'
+            }
+            
+            response = requests.get(url, headers=social_headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Extract from Open Graph and Twitter Card metadata
+            title = ""
+            description = ""
+            
+            # Try Open Graph title
+            og_title = soup.find('meta', property='og:title')
+            if og_title:
+                title = og_title.get('content', '')
+            
+            # Try Twitter title
+            if not title:
+                twitter_title = soup.find('meta', attrs={'name': 'twitter:title'})
+                if twitter_title:
+                    title = twitter_title.get('content', '')
+            
+            # Try Open Graph description
+            og_desc = soup.find('meta', property='og:description')
+            if og_desc:
+                description = og_desc.get('content', '')
+            
+            # Try Twitter description
+            if not description:
+                twitter_desc = soup.find('meta', attrs={'name': 'twitter:description'})
+                if twitter_desc:
+                    description = twitter_desc.get('content', '')
+            
+            # Try standard meta description
+            if not description:
+                meta_desc = soup.find('meta', attrs={'name': 'description'})
+                if meta_desc:
+                    description = meta_desc.get('content', '')
+            
+            # Combine title and description as content
+            content_parts = []
+            if title:
+                content_parts.append(title)
+            if description and len(description) > 50:
+                content_parts.append(description)
+            
+            content = '\n\n'.join(content_parts)
+            
+            if content and len(content.split()) > 30:
+                quality_metrics = assess_content_quality(content, title, description)
+                
+                return ExtractionResult(
+                    success=True,
+                    content=content,
+                    title=title,
+                    strategy_used=self.name,
+                    quality_metrics=quality_metrics
+                )
+            
+            return ExtractionResult(success=False, error_message="Insufficient social preview content")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Social preview extraction failed: {str(e)}")
+    
+    def _extract_reader_content(self, soup: BeautifulSoup) -> str:
+        """Extract content using reader mode algorithms."""
+        # Remove unwanted elements first
+        for element in soup.select('script, style, nav, header, footer, aside, .advertisement, .ad, .sidebar, .menu, .navigation'):
+            element.decompose()
+        
+        # Reader mode content selectors (prioritized for readability)
+        reader_selectors = [
+            # Main content areas
+            'article', '[role="main"]', 'main', '.main-content', '.article-content',
+            '.post-content', '.entry-content', '.story-body', '.article-body',
+            
+            # Content containers
+            '.content', '#content', '.article-wrap', '.article-container',
+            '.post-wrap', '.post-container', '.story-wrap', '.story-container',
+            
+            # Text-heavy areas
+            '.text-content', '.article-text', '.story-text', '.post-text',
+            '.content-body', '.article-main', '.story-main', '.post-main'
+        ]
+        
+        best_content = ""
+        best_score = 0
+        
+        for selector in reader_selectors:
+            try:
+                elements = soup.select(selector)
+                for element in elements:
+                    # Calculate content score based on text density and structure
+                    text = element.get_text(separator=' ', strip=True)
+                    if not text:
+                        continue
+                    
+                    # Score based on text length, paragraph count, and link density
+                    words = text.split()
+                    paragraphs = len([p for p in text.split('\n') if p.strip()])
+                    links = len(element.find_all('a'))
+                    
+                    # Calculate score
+                    word_score = min(len(words) / 100, 10)  # Up to 10 points for word count
+                    paragraph_score = min(paragraphs / 5, 5)  # Up to 5 points for paragraphs
+                    link_penalty = min(links / 10, 3)  # Penalty for too many links
+                    
+                    score = word_score + paragraph_score - link_penalty
+                    
+                    if score > best_score and len(words) > 30:
+                        best_score = score
+                        best_content = text
+            except Exception:
+                continue
+        
+        # Fallback to paragraph extraction if no good content found
+        if not best_content or len(best_content.split()) < 50:
+            paragraphs = soup.find_all('p')
+            paragraph_texts = []
+            
+            for p in paragraphs:
+                text = p.get_text(strip=True)
+                if len(text) > 20:  # Filter out short paragraphs
+                    paragraph_texts.append(text)
+            
+            if paragraph_texts:
+                best_content = '\n\n'.join(paragraph_texts)
+        
+        return clean_extracted_text(best_content)
+    
+    def _remove_paywall_elements(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Remove paywall elements and extract content."""
+        try:
+            # Get HTML content with multiple attempts
+            html = None
+            
+            # Try different approaches to get content
+            approaches = [
+                {'use_session': False, 'delay': 0.1},
+                {'use_session': True, 'delay': 0.5},
+                {'use_session': False, 'delay': 1.0}
+            ]
+            
+            for approach in approaches:
+                try:
+                    html = get_html_content_with_session(url, headers, **approach)
+                    if html and len(html) > 1000:  # Minimum viable HTML
+                        break
+                except Exception as e:
+                    logger.warning(f"Approach {approach} failed for {url}: {str(e)}")
+                    continue
+            
+            if not html:
+                return ExtractionResult(success=False, error_message="Failed to fetch HTML content")
+            
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Enhanced paywall removal
+            self._remove_modal_elements(soup)
+            self._remove_paywall_overlays(soup)
+            self._remove_subscription_prompts(soup)
+            self._remove_javascript_paywalls(soup)
+            self._remove_css_paywalls(soup)
+            
+            # Extract content
+            content = self._extract_article_content(soup)
+            title = self._extract_title(soup)
+            author = self._extract_author(soup)
+            
+            if content and len(content.split()) > 50:
+                quality_metrics = assess_content_quality(content, title)
+                
+                return ExtractionResult(
+                    success=True,
+                    content=content,
+                    title=title,
+                    author=author,
+                    strategy_used=self.name,
+                    quality_metrics=quality_metrics
+                )
+            
+            return ExtractionResult(success=False, error_message="Insufficient content after paywall removal")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Paywall removal failed: {str(e)}")
+    
+    def _remove_javascript_paywalls(self, soup: BeautifulSoup) -> None:
+        """Remove JavaScript-based paywall implementations."""
+        # Remove script tags that contain paywall logic
+        paywall_script_patterns = [
+            'paywall', 'subscription', 'premium', 'metered', 'meter',
+            'registration', 'login-wall', 'auth-wall'
+        ]
+        
+        scripts = soup.find_all('script')
+        for script in scripts:
+            if script.string:
+                script_content = script.string.lower()
+                if any(pattern in script_content for pattern in paywall_script_patterns):
+                    script.decompose()
+    
+    def _remove_css_paywalls(self, soup: BeautifulSoup) -> None:
+        """Remove CSS-based paywall implementations."""
+        # Remove style tags that contain paywall CSS
+        paywall_css_patterns = [
+            'paywall', 'subscription', 'premium', 'overlay', 'modal',
+            'blur', 'fade-out', 'gradient'
+        ]
+        
+        styles = soup.find_all('style')
+        for style in styles:
+            if style.string:
+                style_content = style.string.lower()
+                if any(pattern in style_content for pattern in paywall_css_patterns):
+                    style.decompose()
+        
+        # Remove elements with paywall-related inline styles
+        for element in soup.find_all(style=True):
+            style_attr = element.get('style', '').lower()
+            if any(pattern in style_attr for pattern in ['blur', 'opacity: 0', 'display: none', 'visibility: hidden']):
+                # Check if this might be paywall-related
+                element_text = element.get_text().lower()
+                if any(keyword in element_text for keyword in ['article', 'content', 'story', 'text']):
+                    # Remove the style attribute to reveal hidden content
+                    del element['style']
+
+    def _extract_from_initial_html(self, html: str, url: str) -> ExtractionResult:
+        """Extract content from initial HTML before modal activation."""
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Remove paywall modal elements
+            self._remove_modal_elements(soup)
+            
+            # Extract content
+            content = self._extract_article_content(soup)
+            title = self._extract_title(soup)
+            author = self._extract_author(soup)
+            
+            if content and len(content.split()) > 30:
+                # Check for paywall indicators in the cleaned content
+                paywall_detected, paywall_indicators = detect_paywall_indicators(str(soup), url)
+                
+                quality_metrics = assess_content_quality(content, title)
+                
+                return ExtractionResult(
+                    success=True,
+                    content=content,
+                    title=title,
+                    author=author,
+                    strategy_used=self.name,
+                    quality_metrics=quality_metrics,
+                    paywall_detected=paywall_detected,
+                    paywall_indicators=paywall_indicators
+                )
+            
+            return ExtractionResult(success=False, error_message="Insufficient content after modal removal")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Initial HTML extraction failed: {str(e)}")
+    
+    def _extract_from_structured_data(self, url: str, headers: dict = None) -> ExtractionResult:
+        """Extract content from JSON-LD or other structured data."""
+        try:
+            html = get_html_content_with_session(url, headers, use_session=False, delay=0.1)
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Look for JSON-LD structured data
+            json_scripts = soup.find_all('script', type='application/ld+json')
+            
+            for script in json_scripts:
+                try:
+                    import json
+                    data = json.loads(script.string)
+                    
+                    # Handle both single objects and arrays
+                    if isinstance(data, list):
+                        data = data[0] if data else {}
+                    
+                    # Look for article content in structured data
+                    if data.get('@type') in ['Article', 'NewsArticle', 'BlogPosting']:
+                        content = data.get('articleBody', '')
+                        title = data.get('headline', data.get('name', ''))
+                        author = self._extract_author_from_structured_data(data)
+                        
+                        if content and len(content.split()) > 50:
+                            quality_metrics = assess_content_quality(content, title)
+                            
+                            return ExtractionResult(
+                                success=True,
+                                content=content,
+                                title=title,
+                                author=author,
+                                strategy_used=self.name,
+                                quality_metrics=quality_metrics
+                            )
+                
+                except (json.JSONDecodeError, KeyError):
+                    continue
+            
+            return ExtractionResult(success=False, error_message="No usable structured data found")
+            
+        except Exception as e:
+            return ExtractionResult(success=False, error_message=f"Structured data extraction failed: {str(e)}")
+    
+    def _remove_modal_elements(self, soup: BeautifulSoup) -> None:
+        """Remove paywall modal elements from soup."""
+        # Common modal selectors
+        modal_selectors = [
+            # Generic modal classes
+            '[class*="modal"]', '[class*="popup"]', '[class*="overlay"]',
+            '[class*="paywall"]', '[class*="subscription"]', '[class*="premium"]',
+            
+            # Specific paywall modal classes
+            '.paywall-modal', '.subscription-modal', '.premium-modal',
+            '.paywall-overlay', '.subscription-overlay', '.premium-overlay',
+            '.paywall-popup', '.subscription-popup', '.premium-popup',
+            
+            # Registration/login modals
+            '.registration-modal', '.login-modal', '.signup-modal',
+            '.register-modal', '.auth-modal',
+            
+            # Common modal containers
+            '.modal-container', '.popup-container', '.overlay-container',
+            '.modal-backdrop', '.popup-backdrop', '.overlay-backdrop',
+            
+            # Z-index based (often modals have high z-index)
+            '[style*="z-index: 999"]', '[style*="z-index: 9999"]',
+            '[style*="position: fixed"]'
+        ]
+        
+        for selector in modal_selectors:
+            try:
+                elements = soup.select(selector)
+                for element in elements:
+                    # Check if this looks like a paywall modal
+                    element_text = element.get_text().lower()
+                    if any(keyword in element_text for keyword in [
+                        'subscribe', 'premium', 'paywall', 'register', 'login',
+                        'membership', 'subscription', 'continue reading'
+                    ]):
+                        element.decompose()
+            except Exception:
+                continue
+    
+    def _remove_paywall_overlays(self, soup: BeautifulSoup) -> None:
+        """Remove paywall overlay elements."""
+        overlay_selectors = [
+            '.paywall-overlay', '.subscription-overlay', '.premium-overlay',
+            '.paywall-barrier', '.subscription-barrier', '.premium-barrier',
+            '.paywall-wall', '.subscription-wall', '.premium-wall',
+            '[class*="paywall-"]', '[class*="subscription-"]', '[class*="premium-"]'
+        ]
+        
+        for selector in overlay_selectors:
+            try:
+                elements = soup.select(selector)
+                for element in elements:
+                    element.decompose()
+            except Exception:
+                continue
+    
+    def _remove_subscription_prompts(self, soup: BeautifulSoup) -> None:
+        """Remove subscription prompt elements."""
+        # Remove elements with subscription-related text
+        for element in soup.find_all(text=True):
+            if isinstance(element.parent, (soup.find('script').__class__, soup.find('style').__class__)):
+                continue
+            
+            text = element.strip().lower()
+            if any(keyword in text for keyword in [
+                'subscribe to continue', 'subscription required', 'premium content',
+                'register to read', 'login to continue', 'become a member'
+            ]):
+                # Remove the parent element
+                try:
+                    element.parent.decompose()
+                except Exception:
+                    continue
+    
+    def _extract_article_content(self, soup: BeautifulSoup) -> str:
+        """Extract main article content using multiple strategies."""
+        content_selectors = [
+            # Common article content selectors
+            'article', '.article-content', '.article-body', '.article-text',
+            '.post-content', '.post-body', '.entry-content', '.content',
+            '.story-body', '.story-content', '.main-content',
+            
+            # Publisher-specific selectors
+            '.ArticleBody', '.RichTextArticleBody', '.ArticleBodyWrapper',
+            '.story-body-text', '.article-wrap', '.article-container',
+            
+            # Semantic HTML5
+            '[role="main"]', 'main', '.main',
+            
+            # Paragraph-based extraction
+            '.article p', 'article p', '.content p', '.story p'
+        ]
+        
+        for selector in content_selectors:
+            try:
+                elements = soup.select(selector)
+                if elements:
+                    # Get the largest content block
+                    largest_element = max(elements, key=lambda x: len(x.get_text()))
+                    content = largest_element.get_text(separator=' ', strip=True)
+                    
+                    if len(content.split()) > 30:  # Minimum viable content
+                        return clean_extracted_text(content)
+            except Exception:
+                continue
+        
+        # Fallback: extract all paragraphs
+        paragraphs = soup.find_all('p')
+        if paragraphs:
+            content = ' '.join([p.get_text(strip=True) for p in paragraphs])
+            return clean_extracted_text(content)
+        
+        return ""
+    
+    def _extract_title(self, soup: BeautifulSoup) -> str:
+        """Extract article title."""
+        title_selectors = [
+            'h1', '.article-title', '.post-title', '.entry-title',
+            '.headline', '.story-headline', '.article-headline',
+            '[property="og:title"]', '[name="twitter:title"]'
+        ]
+        
+        for selector in title_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    if element.name == 'meta':
+                        return element.get('content', '').strip()
+                    else:
+                        return element.get_text(strip=True)
+            except Exception:
+                continue
+        
+        # Fallback to page title
+        title_tag = soup.find('title')
+        if title_tag:
+            return title_tag.get_text(strip=True)
+        
+        return ""
+    
+    def _extract_author(self, soup: BeautifulSoup) -> str:
+        """Extract article author."""
+        author_selectors = [
+            '.author', '.byline', '.article-author', '.post-author',
+            '.story-author', '[rel="author"]', '.author-name',
+            '[property="article:author"]', '[name="author"]'
+        ]
+        
+        for selector in author_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    if element.name == 'meta':
+                        return element.get('content', '').strip()
+                    else:
+                        return element.get_text(strip=True)
+            except Exception:
+                continue
+        
+        return ""
+    
+    def _extract_author_from_structured_data(self, data: dict) -> str:
+        """Extract author from structured data."""
+        author = data.get('author', {})
+        if isinstance(author, dict):
+            return author.get('name', '')
+        elif isinstance(author, list) and author:
+            first_author = author[0]
+            if isinstance(first_author, dict):
+                return first_author.get('name', '')
+            return str(first_author)
+        elif isinstance(author, str):
+            return author
+        return ""
+    
+    def _detect_content_truncation(self, content: str, soup: BeautifulSoup) -> bool:
+        """Detect if content appears to be truncated by paywall."""
+        # Check for truncation indicators
+        truncation_indicators = [
+            'continue reading', 'read more', 'subscribe to continue',
+            'this article continues', 'full article available',
+            'premium subscribers', 'members only'
+        ]
+        
+        content_lower = content.lower()
+        for indicator in truncation_indicators:
+            if indicator in content_lower:
+                return True
+        
+        # Check if content ends abruptly (no proper conclusion)
+        sentences = content.split('.')
+        if len(sentences) > 2:
+            last_sentence = sentences[-2].strip()  # -1 is usually empty after split
+            if len(last_sentence.split()) < 5:  # Very short last sentence
+                return True
+        
+        # Check for paywall elements in the soup
+        paywall_elements = soup.find_all(text=lambda text: text and any(
+            keyword in text.lower() for keyword in truncation_indicators
+        ))
+        
+        return len(paywall_elements) > 0
+
+
 class ContentExtractor:
     """Main content extractor that tries multiple strategies."""
     
     def __init__(self):
         self.strategies = [
             PublisherAPIStrategy(),  # Try publisher-specific methods first
+            PaywallBypassStrategy(),  # Try paywall bypass early for paywalled content
             NewspaperStrategy(),
             ReadabilityStrategy(),
             BeautifulSoupStrategy(),

@@ -111,7 +111,7 @@ def get_user_agents() -> List[str]:
 
 def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
     """
-    Detect paywall indicators with improved accuracy to reduce false positives.
+    Detect paywall indicators with enhanced detection for modal and truncation patterns.
     
     Args:
         html (str): HTML content to analyze
@@ -142,13 +142,51 @@ def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
             indicators.append(f"Strong paywall pattern: {pattern}")
             strong_indicators += 1
     
+    # Enhanced modal detection patterns
+    modal_paywall_patterns = [
+        r'paywall-modal', r'subscription-modal', r'premium-modal',
+        r'paywall-overlay', r'subscription-overlay', r'premium-overlay',
+        r'paywall-popup', r'subscription-popup', r'premium-popup',
+        r'modal.*subscribe', r'modal.*premium', r'modal.*paywall',
+        r'popup.*subscribe', r'popup.*premium', r'popup.*paywall',
+        r'overlay.*subscribe', r'overlay.*premium', r'overlay.*paywall'
+    ]
+    
+    modal_indicators = 0
+    for pattern in modal_paywall_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"Modal paywall pattern: {pattern}")
+            modal_indicators += 1
+    
+    # Content truncation indicators
+    truncation_patterns = [
+        r'continue reading to see',
+        r'this article continues',
+        r'read the full article',
+        r'full story available to',
+        r'complete article available',
+        r'story continues below',
+        r'article continues after',
+        r'to read the rest',
+        r'unlock this article',
+        r'access the full story'
+    ]
+    
+    truncation_indicators = 0
+    for pattern in truncation_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"Content truncation pattern: {pattern}")
+            truncation_indicators += 1
+    
     # Medium confidence patterns (need context)
     medium_paywall_patterns = [
         r'subscribe to continue reading',
         r'subscription required',
         r'this article is for subscribers only',
         r'premium content ahead',
-        r'members only content'
+        r'members only content',
+        r'exclusive to subscribers',
+        r'subscriber exclusive'
     ]
     
     medium_indicators = 0
@@ -157,11 +195,13 @@ def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
             indicators.append(f"Medium paywall pattern: {pattern}")
             medium_indicators += 1
     
-    # Check for paywall-related CSS classes and IDs (more specific)
+    # Enhanced CSS/JavaScript paywall detection
     paywall_selectors = [
         'paywall-container', 'subscription-wall', 'premium-content-wall',
         'subscriber-only-content', 'registration-required', 'login-required',
-        'paywall-overlay', 'subscription-barrier'
+        'paywall-overlay', 'subscription-barrier', 'paywall-modal',
+        'subscription-modal', 'premium-modal', 'paywall-popup',
+        'subscription-popup', 'premium-popup'
     ]
     
     css_indicators = 0
@@ -170,22 +210,40 @@ def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
             indicators.append(f"CSS selector: {selector}")
             css_indicators += 1
     
+    # JavaScript paywall detection
+    js_paywall_patterns = [
+        r'paywall\.show\(\)', r'showPaywall\(\)', r'displayPaywall\(\)',
+        r'subscription\.modal', r'premium\.modal', r'paywall\.modal',
+        r'showSubscriptionModal', r'displaySubscriptionWall',
+        r'paywallActivated', r'subscriptionRequired'
+    ]
+    
+    js_indicators = 0
+    for pattern in js_paywall_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"JavaScript paywall: {pattern}")
+            js_indicators += 1
+    
     # Check for subscription-related meta tags
     meta_patterns = [
         r'<meta[^>]*name=["\']?article:content_tier["\']?[^>]*content=["\']?premium["\']?',
-        r'<meta[^>]*property=["\']?article:content_tier["\']?[^>]*content=["\']?premium["\']?'
+        r'<meta[^>]*property=["\']?article:content_tier["\']?[^>]*content=["\']?premium["\']?',
+        r'<meta[^>]*name=["\']?subscription["\']?[^>]*content=["\']?required["\']?',
+        r'<meta[^>]*name=["\']?paywall["\']?[^>]*content=["\']?true["\']?'
     ]
     
     meta_indicators = 0
     for pattern in meta_patterns:
         if re.search(pattern, html_lower):
-            indicators.append("Meta tag: premium content tier")
+            indicators.append("Meta tag: premium/subscription content")
             meta_indicators += 1
     
     # Domain-based detection (only for known strict paywalls)
     domain = urlparse(url).netloc.lower()
     strict_paywall_domains = [
-        'nytimes.com', 'wsj.com', 'ft.com', 'economist.com'
+        'nytimes.com', 'wsj.com', 'ft.com', 'economist.com',
+        'washingtonpost.com', 'newyorker.com', 'theatlantic.com',
+        'bloomberg.com', 'reuters.com'
     ]
     
     domain_indicator = False
@@ -195,16 +253,25 @@ def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
             domain_indicator = True
             break
     
-    # Decision logic: Be more conservative about paywall detection
+    # Enhanced decision logic with modal and truncation detection
     is_paywall = False
     
     if strong_indicators >= 1:
         # One strong indicator is enough
         is_paywall = True
+    elif modal_indicators >= 1 and (medium_indicators >= 1 or css_indicators >= 1):
+        # Modal paywall detected with supporting evidence
+        is_paywall = True
+    elif truncation_indicators >= 1 and (medium_indicators >= 1 or css_indicators >= 1):
+        # Content truncation detected with supporting evidence
+        is_paywall = True
+    elif js_indicators >= 1 and (css_indicators >= 1 or medium_indicators >= 1):
+        # JavaScript paywall with supporting evidence
+        is_paywall = True
     elif medium_indicators >= 2 and css_indicators >= 1:
         # Multiple medium indicators + CSS evidence
         is_paywall = True
-    elif domain_indicator and (medium_indicators >= 1 or css_indicators >= 1):
+    elif domain_indicator and (medium_indicators >= 1 or css_indicators >= 1 or modal_indicators >= 1):
         # Known paywall domain + some evidence
         is_paywall = True
     elif meta_indicators >= 1 and (medium_indicators >= 1 or css_indicators >= 1):
@@ -212,6 +279,147 @@ def detect_paywall_indicators(html: str, url: str) -> Tuple[bool, List[str]]:
         is_paywall = True
     
     return is_paywall, indicators
+
+
+def detect_paywall_modal_patterns(html: str) -> Tuple[bool, List[str]]:
+    """
+    Specifically detect paywall modal patterns in HTML.
+    
+    Args:
+        html (str): HTML content to analyze
+        
+    Returns:
+        Tuple[bool, List[str]]: (modal_detected, list_of_modal_indicators)
+    """
+    indicators = []
+    html_lower = html.lower()
+    
+    # Modal structure patterns
+    modal_structure_patterns = [
+        r'<div[^>]*class="[^"]*modal[^"]*paywall[^"]*"',
+        r'<div[^>]*class="[^"]*paywall[^"]*modal[^"]*"',
+        r'<div[^>]*class="[^"]*subscription[^"]*modal[^"]*"',
+        r'<div[^>]*class="[^"]*premium[^"]*modal[^"]*"',
+        r'<div[^>]*id="[^"]*paywall[^"]*modal[^"]*"',
+        r'<div[^>]*id="[^"]*subscription[^"]*modal[^"]*"'
+    ]
+    
+    structure_indicators = 0
+    for pattern in modal_structure_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"Modal structure: {pattern}")
+            structure_indicators += 1
+    
+    # Modal content patterns
+    modal_content_patterns = [
+        r'subscribe to continue reading',
+        r'unlock this article',
+        r'become a subscriber',
+        r'start your subscription',
+        r'subscribe now to read',
+        r'premium subscribers only',
+        r'exclusive subscriber content'
+    ]
+    
+    content_indicators = 0
+    for pattern in modal_content_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"Modal content: {pattern}")
+            content_indicators += 1
+    
+    # CSS overlay patterns
+    overlay_patterns = [
+        r'position:\s*fixed.*z-index:\s*\d{3,}',
+        r'z-index:\s*\d{3,}.*position:\s*fixed',
+        r'overlay.*paywall', r'paywall.*overlay',
+        r'backdrop.*subscription', r'subscription.*backdrop'
+    ]
+    
+    overlay_indicators = 0
+    for pattern in overlay_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"CSS overlay: {pattern}")
+            overlay_indicators += 1
+    
+    # Determine if modal paywall is detected
+    modal_detected = (
+        structure_indicators >= 1 or
+        (content_indicators >= 1 and overlay_indicators >= 1) or
+        content_indicators >= 2
+    )
+    
+    return modal_detected, indicators
+
+
+def detect_content_truncation_patterns(html: str, content: str) -> Tuple[bool, List[str]]:
+    """
+    Detect if content appears to be truncated by paywall mechanisms.
+    
+    Args:
+        html (str): HTML content to analyze
+        content (str): Extracted text content
+        
+    Returns:
+        Tuple[bool, List[str]]: (truncation_detected, list_of_truncation_indicators)
+    """
+    indicators = []
+    
+    # Content-based truncation indicators
+    content_lower = content.lower() if content else ""
+    
+    truncation_phrases = [
+        'continue reading', 'read more', 'subscribe to continue',
+        'this article continues', 'full article available',
+        'premium subscribers', 'members only', 'exclusive content',
+        'unlock the full story', 'access the complete article'
+    ]
+    
+    phrase_indicators = 0
+    for phrase in truncation_phrases:
+        if phrase in content_lower:
+            indicators.append(f"Truncation phrase in content: {phrase}")
+            phrase_indicators += 1
+    
+    # HTML-based truncation indicators
+    html_lower = html.lower() if html else ""
+    
+    html_truncation_patterns = [
+        r'<div[^>]*class="[^"]*truncated[^"]*"',
+        r'<div[^>]*class="[^"]*fade[^"]*out[^"]*"',
+        r'<div[^>]*class="[^"]*gradient[^"]*overlay[^"]*"',
+        r'style="[^"]*overflow:\s*hidden[^"]*".*paywall',
+        r'style="[^"]*max-height:\s*\d+px[^"]*".*subscription'
+    ]
+    
+    html_indicators = 0
+    for pattern in html_truncation_patterns:
+        if re.search(pattern, html_lower):
+            indicators.append(f"HTML truncation pattern: {pattern}")
+            html_indicators += 1
+    
+    # Content structure analysis
+    if content:
+        sentences = content.split('.')
+        words = content.split()
+        
+        # Check for abrupt ending
+        if len(sentences) > 2:
+            last_sentence = sentences[-2].strip()
+            if len(last_sentence.split()) < 5:
+                indicators.append("Content ends abruptly (short last sentence)")
+        
+        # Check for insufficient content length
+        if len(words) < 100 and any(phrase in content_lower for phrase in truncation_phrases):
+            indicators.append("Short content with truncation indicators")
+    
+    # Determine if truncation is detected
+    truncation_detected = (
+        phrase_indicators >= 1 or
+        html_indicators >= 1 or
+        len(indicators) >= 2
+    )
+    
+    return truncation_detected, indicators
 
 
 def clean_extracted_text(text: str) -> str:
