@@ -301,7 +301,24 @@ def article_detail(request, public_id):
         'summary': {
             'abstract': summary.abstract if summary else None,
             'keyPoints': summary.key_points if summary and hasattr(summary, 'key_points') else None,
-        } if summary else None
+        } if summary else None,
+        # Rich content data
+        'richContent': {
+            'blocks': article.rich_content.get('blocks', []) if article.rich_content else [],
+            'mediaAssets': article.media_assets if article.media_assets else [],
+            'formattingData': article.formatting_data if article.formatting_data else {},
+            'hasRichContent': article.has_rich_content,
+            'mediaCount': article.media_count,
+            'hasImages': article.has_images,
+            'hasVideos': article.has_videos,
+            'hasAudio': article.has_audio,
+            'formattingScore': article.formatting_score,
+        },
+        'contentStatus': article.content_status,
+        'contentQuality': {
+            'completeness': article.content_completeness,
+            'qualityScore': article.content_quality_score,
+        } if article.content_completeness or article.content_quality_score else None
     }
     
     # Return the response

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { AlertCircle, Clock, ExternalLink } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { AlertCircle, Clock, ExternalLink, Image, Video, Volume2, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RichArticleRenderer } from "@/components/rich-article-renderer"
 
 export default function Article({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
@@ -144,7 +146,10 @@ export default function Article({ params }: { params: { id: string } }) {
         {article.summary && article.summary.abstract && (
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4">
-            <h2 className="font-semibold mb-2">AI-Generated Abstract</h2>
+            <h2 className="font-semibold mb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI-Generated Abstract
+            </h2>
             <p className="text-sm">
                 {article.summary.abstract}
             </p>
@@ -152,13 +157,82 @@ export default function Article({ params }: { params: { id: string } }) {
         </Card>
         )}
 
-        <div className="prose max-w-none">
-          {article.content ? (
-            <div dangerouslySetInnerHTML={{ __html: article.content }} />
+        {/* Rich Content Quality Indicators */}
+        {article.richContent && article.richContent.hasRichContent && (
+          <div className="flex flex-wrap gap-2">
+            {article.richContent.hasImages && (
+              <Badge variant="secondary" className="gap-1">
+                <Image className="h-3 w-3" />
+                {article.richContent.mediaCount} image{article.richContent.mediaCount !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {article.richContent.hasVideos && (
+              <Badge variant="secondary" className="gap-1">
+                <Video className="h-3 w-3" />
+                Video content
+              </Badge>
+            )}
+            {article.richContent.hasAudio && (
+              <Badge variant="secondary" className="gap-1">
+                <Volume2 className="h-3 w-3" />
+                Audio content
+              </Badge>
+            )}
+            {article.richContent.formattingScore > 0.5 && (
+              <Badge variant="secondary" className="gap-1">
+                <Sparkles className="h-3 w-3" />
+                Rich formatting
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Article Content */}
+        <div className="article-content">
+          {article.richContent && article.richContent.blocks && article.richContent.blocks.length > 0 ? (
+            <RichArticleRenderer
+              blocks={article.richContent.blocks}
+              mediaAssets={article.richContent.mediaAssets}
+              formattingData={article.richContent.formattingData}
+              fallbackContent={article.content}
+              className="prose prose-gray max-w-none dark:prose-invert"
+            />
           ) : (
-            <p>{article.description}</p>
+            <div className="prose prose-gray max-w-none dark:prose-invert">
+              {article.content ? (
+                <div dangerouslySetInnerHTML={{ __html: article.content }} />
+              ) : (
+                <p className="text-muted-foreground">{article.description}</p>
+              )}
+            </div>
           )}
         </div>
+
+        {/* Content Quality Indicator */}
+        {article.contentQuality && (
+          <Card className="bg-muted/50">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Content Quality</span>
+                <div className="flex items-center gap-4">
+                  {article.contentQuality.completeness && (
+                    <span>
+                      Completeness: {Math.round(article.contentQuality.completeness * 100)}%
+                    </span>
+                  )}
+                  {article.contentQuality.qualityScore && (
+                    <span>
+                      Quality: {Math.round(article.contentQuality.qualityScore * 100)}%
+                    </span>
+                  )}
+                  <Badge variant={article.contentStatus === 'content_available' ? 'default' : 'secondary'}>
+                    {article.contentStatus?.replace('_', ' ')}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex justify-center pt-4">
           <Link href={article.url} target="_blank" rel="noopener noreferrer">

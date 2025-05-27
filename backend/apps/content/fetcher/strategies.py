@@ -1985,30 +1985,45 @@ class RichContentExtractor:
     
     def extract_rich_content(self, soup: BeautifulSoup, base_url: str) -> Tuple[dict, list, dict]:
         """
-        Extract rich content from BeautifulSoup object.
-        
-        Returns:
-            Tuple[dict, list, dict]: (rich_content, media_assets, formatting_data)
+        Extract rich content including images, videos, audio, and formatting.
+        Returns: (rich_content_dict, media_assets_list, formatting_data_dict)
         """
-        self.position_counter = 0
-        
-        # Extract media assets
-        media_assets = []
-        media_assets.extend(self.extract_images(soup, base_url))
-        media_assets.extend(self.extract_videos(soup, base_url))
-        media_assets.extend(self.extract_audio(soup, base_url))
-        
-        # Build structured content blocks
-        rich_content = self.build_content_structure(soup, media_assets)
-        
-        # Extract formatting data
-        formatting_data = self.extract_formatting(soup)
-        
-        return rich_content, media_assets, formatting_data
+        try:
+            # Extract media assets
+            images = self.extract_images(soup, base_url)
+            videos = self.extract_videos(soup, base_url)
+            audio = self.extract_audio(soup, base_url)
+            
+            # Combine all media assets
+            media_assets = images + videos + audio
+            
+            # Clean media assets to remove ads and irrelevant content
+            media_assets = self._clean_media_assets(media_assets)
+            
+            # Build structured content
+            content_structure = self.build_content_structure(soup, media_assets)
+            
+            # Filter content blocks to remove irrelevant content
+            if 'blocks' in content_structure:
+                content_structure['blocks'] = self._filter_content_blocks(content_structure['blocks'])
+            
+            # Extract formatting data
+            formatting_data = self.extract_formatting(soup)
+            
+            return content_structure, media_assets, formatting_data
+            
+        except Exception as e:
+            logger.error(f"Error extracting rich content: {str(e)}")
+            return {"blocks": []}, [], {}
     
     def extract_images(self, soup: BeautifulSoup, base_url: str) -> list:
         """Extract images with metadata."""
         images = []
+        
+        # First, try to find the main article image from structured data
+        main_image = self._find_main_article_image(soup, base_url)
+        if main_image:
+            images.append(main_image)
         
         for img in soup.find_all('img'):
             try:
@@ -2025,6 +2040,10 @@ class RichContentExtractor:
                 elif not src.startswith(('http://', 'https://')):
                     from urllib.parse import urljoin
                     src = urljoin(base_url, src)
+                
+                # Skip if this image is already added as main image
+                if main_image and src == main_image.get('src'):
+                    continue
                 
                 # Get image metadata
                 alt_text = img.get('alt', '')
@@ -2062,6 +2081,144 @@ class RichContentExtractor:
                 continue
         
         return images
+    
+    def _find_main_article_image(self, soup: BeautifulSoup, base_url: str) -> dict:
+        """Find the main article image from structured data and meta tags."""
+        try:
+            # Try Open Graph image first
+            og_image = soup.find('meta', property='og:image')
+            if og_image:
+                src = og_image.get('content', '')
+                if src:
+                    # Convert relative URLs to absolute
+                    if src.startswith('//'):
+                        src = 'https:' + src
+                    elif src.startswith('/'):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    elif not src.startswith(('http://', 'https://')):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    
+                    # Get additional metadata
+                    og_alt = soup.find('meta', property='og:image:alt')
+                    og_width = soup.find('meta', property='og:image:width')
+                    og_height = soup.find('meta', property='og:image:height')
+                    
+                    return {
+                        "type": "image",
+                        "src": src,
+                        "alt": og_alt.get('content', '') if og_alt else '',
+                        "title": "Main article image",
+                        "caption": "",
+                        "position": 0,  # Give main image highest priority
+                        "context": "Main article image from Open Graph metadata",
+                        "metadata": {
+                            "width": int(og_width.get('content')) if og_width and og_width.get('content', '').isdigit() else None,
+                            "height": int(og_height.get('content')) if og_height and og_height.get('content', '').isdigit() else None,
+                            "format": self._get_image_format(src),
+                            "classes": [],
+                            "style": '',
+                            "is_main_image": True
+                        }
+                    }
+            
+            # Try Twitter Card image
+            twitter_image = soup.find('meta', attrs={'name': 'twitter:image'})
+            if twitter_image:
+                src = twitter_image.get('content', '')
+                if src:
+                    # Convert relative URLs to absolute
+                    if src.startswith('//'):
+                        src = 'https:' + src
+                    elif src.startswith('/'):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    elif not src.startswith(('http://', 'https://')):
+                        from urllib.parse import urljoin
+                        src = urljoin(base_url, src)
+                    
+                    return {
+                        "type": "image",
+                        "src": src,
+                        "alt": "",
+                        "title": "Main article image",
+                        "caption": "",
+                        "position": 0,
+                        "context": "Main article image from Twitter Card metadata",
+                        "metadata": {
+                            "width": None,
+                            "height": None,
+                            "format": self._get_image_format(src),
+                            "classes": [],
+                            "style": '',
+                            "is_main_image": True
+                        }
+                    }
+            
+            # Try structured data (JSON-LD)
+            json_ld_scripts = soup.find_all('script', type='application/ld+json')
+            for script in json_ld_scripts:
+                try:
+                    import json
+                    data = json.loads(script.string)
+                    if isinstance(data, list):
+                        data = data[0]
+                    
+                    # Look for image in article structured data
+                    if data.get('@type') in ['Article', 'NewsArticle']:
+                        image_data = data.get('image')
+                        if image_data:
+                            if isinstance(image_data, str):
+                                src = image_data
+                            elif isinstance(image_data, dict):
+                                src = image_data.get('url', '')
+                            elif isinstance(image_data, list) and image_data:
+                                first_image = image_data[0]
+                                if isinstance(first_image, str):
+                                    src = first_image
+                                elif isinstance(first_image, dict):
+                                    src = first_image.get('url', '')
+                                else:
+                                    continue
+                            else:
+                                continue
+                            
+                            if src:
+                                # Convert relative URLs to absolute
+                                if src.startswith('//'):
+                                    src = 'https:' + src
+                                elif src.startswith('/'):
+                                    from urllib.parse import urljoin
+                                    src = urljoin(base_url, src)
+                                elif not src.startswith(('http://', 'https://')):
+                                    from urllib.parse import urljoin
+                                    src = urljoin(base_url, src)
+                                
+                                return {
+                                    "type": "image",
+                                    "src": src,
+                                    "alt": "",
+                                    "title": "Main article image",
+                                    "caption": "",
+                                    "position": 0,
+                                    "context": "Main article image from structured data",
+                                    "metadata": {
+                                        "width": None,
+                                        "height": None,
+                                        "format": self._get_image_format(src),
+                                        "classes": [],
+                                        "style": '',
+                                        "is_main_image": True
+                                    }
+                                }
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+            
+        except Exception as e:
+            logger.warning(f"Error finding main article image: {str(e)}")
+        
+        return None
     
     def extract_videos(self, soup: BeautifulSoup, base_url: str) -> list:
         """Extract videos with metadata."""
@@ -2180,6 +2337,33 @@ class RichContentExtractor:
         """Build structured content blocks preserving order and formatting."""
         blocks = []
         self.position_counter = 0
+        
+        # Add main article image as the first content block if it exists
+        main_image = None
+        for asset in media_assets:
+            if asset.get('metadata', {}).get('is_main_image'):
+                main_image = asset
+                break
+        
+        # If no main image found, use the first image (likely the main one after sorting)
+        if not main_image and media_assets:
+            image_assets = [a for a in media_assets if a.get('type') == 'image']
+            if image_assets:
+                main_image = image_assets[0]
+        
+        # Add main image as first content block
+        if main_image:
+            image_block = {
+                "type": "image",
+                "src": main_image.get('src'),
+                "alt": main_image.get('alt', ''),
+                "title": main_image.get('title', ''),
+                "caption": main_image.get('caption', ''),
+                "position": 0,  # First position
+                "metadata": main_image.get('metadata', {}),
+                "classes": []
+            }
+            blocks.append(image_block)
         
         # Find main content area
         content_area = self._find_main_content_area(soup)
@@ -2364,6 +2548,10 @@ class RichContentExtractor:
     
     def _element_to_block(self, element, media_assets: list) -> dict:
         """Convert an HTML element to a content block."""
+        # First check if this element is relevant content
+        if not self._is_content_relevant(element):
+            return None
+            
         tag_name = element.name.lower()
         
         if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
@@ -2378,11 +2566,13 @@ class RichContentExtractor:
         
         elif tag_name == 'p':
             text = element.get_text(strip=True)
+            # Skip very short paragraphs (likely UI text)
+            if len(text) < 20:
+                return None
             if text:
                 return {
                     "type": "paragraph",
-                    "content": str(element),  # Preserve inner HTML for formatting
-                    "text": text,
+                    "content": text,  # Store clean text instead of HTML
                     "position": self._get_element_position(element),
                     "classes": element.get('class', [])
                 }
@@ -2398,18 +2588,23 @@ class RichContentExtractor:
         
         elif tag_name in ['ul', 'ol']:
             items = [li.get_text(strip=True) for li in element.find_all('li')]
+            if not items:  # Skip empty lists
+                return None
             return {
                 "type": "list",
-                "list_type": tag_name,
+                "listType": tag_name,  # Changed from list_type to listType for consistency
                 "items": items,
                 "position": self._get_element_position(element),
                 "classes": element.get('class', [])
             }
         
         elif tag_name in ['pre', 'code']:
+            content = element.get_text()
+            if not content.strip():  # Skip empty code blocks
+                return None
             return {
                 "type": "code",
-                "content": element.get_text(),
+                "content": content,
                 "language": self._detect_code_language(element),
                 "position": self._get_element_position(element),
                 "classes": element.get('class', [])
@@ -2430,13 +2625,173 @@ class RichContentExtractor:
     
     def _detect_code_language(self, element) -> str:
         """Detect programming language from code element."""
+        # Check class names for language hints
         classes = element.get('class', [])
         for cls in classes:
             if cls.startswith('language-'):
                 return cls.replace('language-', '')
             elif cls.startswith('lang-'):
                 return cls.replace('lang-', '')
-        return ""
+        return ''
+    
+    def _is_content_relevant(self, element) -> bool:
+        """
+        Determine if an element contains relevant article content.
+        Filters out ads, navigation, UI elements, etc.
+        """
+        if not element or not hasattr(element, 'name'):
+            return False
+            
+        # Skip script, style, and other non-content tags
+        if element.name in ['script', 'style', 'noscript']:
+            return False
+            
+        # Get element attributes for analysis
+        element_class = ' '.join(element.get('class', [])).lower()
+        element_id = (element.get('id') or '').lower()
+        element_text = element.get_text(strip=True).lower()
+        
+        # Only exclude very obvious non-content patterns
+        exclude_patterns = [
+            # Clear navigation elements
+            'navigation', 'nav-menu', 'main-menu', 'site-header', 'site-footer',
+            
+            # Clear ads
+            'advertisement', 'google-ad', 'ad-container', 'sponsored-content',
+            
+            # Clear UI elements
+            'cookie-banner', 'gdpr-notice', 'newsletter-signup',
+            
+            # Clear social sharing
+            'social-share', 'share-buttons', 'follow-buttons'
+        ]
+        
+        # Only exclude if element clearly matches these patterns
+        for pattern in exclude_patterns:
+            if pattern in element_class or pattern in element_id:
+                return False
+        
+        # Skip elements that are clearly just UI text
+        if element.name in ['div', 'span'] and len(element_text) < 5:
+            return False
+            
+        return True
+    
+    def _filter_content_blocks(self, blocks: list) -> list:
+        """
+        Filter content blocks to remove irrelevant content.
+        """
+        filtered_blocks = []
+        
+        for block in blocks:
+            # Skip blocks with suspicious content
+            if block.get('type') == 'paragraph':
+                text = block.get('content', '').lower()
+                
+                # Skip very short paragraphs (likely UI text) - but be less aggressive
+                if len(text.strip()) < 10:
+                    continue
+                    
+                # Skip paragraphs that are clearly promotional - but be more specific
+                promo_indicators = [
+                    'click here to subscribe', 'subscribe now', 'advertisement',
+                    'sponsored content', 'follow us on', 'share this article'
+                ]
+                if any(indicator in text for indicator in promo_indicators):
+                    continue
+                    
+            # Skip suspicious image blocks - but be less aggressive
+            elif block.get('type') == 'image':
+                alt_text = (block.get('alt', '') or '').lower()
+                src = (block.get('src', '') or '').lower()
+                
+                # Skip images that are clearly ads/logos
+                ad_indicators = ['advertisement', 'sponsored', 'generic-newsletter']
+                if any(indicator in alt_text or indicator in src for indicator in ad_indicators):
+                    continue
+                    
+                # Skip very small images (likely icons/decorative) - but be less aggressive
+                metadata = block.get('metadata', {})
+                width = metadata.get('width', 0)
+                height = metadata.get('height', 0)
+                if width and height and width > 0 and height > 0 and (width < 50 or height < 50):
+                    continue
+                    
+            filtered_blocks.append(block)
+            
+        return filtered_blocks
+    
+    def _clean_media_assets(self, media_assets: list) -> list:
+        """
+        Clean media assets to remove ads, tracking pixels, and irrelevant media.
+        """
+        cleaned_assets = []
+        
+        for asset in media_assets:
+            src = asset.get('src', '').lower()
+            alt = (asset.get('alt', '') or '').lower()
+            
+            # Skip tracking pixels and analytics images
+            if asset.get('type') == 'image':
+                # Skip 1x1 tracking pixels
+                metadata = asset.get('metadata', {})
+                width = metadata.get('width', 0)
+                height = metadata.get('height', 0)
+                if width == 1 and height == 1:
+                    continue
+                    
+                # Skip images from known ad/tracking domains
+                tracking_domains = [
+                    'doubleclick', 'googleadservices', 'googlesyndication',
+                    'facebook.com/tr', 'google-analytics', 'googletagmanager',
+                    'scorecardresearch', 'quantserve', 'outbrain', 'taboola',
+                    'akam', 'akamai'  # Added akamai tracking
+                ]
+                if any(domain in src for domain in tracking_domains):
+                    continue
+                    
+                # Skip newsletter signup and UI images (but keep main article images)
+                ui_image_patterns = [
+                    'generic-newsletter', 'email-signup', 'newsletter-signup',
+                    'logo', 'icon', 'button', 'arrow', 'chevron', 'close',
+                    'menu', 'hamburger', 'search', 'social', 'share'
+                ]
+                # Only skip if it's clearly a UI image, not if it just contains these words
+                if any(pattern in src for pattern in ui_image_patterns):
+                    continue
+                    
+                # Skip images with ad-related alt text
+                ad_terms = ['advertisement', 'sponsored', 'promo', 'ad ', 'banner']
+                if any(term in alt for term in ad_terms):
+                    continue
+                    
+                # Skip very small images (likely icons/decorative) but be less aggressive
+                if width and height and width > 0 and height > 0 and (width < 50 or height < 50):
+                    continue
+                    
+            # Skip videos from ad networks
+            elif asset.get('type') in ['video', 'video_embed']:
+                ad_video_domains = ['doubleclick', 'googlevideo', 'youtube.com/ads']
+                if any(domain in src for domain in ad_video_domains):
+                    continue
+                    
+            cleaned_assets.append(asset)
+        
+        # Prioritize main article images
+        if cleaned_assets:
+            # Sort images by relevance (larger images first, then by position)
+            image_assets = [a for a in cleaned_assets if a.get('type') == 'image']
+            other_assets = [a for a in cleaned_assets if a.get('type') != 'image']
+            
+            # Sort images by size (larger images are more likely to be main content)
+            image_assets.sort(key=lambda x: (
+                (x.get('metadata', {}).get('width', 0) or 0) * (x.get('metadata', {}).get('height', 0) or 0),
+                -x.get('position', 999)  # Negative position for ascending order
+            ), reverse=True)
+            
+            cleaned_assets = image_assets + other_assets
+            
+        return cleaned_assets
 
 
 class ContentExtractor:
@@ -2527,24 +2882,24 @@ class ContentExtractor:
             
             if total_chars == 0:
                 return False
-            
+                
             printable_ratio = printable_chars / total_chars
             
             # If less than 80% printable characters, likely corrupted
             if printable_ratio < 0.8:
                 return False
-            
+                
             # Check for reasonable word structure
             words = content.split()
             if len(words) < 5:  # Too few words
                 return False
-            
+                
             # Check average word length (should be reasonable for text)
             avg_word_length = sum(len(word) for word in words) / len(words)
             if avg_word_length > 20 or avg_word_length < 2:  # Unreasonable word lengths
                 return False
-            
+                
             return True
             
         except (UnicodeDecodeError, UnicodeEncodeError):
-            return False 
+            return False
