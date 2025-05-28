@@ -1,8 +1,19 @@
+"""
+Content Filtering Utilities for Step 2 Processing
+Filters out ads, navigation, and irrelevant content from processed articles.
+"""
+
 from typing import List, Dict
 from bs4 import Tag
 
-class RichContentFetcher:
-    def _is_content_relevant(self, element: Tag) -> bool:
+
+class ContentFilter:
+    """
+    Filters content blocks and media assets to remove irrelevant content.
+    Used in Step 2 processing to clean up extracted content.
+    """
+    
+    def is_content_relevant(self, element: Tag) -> bool:
         """
         Determine if an element contains relevant article content.
         Filters out ads, navigation, UI elements, etc.
@@ -87,7 +98,7 @@ class RichContentFetcher:
             
         return True
     
-    def _filter_content_blocks(self, blocks: List[Dict]) -> List[Dict]:
+    def filter_content_blocks(self, blocks: List[Dict]) -> List[Dict]:
         """
         Filter content blocks to remove irrelevant content.
         """
@@ -131,7 +142,7 @@ class RichContentFetcher:
             
         return filtered_blocks
     
-    def _clean_media_assets(self, media_assets: List[Dict]) -> List[Dict]:
+    def clean_media_assets(self, media_assets: List[Dict]) -> List[Dict]:
         """
         Clean media assets to remove ads, tracking pixels, and irrelevant media.
         """

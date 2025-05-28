@@ -5,29 +5,18 @@ from apps.feeds.models import Publication, Topic, Region, Language
 from django.contrib.postgres.fields import ArrayField
 
 
-class ContentStatus(models.TextChoices):
-    """Content availability status choices."""
-    # Initial states
+class FetchStatus(models.TextChoices):
+    """Step 1 fetch status choices."""
     PENDING = 'pending', 'Pending Fetch'
     FETCHING = 'fetching', 'Fetching Content'
-    
-    # Success states
-    CONTENT_AVAILABLE = 'content_available', 'Full Content Available'
-    PARTIAL_CONTENT = 'partial_content', 'Partial Content Available'
-    METADATA_ONLY = 'metadata_only', 'Metadata Only (No Content)'
-    
-    # Failure states
-    PAYWALL_BLOCKED = 'paywall_blocked', 'Blocked by Paywall'
-    ACCESS_DENIED = 'access_denied', 'Access Denied'
-    TECHNICAL_ERROR = 'technical_error', 'Technical Error'
-    INVALID_URL = 'invalid_url', 'Invalid or Dead URL'
-    TIMEOUT = 'timeout', 'Request Timeout'
+    COMPLETED = 'completed', 'Fetch Completed'
+    FAILED = 'failed', 'Fetch Failed'
 
 
 class ProcessingStatus(models.TextChoices):
-    """AI processing status choices."""
+    """Step 2 processing status choices."""
     PENDING = 'pending', 'Pending Processing'
-    PROCESSING = 'processing', 'AI Processing'
+    PROCESSING = 'processing', 'Processing Content'
     COMPLETED = 'completed', 'Processing Completed'
     FAILED = 'failed', 'Processing Failed'
 
@@ -56,14 +45,14 @@ class StoryGroup(models.Model):
 
 class Article(models.Model):
     """
-    Model for storing individual news articles.
+    Model for storing individual news articles with 4-step processing pipeline.
     """
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     
     # Article metadata
     title = models.CharField(max_length=512)
     description = models.TextField(blank=True, null=True)
-    content = models.TextField(blank=True, null=True)
+    content = models.TextField(blank=True, null=True)  # Final content for backward compatibility
     url = models.URLField(max_length=1024)
     image_url = models.URLField(max_length=1024, null=True, blank=True)
     
@@ -112,57 +101,65 @@ class Article(models.Model):
     is_top_headline = models.BooleanField(default=False)
     summary_ready = models.BooleanField(default=False)
     
-    # Content availability tracking
-    content_status = models.CharField(
-        max_length=20, 
-        choices=ContentStatus.choices, 
-        default=ContentStatus.PENDING,
+    # ===== STEP 1: EXTRACTION FIELDS =====
+    # Raw content from Step 1 extraction
+    raw_html = models.TextField(blank=True)  # Full HTML for Step 2 processing
+    basic_content = models.TextField(blank=True)  # Quick text for immediate display
+    extraction_metadata = models.JSONField(default=dict, blank=True)  # Basic extraction info
+    
+    # Step 1 status tracking
+    fetch_status = models.CharField(
+        max_length=20,
+        choices=FetchStatus.choices,
+        default=FetchStatus.PENDING,
         db_index=True
     )
-    content_fetch_attempts = models.IntegerField(default=0)
-    max_fetch_attempts = models.IntegerField(default=3)
+    fetch_strategy_used = models.CharField(max_length=50, blank=True)
+    fetch_duration_ms = models.IntegerField(null=True, blank=True)
+    fetch_attempts = models.IntegerField(default=0)
     last_fetch_attempt = models.DateTimeField(null=True, blank=True)
     fetch_error_message = models.TextField(blank=True)
     
-    # Content quality indicators
-    content_completeness = models.FloatField(null=True, blank=True)  # 0.0-1.0
-    content_quality_score = models.FloatField(null=True, blank=True)  # 0.0-1.0
+    # Paywall detection from Step 1
+    paywall_detected = models.BooleanField(default=False)
+    paywall_indicators = models.JSONField(default=list, blank=True)
     
-    # Rich content fields
-    rich_content = models.JSONField(default=dict, blank=True)  # Structured content blocks
-    media_assets = models.JSONField(default=list, blank=True)  # Media metadata and URLs
-    formatting_data = models.JSONField(default=dict, blank=True)  # Typography and structure info
-    content_structure = models.JSONField(default=dict, blank=True)  # Article structure map
-    
-    # Rich content metadata
-    has_images = models.BooleanField(default=False)
-    has_videos = models.BooleanField(default=False)
-    has_audio = models.BooleanField(default=False)
-    media_count = models.PositiveIntegerField(default=0)
-    formatting_score = models.FloatField(default=0.0)  # 0.0-1.0 richness score
-    
-    # Processing tracking
-    processing_status = models.CharField(
+    # ===== STEP 2: PROCESSING FIELDS =====
+    # Step 2 processing status and results
+    process_status = models.CharField(
         max_length=20,
         choices=ProcessingStatus.choices,
         default=ProcessingStatus.PENDING,
         db_index=True
     )
-    processing_attempts = models.IntegerField(default=0)
-    last_processing_attempt = models.DateTimeField(null=True, blank=True)
-    
-    # Fallback content strategy
-    use_description_as_content = models.BooleanField(default=False)
-    content_source = models.CharField(
+    process_route = models.CharField(
         max_length=20,
         choices=[
-            ('full_fetch', 'Full Content Fetched'),
-            ('partial_fetch', 'Partial Content Fetched'),
-            ('description', 'Using Description'),
-            ('summary_only', 'Summary Only'),
+            ('safari_mode', 'Safari Reader Mode'),
+            ('llm_enhanced', 'LLM Enhanced'),
+            ('hybrid', 'Hybrid Processing')
         ],
         null=True, blank=True
     )
+    
+    # Processed content (Step 2 output)
+    clean_content = models.TextField(blank=True)  # Safari-like clean content
+    content_blocks = models.JSONField(default=list, blank=True)  # Structured content blocks
+    extracted_metadata = models.JSONField(default=dict, blank=True)  # Enhanced metadata
+    content_quality_metrics = models.JSONField(default=dict, blank=True)  # Quality assessment
+    
+    # Processing performance tracking
+    process_duration_ms = models.IntegerField(null=True, blank=True)
+    process_cost_usd = models.DecimalField(max_digits=8, decimal_places=6, null=True, blank=True)
+    process_attempts = models.IntegerField(default=0)
+    last_process_attempt = models.DateTimeField(null=True, blank=True)
+    process_error_message = models.TextField(blank=True)
+    
+    # Rich content metadata (derived from content_blocks)
+    has_images = models.BooleanField(default=False)
+    has_videos = models.BooleanField(default=False)
+    has_audio = models.BooleanField(default=False)
+    media_count = models.PositiveIntegerField(default=0)
     
     class Meta:
         ordering = ['-published_at']
@@ -173,107 +170,110 @@ class Article(models.Model):
             models.Index(fields=['is_top_headline']),
             models.Index(fields=['content_hash']),
             models.Index(fields=['popularity_score']),
-            models.Index(fields=['content_status']),
-            models.Index(fields=['processing_status']),
-            models.Index(fields=['content_status', 'processing_status']),
+            models.Index(fields=['fetch_status']),
+            models.Index(fields=['process_status']),
+            models.Index(fields=['fetch_status', 'process_status']),
+            models.Index(fields=['paywall_detected']),
+            models.Index(fields=['process_route']),
             models.Index(fields=['has_images']),
             models.Index(fields=['has_videos']),
             models.Index(fields=['media_count']),
-            models.Index(fields=['formatting_score']),
         ]
     
     def __str__(self):
         return self.title
     
+    # ===== STEP 1 PROPERTIES =====
     @property
-    def needs_content_fetch(self):
-        """Check if article needs content fetching."""
+    def needs_fetch(self):
+        """Check if article needs Step 1 fetching."""
         return (
-            self.content_status == ContentStatus.PENDING and 
-            self.content_fetch_attempts < self.max_fetch_attempts
+            self.fetch_status == FetchStatus.PENDING and 
+            self.fetch_attempts < 3  # Max attempts
         )
     
     @property
+    def has_raw_content(self):
+        """Check if article has raw HTML from Step 1."""
+        return bool(self.raw_html and len(self.raw_html) > 100)
+    
+    @property
+    def has_basic_content(self):
+        """Check if article has basic content for immediate display."""
+        return bool(self.basic_content and len(self.basic_content) > 50)
+    
+    # ===== STEP 2 PROPERTIES =====
+    @property
     def needs_processing(self):
-        """Check if article needs AI processing."""
+        """Check if article needs Step 2 processing."""
         return (
-            self.content_status in [ContentStatus.CONTENT_AVAILABLE, ContentStatus.PARTIAL_CONTENT, ContentStatus.METADATA_ONLY] and
-            self.processing_status == ProcessingStatus.PENDING
+            self.fetch_status == FetchStatus.COMPLETED and
+            self.has_raw_content and
+            self.process_status == ProcessingStatus.PENDING and
+            self.process_attempts < 3  # Max attempts
         )
+    
+    @property
+    def has_clean_content(self):
+        """Check if article has processed clean content from Step 2."""
+        return bool(self.clean_content and len(self.clean_content) > 100)
+    
+    @property
+    def processing_route_display(self):
+        """Get human-readable processing route."""
+        route_map = {
+            'safari_mode': 'Safari Reader Mode',
+            'llm_enhanced': 'LLM Enhanced',
+            'hybrid': 'Hybrid Processing'
+        }
+        return route_map.get(self.process_route, 'Unknown')
     
     @property
     def has_usable_content(self):
-        """Check if article has content that can be processed or displayed."""
-        return (
-            self.content_status in [ContentStatus.CONTENT_AVAILABLE, ContentStatus.PARTIAL_CONTENT] or
-            (self.content_status == ContentStatus.METADATA_ONLY and self.description)
+        """Check if article has any usable content."""
+        return bool(
+            self.content or 
+            self.basic_content or 
+            self.clean_content or 
+            (self.description and len(self.description) > 100)
         )
     
     @property
     def has_rich_content(self):
-        """Check if article has rich content (media or formatting)."""
-        return (
-            self.has_images or 
-            self.has_videos or 
-            self.has_audio or 
-            self.formatting_score > 0.0
-        )
+        """Check if article has rich content data."""
+        return bool(self.content_blocks and len(self.content_blocks) > 0)
     
     @property
     def rich_content_summary(self):
-        """Get a summary of rich content features."""
-        features = []
-        if self.has_images:
-            image_count = len([asset for asset in self.media_assets if asset.get('type') == 'image'])
-            features.append(f"{image_count} image{'s' if image_count != 1 else ''}")
-        if self.has_videos:
-            video_count = len([asset for asset in self.media_assets if 'video' in asset.get('type', '')])
-            features.append(f"{video_count} video{'s' if video_count != 1 else ''}")
-        if self.has_audio:
-            audio_count = len([asset for asset in self.media_assets if asset.get('type') == 'audio'])
-            features.append(f"{audio_count} audio file{'s' if audio_count != 1 else ''}")
-        
-        if self.formatting_score > 0.5:
-            features.append("rich formatting")
-        
-        return ", ".join(features) if features else "text only"
+        """Get a summary of rich content available."""
+        return {
+            'has_content': self.has_rich_content,
+            'blocks_count': len(self.content_blocks) if self.content_blocks else 0,
+            'media_count': self.media_count,
+            'has_images': self.has_images,
+            'has_videos': self.has_videos,
+            'has_audio': self.has_audio,
+            'quality_score': self.content_quality_metrics.get('overall_score', 0) if self.content_quality_metrics else 0
+        }
     
     def update_rich_content_metadata(self):
-        """Update rich content metadata fields based on current data."""
-        # Update media flags
-        media_types = [asset.get('type', '') for asset in self.media_assets]
-        self.has_images = any('image' in media_type for media_type in media_types)
-        self.has_videos = any('video' in media_type for media_type in media_types)
-        self.has_audio = any('audio' in media_type for media_type in media_types)
-        self.media_count = len(self.media_assets)
-        
-        # Calculate formatting score
-        formatting_elements = 0
-        if self.formatting_data:
-            for category, items in self.formatting_data.items():
-                if isinstance(items, list):
-                    formatting_elements += len(items)
-        
-        # Normalize formatting score (0.0-1.0)
-        # More than 20 formatting elements = 1.0
-        self.formatting_score = min(formatting_elements / 20.0, 1.0)
+        """Update rich content metadata fields from content_blocks."""
+        if self.content_blocks:
+            self.has_images = any(block.get('type') == 'image' for block in self.content_blocks)
+            self.has_videos = any(block.get('type') == 'video' for block in self.content_blocks)
+            self.has_audio = any(block.get('type') == 'audio' for block in self.content_blocks)
+            self.media_count = len([block for block in self.content_blocks if block.get('type') in ['image', 'video', 'audio']])
+        else:
+            self.has_images = False
+            self.has_videos = False
+            self.has_audio = False
+            self.media_count = 0
     
     def get_content_blocks_by_type(self, block_type: str):
         """Get content blocks of a specific type."""
-        if not self.rich_content or 'blocks' not in self.rich_content:
+        if not self.content_blocks:
             return []
-        
-        return [
-            block for block in self.rich_content['blocks'] 
-            if block.get('type') == block_type
-        ]
-    
-    def get_media_assets_by_type(self, media_type: str):
-        """Get media assets of a specific type."""
-        return [
-            asset for asset in self.media_assets 
-            if asset.get('type') == media_type
-        ]
+        return [block for block in self.content_blocks if block.get('type') == block_type]
 
 
 class UserArticleInteraction(models.Model):
@@ -306,3 +306,4 @@ class UserArticleInteraction(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.article.title[:30]}..."
+

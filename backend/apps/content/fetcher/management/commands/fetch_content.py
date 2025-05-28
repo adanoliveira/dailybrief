@@ -1,14 +1,14 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
-from apps.articles.models import Article, ContentStatus
-from apps.content.fetcher.services import ContentFetcher
-from apps.content.fetcher.tasks import queue_content_fetch, queue_batch_fetch
+from apps.articles.models import Article, FetchStatus
+from apps.content.fetcher.fetcher import ContentFetcher, FetchManager
+from apps.content.fetcher.tasks import fetch_article_content, fetch_batch_articles
 
 
 class Command(BaseCommand):
-    """Management command to fetch content for articles."""
+    """Management command to fetch content for articles using Step 1 architecture."""
     
-    help = 'Fetch content for articles'
+    help = 'Fetch content for articles (Step 1 only - fast extraction)'
     
     def add_arguments(self, parser):
         parser.add_argument(
@@ -26,7 +26,7 @@ class Command(BaseCommand):
             '--status',
             choices=['pending', 'failed', 'all'],
             default='pending',
-            help='Article status to process (default: pending)'
+            help='Article fetch status to process (default: pending)'
         )
         parser.add_argument(
             '--async',
@@ -66,9 +66,9 @@ class Command(BaseCommand):
         
         if options['async']:
             # Queue async task
-            task_id = queue_content_fetch(article_id)
+            task = fetch_article_content.delay(article_id)
             self.stdout.write(
-                self.style.SUCCESS(f'Queued content fetch task {task_id} for article {article_id}')
+                self.style.SUCCESS(f'Queued content fetch task {task.id} for article {article_id}')
             )
         else:
             # Process synchronously
@@ -78,13 +78,14 @@ class Command(BaseCommand):
             if result.success:
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f'Successfully fetched content for article {article_id}: {result.message}'
+                        f'Successfully fetched content for article {article_id} '
+                        f'using {result.strategy_used} in {result.duration_ms}ms'
                     )
                 )
             else:
                 self.stdout.write(
                     self.style.ERROR(
-                        f'Failed to fetch content for article {article_id}: {result.message}'
+                        f'Failed to fetch content for article {article_id}: {result.error_message}'
                     )
                 )
     
@@ -92,15 +93,11 @@ class Command(BaseCommand):
         """Process multiple articles."""
         # Build query based on status
         if options['status'] == 'pending':
-            query = Q(content_status=ContentStatus.PENDING)
+            query = Q(fetch_status=FetchStatus.PENDING)
         elif options['status'] == 'failed':
-            query = Q(content_status__in=[
-                ContentStatus.TECHNICAL_ERROR,
-                ContentStatus.TIMEOUT,
-                ContentStatus.ACCESS_DENIED
-            ])
+            query = Q(fetch_status=FetchStatus.FAILED)
         else:  # all
-            query = Q()
+            query = Q(fetch_status__in=[FetchStatus.PENDING, FetchStatus.FAILED])
         
         # Get articles to process
         articles = Article.objects.filter(query).order_by('-published_at')[:options['limit']]
@@ -116,40 +113,24 @@ class Command(BaseCommand):
         if options['dry_run']:
             self.stdout.write(self.style.WARNING('DRY RUN: Articles that would be processed:'))
             for article in articles:
-                self.stdout.write(f'  - {article.id}: {article.title[:50]}... ({article.content_status})')
+                self.stdout.write(f'  - {article.id}: {article.title[:50]}... ({article.fetch_status})')
             return
         
         if options['async']:
             # Queue batch task
             article_ids = [article.id for article in articles]
-            task_id = queue_batch_fetch(article_ids)
+            task = fetch_batch_articles.delay(article_ids)
             self.stdout.write(
-                self.style.SUCCESS(f'Queued batch fetch task {task_id} for {len(article_ids)} articles')
+                self.style.SUCCESS(f'Queued batch fetch task {task.id} for {len(article_ids)} articles')
             )
         else:
-            # Process synchronously
-            fetcher = ContentFetcher()
-            successful = 0
-            failed = 0
-            
-            for article in articles:
-                self.stdout.write(f'Processing {article.id}: {article.title[:50]}...')
-                
-                result = fetcher.fetch_article_content(article)
-                
-                if result.success:
-                    successful += 1
-                    self.stdout.write(
-                        self.style.SUCCESS(f'  ✓ Success: {result.message}')
-                    )
-                else:
-                    failed += 1
-                    self.stdout.write(
-                        self.style.ERROR(f'  ✗ Failed: {result.message}')
-                    )
+            # Process synchronously using FetchManager
+            manager = FetchManager()
+            result = manager.fetch_pending_articles(limit=len(articles))
             
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'Completed processing: {successful} successful, {failed} failed'
+                    f'Completed processing: {result["successful"]} successful, '
+                    f'{result["failed"]} failed out of {result["processed"]} total'
                 )
             ) 
