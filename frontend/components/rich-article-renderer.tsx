@@ -62,7 +62,11 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
       return <HeadingBlock block={block} />
     case 'paragraph':
       return <ParagraphBlock block={block} />
+    case 'subtitle':
+      return <SubtitleBlock block={block} />
     case 'image':
+    case 'img':  // Backend creates 'img' type blocks
+    case 'figure':  // Backend also creates 'figure' type blocks
       return <ImageBlock block={block} mediaAssets={mediaAssets} />
     case 'video':
     case 'video_embed':
@@ -108,7 +112,61 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
   )
 }
 
+function SubtitleBlock({ block }: { block: ContentBlock }) {
+  // Enhanced subtitle rendering with link support
+  const renderContentWithLinks = () => {
+    let content = block.content || block.text || ''
+    const links = block.metadata?.links || []
+    
+    // If we have links metadata, convert [URL] format to clickable links
+    if (links.length > 0) {
+      links.forEach((link: { text: string; href: string }) => {
+        const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
+        content = content.replace(linkPattern, '')
+        
+        // Replace the link text with a clickable link
+        const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
+        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`)
+      })
+    }
+    
+    return content
+  }
+
+  return (
+    <div 
+      className={cn(
+        "text-lg leading-8 text-muted-foreground font-medium [&:not(:first-child)]:mt-4 mb-6",
+        block.classes?.join(' ')
+      )}
+      dangerouslySetInnerHTML={{ 
+        __html: renderContentWithLinks()
+      }}
+    />
+  )
+}
+
 function ParagraphBlock({ block }: { block: ContentBlock }) {
+  // Enhanced paragraph rendering with link support
+  const renderContentWithLinks = () => {
+    let content = block.content || block.text || ''
+    const links = block.metadata?.links || []
+    
+    // If we have links metadata, convert [URL] format to clickable links
+    if (links.length > 0) {
+      links.forEach((link: { text: string; href: string }) => {
+        const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
+        content = content.replace(linkPattern, '')
+        
+        // Replace the link text with a clickable link
+        const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
+        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`)
+      })
+    }
+    
+    return content
+  }
+
   return (
     <div 
       className={cn(
@@ -116,7 +174,7 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
         block.classes?.join(' ')
       )}
       dangerouslySetInnerHTML={{ 
-        __html: block.content || block.text || '' 
+        __html: renderContentWithLinks()
       }}
     />
   )
@@ -131,12 +189,44 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
     asset.type === 'image' && asset.position === block.position
   )
   
-  const src = block.src || mediaAsset?.src
-  const alt = block.alt || mediaAsset?.alt || ''
-  const caption = block.caption || mediaAsset?.caption
+  // Read from metadata first, then fallback to direct properties, then mediaAsset
+  const src = block.metadata?.src || block.src || mediaAsset?.src
+  const alt = block.metadata?.alt || block.alt || mediaAsset?.alt || ''
+  const caption = block.metadata?.caption || block.caption || mediaAsset?.caption || block.content
   const title = block.title || mediaAsset?.title
   
+  // Debug logging in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('ImageBlock render:', { 
+      blockType: block.type, 
+      position: block.position,
+      src, 
+      alt, 
+      caption,
+      imageError,
+      imageLoading 
+    })
+  }
+  
+  // If no src or permanent error, show caption-only version
   if (!src || imageError) {
+    if (caption && process.env.NODE_ENV === 'development') {
+      console.log('Showing caption-only for image:', caption)
+    }
+    
+    // Show caption in a styled box when image fails
+    if (caption) {
+      return (
+        <figure className="my-8">
+          <div className="border border-dashed border-muted-foreground/20 rounded-lg p-4 bg-muted/20 text-center">
+            <p className="text-sm text-muted-foreground mb-2">📷 Image unavailable</p>
+            <figcaption className="text-sm text-muted-foreground italic">
+              {caption}
+            </figcaption>
+          </div>
+        </figure>
+      )
+    }
     return null
   }
 
@@ -156,10 +246,18 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
             "w-full h-auto transition-opacity duration-300",
             imageLoading ? "opacity-0" : "opacity-100"
           )}
-          onLoad={() => setImageLoading(false)}
-          onError={() => {
+          onLoad={() => {
+            setImageLoading(false)
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Image loaded successfully:', src)
+            }
+          }}
+          onError={(e) => {
             setImageError(true)
             setImageLoading(false)
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Image failed to load:', src, e)
+            }
           }}
           loading="lazy"
         />

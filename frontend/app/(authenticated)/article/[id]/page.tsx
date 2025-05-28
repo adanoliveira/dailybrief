@@ -128,6 +128,12 @@ export default function Article({ params }: { params: { id: string } }) {
             <span>{formatDate(article.publishedAt)}</span>
             <span>•</span>
             <span>{article.source.name}</span>
+            {article.author && (
+              <>
+                <span>•</span>
+                <span>By {article.author}</span>
+              </>
+            )}
             {article.readTime && (
               <>
             <span>•</span>
@@ -139,7 +145,7 @@ export default function Article({ params }: { params: { id: string } }) {
             )}
           </div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-            {article.title}
+            {article.visualTitle || article.title}
           </h1>
         </div>
 
@@ -157,36 +163,6 @@ export default function Article({ params }: { params: { id: string } }) {
         </Card>
         )}
 
-        {/* Rich Content Quality Indicators */}
-        {article.richContent && article.richContent.hasRichContent && (
-          <div className="flex flex-wrap gap-2">
-            {article.richContent.hasImages && (
-              <Badge variant="secondary" className="gap-1">
-                <Image className="h-3 w-3" />
-                {article.richContent.mediaCount} image{article.richContent.mediaCount !== 1 ? 's' : ''}
-              </Badge>
-            )}
-            {article.richContent.hasVideos && (
-              <Badge variant="secondary" className="gap-1">
-                <Video className="h-3 w-3" />
-                Video content
-              </Badge>
-            )}
-            {article.richContent.hasAudio && (
-              <Badge variant="secondary" className="gap-1">
-                <Volume2 className="h-3 w-3" />
-                Audio content
-              </Badge>
-            )}
-            {article.richContent.formattingScore > 0.5 && (
-              <Badge variant="secondary" className="gap-1">
-                <Sparkles className="h-3 w-3" />
-                Rich formatting
-              </Badge>
-            )}
-          </div>
-        )}
-
         {/* Article Content */}
         <div className="article-content">
           {article.richContent && article.richContent.blocks && article.richContent.blocks.length > 0 ? (
@@ -199,40 +175,14 @@ export default function Article({ params }: { params: { id: string } }) {
             />
           ) : (
             <div className="prose prose-gray max-w-none dark:prose-invert">
-              {article.content ? (
-                <div dangerouslySetInnerHTML={{ __html: article.content }} />
-              ) : (
+          {article.content ? (
+            <div dangerouslySetInnerHTML={{ __html: article.content }} />
+          ) : (
                 <p className="text-muted-foreground">{article.description}</p>
               )}
             </div>
           )}
         </div>
-
-        {/* Content Quality Indicator */}
-        {article.contentQuality && (
-          <Card className="bg-muted/50">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Content Quality</span>
-                <div className="flex items-center gap-4">
-                  {article.contentQuality.completeness && (
-                    <span>
-                      Completeness: {Math.round(article.contentQuality.completeness * 100)}%
-                    </span>
-                  )}
-                  {article.contentQuality.qualityScore && (
-                    <span>
-                      Quality: {Math.round(article.contentQuality.qualityScore * 100)}%
-                    </span>
-                  )}
-                  <Badge variant={article.contentStatus === 'content_available' ? 'default' : 'secondary'}>
-                    {article.contentStatus?.replace('_', ' ')}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="flex justify-center pt-4">
           <Link href={article.url} target="_blank" rel="noopener noreferrer">

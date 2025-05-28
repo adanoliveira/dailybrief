@@ -12,8 +12,8 @@ from django.utils import timezone
 from django.conf import settings
 
 from apps.articles.models import Article, ProcessingStatus
-from .safari_mode import SafariModeProcessor, ProcessingResult
-from .routing import ProcessingRouter
+from .routing import ProcessingRouter, ComplexityAnalysis
+from .algorithmic_processor import AlgorithmicProcessor, ProcessingResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,127 +32,88 @@ class ProcessResult:
 
 class ContentProcessor:
     """
-    Main content processing service with intelligent routing.
-    Coordinates Step 2 processing using Safari mode or LLM enhancement.
+    Main content processor that coordinates different processing strategies.
+    Routes content through Safari mode, LLM enhanced, or hybrid processing.
     """
     
     def __init__(self):
-        self.safari_processor = SafariModeProcessor()
         self.router = ProcessingRouter()
-        
-        # LLM processor will be imported dynamically to avoid circular imports
-        self._llm_processor = None
+        self.algorithmic_processor = AlgorithmicProcessor()
+        # self.llm_processor = LLMEnhancedProcessor()  # TODO: Implement
         
         # Processing settings
         self.max_attempts = getattr(settings, 'CONTENT_PROCESS_MAX_ATTEMPTS', 3)
         self.timeout_seconds = getattr(settings, 'CONTENT_PROCESS_TIMEOUT', 60)
     
-    @property
-    def llm_processor(self):
-        """Lazy load LLM processor to avoid import issues."""
-        if self._llm_processor is None:
-            try:
-                from .llm_enhanced import LLMEnhancedProcessor
-                self._llm_processor = LLMEnhancedProcessor()
-            except ImportError:
-                logger.warning("LLM processor not available")
-                self._llm_processor = None
-        return self._llm_processor
-    
-    def process_article_content(self, article: Article) -> ProcessResult:
+    def process_article_content(self, article, route: str = None) -> ProcessingResult:
         """
-        Main entry point for Step 2 content processing.
+        Process article content using intelligent routing or specified route.
+        
+        Args:
+            article: Article instance with raw_html
+            route: Optional route override ('algorithmic', 'llm_enhanced', 'hybrid')
+        
+        Returns:
+            ProcessingResult with processed content
         """
         
-        start_time = time.time()
-        
-        # Validate article is ready for processing
-        if not article.needs_processing:
-            return ProcessResult(
+        if not article.raw_html:
+            return ProcessingResult(
                 success=False,
-                article=article,
-                error_message=f"Article doesn't need processing. Status: {article.process_status}"
+                error_message="No raw HTML content available for processing"
             )
         
-        # Update processing status
-        self._update_processing_status(article, ProcessingStatus.PROCESSING)
+        # Determine processing route
+        if not route:
+            complexity_analysis = self.router.analyze_content_complexity(article.raw_html, article)
+            route = complexity_analysis.recommended_route
+            logger.info(f"Auto-selected route '{route}' for article {article.id}")
+        else:
+            logger.info(f"Using specified route '{route}' for article {article.id}")
         
-        try:
-            # Determine processing route
-            route = self.router.determine_route(article)
-            
-            # Process content using selected route
-            if route == 'safari_mode':
-                processing_result = self._process_safari_mode(article)
-                cost = 0.001  # Estimated cost for Safari mode
-            elif route == 'llm_enhanced':
-                processing_result = self._process_llm_enhanced(article)
-                cost = 0.01  # Estimated cost for LLM processing
-            elif route == 'hybrid':
-                processing_result = self._process_hybrid(article)
-                cost = 0.005  # Estimated cost for hybrid processing
-            else:
-                raise ValueError(f"Unknown processing route: {route}")
-            
-            if processing_result.success:
-                # Store processing results
-                self._store_processing_results(article, processing_result, route, cost)
-                
-                # Update status to completed
-                self._update_processing_status(article, ProcessingStatus.COMPLETED)
-                
-                duration_ms = int((time.time() - start_time) * 1000)
-                
-                return ProcessResult(
-                    success=True,
-                    article=article,
-                    processing_result=processing_result,
-                    route_used=route,
-                    duration_ms=duration_ms,
-                    cost_usd=cost
-                )
-            else:
-                # Handle processing failure
-                return self._handle_processing_error(article, processing_result.error_message, start_time)
-                
-        except Exception as e:
-            logger.exception(f"Content processing failed for article {article.id}: {str(e)}")
-            return self._handle_processing_error(article, str(e), start_time)
+        # Process based on route
+        if route == 'algorithmic':
+            return self._process_algorithmic_mode(article)
+        elif route == 'llm_enhanced':
+            return self._process_llm_enhanced_mode(article)
+        elif route == 'hybrid':
+            return self._process_hybrid_mode(article)
+        else:
+            logger.warning(f"Unknown route '{route}', falling back to algorithmic mode")
+            return self._process_algorithmic_mode(article)
     
-    def _process_safari_mode(self, article: Article) -> ProcessingResult:
+    def _process_algorithmic_mode(self, article) -> ProcessingResult:
         """
-        Process content using Safari Reader Mode algorithm.
+        Process content using algorithmic (Safari-like) mode.
+        Fast, reliable, low-cost processing.
         """
         
-        logger.info(f"Processing article {article.id} with Safari mode")
+        logger.info(f"Processing article {article.id} with algorithmic mode")
         
-        # Get article metadata for processing
+        # Prepare article metadata
         article_metadata = {
             'title': article.title,
             'author': article.author,
+            'published_date': article.published_at,
             'source_name': article.source_name,
-            'published_at': article.published_at.isoformat() if article.published_at else None
+            'url': article.url
         }
         
-        # Process with Safari mode
-        result = self.safari_processor.process_content(article.raw_html, article_metadata)
+        # Process with algorithmic processor
+        result = self.algorithmic_processor.process_content(article.raw_html, article_metadata)
         
         if result.success:
-            logger.info(f"Safari mode processing successful for article {article.id}, "
-                       f"quality: {result.quality_score:.3f}")
+            logger.info(f"Algorithmic processing successful for article {article.id}, "
+                       f"quality: {result.quality_score}, time: {result.processing_time_ms}ms")
         else:
-            logger.error(f"Safari mode processing failed for article {article.id}: {result.error_message}")
+            logger.error(f"Algorithmic processing failed for article {article.id}: {result.error_message}")
         
         return result
     
-    def _process_llm_enhanced(self, article: Article) -> ProcessingResult:
+    def _process_llm_enhanced_mode(self, article) -> ProcessingResult:
         """
         Process content using LLM enhancement.
         """
-        
-        if not self.llm_processor:
-            logger.warning(f"LLM processor not available for article {article.id}, falling back to Safari mode")
-            return self._process_safari_mode(article)
         
         logger.info(f"Processing article {article.id} with LLM enhancement")
         
@@ -174,62 +135,62 @@ class ContentProcessor:
                        f"quality: {result.quality_score:.3f}")
         else:
             logger.error(f"LLM processing failed for article {article.id}: {result.error_message}")
-            # Fallback to Safari mode
-            logger.info(f"Falling back to Safari mode for article {article.id}")
-            result = self._process_safari_mode(article)
+            # Fallback to algorithmic mode
+            logger.info(f"Falling back to algorithmic mode for article {article.id}")
+            result = self._process_algorithmic_mode(article)
         
         return result
     
-    def _process_hybrid(self, article: Article) -> ProcessingResult:
+    def _process_hybrid_mode(self, article) -> ProcessingResult:
         """
-        Process content using hybrid approach: Safari mode with LLM enhancement.
+        Process content using hybrid approach: algorithmic mode with LLM enhancement.
         """
         
         logger.info(f"Processing article {article.id} with hybrid approach")
         
-        # Start with Safari mode processing
-        safari_result = self._process_safari_mode(article)
+        # Start with algorithmic mode processing
+        algorithmic_result = self._process_algorithmic_mode(article)
         
-        if not safari_result.success:
-            return safari_result
+        if not algorithmic_result.success:
+            return algorithmic_result
         
         # Enhance with LLM if quality is below threshold or specific conditions are met
         should_enhance = (
-            safari_result.quality_score < 0.7 or
+            algorithmic_result.quality_score < 0.7 or
             article.paywall_detected or
-            len(safari_result.content_blocks) < 3
+            len(algorithmic_result.content_blocks) < 3
         )
         
         if should_enhance and self.llm_processor:
-            logger.info(f"Enhancing Safari result with LLM for article {article.id}")
+            logger.info(f"Enhancing algorithmic result with LLM for article {article.id}")
             
             # Use LLM to enhance specific elements
-            enhanced_result = self._enhance_with_llm(article, safari_result)
+            enhanced_result = self._enhance_with_llm(article, algorithmic_result)
             
-            if enhanced_result.success and enhanced_result.quality_score > safari_result.quality_score:
-                logger.info(f"LLM enhancement improved quality from {safari_result.quality_score:.3f} "
+            if enhanced_result.success and enhanced_result.quality_score > algorithmic_result.quality_score:
+                logger.info(f"LLM enhancement improved quality from {algorithmic_result.quality_score:.3f} "
                            f"to {enhanced_result.quality_score:.3f}")
                 return enhanced_result
             else:
-                logger.info(f"LLM enhancement did not improve quality, using Safari result")
+                logger.info(f"LLM enhancement did not improve quality, using algorithmic result")
         
-        return safari_result
+        return algorithmic_result
     
-    def _enhance_with_llm(self, article: Article, safari_result: ProcessingResult) -> ProcessingResult:
+    def _enhance_with_llm(self, article: Article, algorithmic_result: ProcessingResult) -> ProcessingResult:
         """
-        Enhance Safari mode result with LLM processing for specific elements.
+        Enhance algorithmic mode result with LLM processing for specific elements.
         """
         
         try:
-            # Create enhanced metadata with Safari results
+            # Create enhanced metadata with algorithmic results
             enhanced_metadata = {
                 'title': article.title,
                 'author': article.author,
                 'source_name': article.source_name,
                 'published_at': article.published_at.isoformat() if article.published_at else None,
                 'paywall_detected': article.paywall_detected,
-                'safari_quality': safari_result.quality_score,
-                'safari_content_blocks': len(safari_result.content_blocks),
+                'algorithmic_quality': algorithmic_result.quality_score,
+                'algorithmic_content_blocks': len(algorithmic_result.content_blocks),
                 'enhancement_mode': True
             }
             
@@ -238,26 +199,26 @@ class ContentProcessor:
             
             if llm_result.success:
                 # Merge the best parts of both results
-                merged_result = self._merge_processing_results(safari_result, llm_result)
+                merged_result = self._merge_processing_results(algorithmic_result, llm_result)
                 return merged_result
             else:
-                return safari_result
+                return algorithmic_result
                 
         except Exception as e:
             logger.exception(f"LLM enhancement failed for article {article.id}: {str(e)}")
-            return safari_result
+            return algorithmic_result
     
-    def _merge_processing_results(self, safari_result: ProcessingResult, llm_result: ProcessingResult) -> ProcessingResult:
+    def _merge_processing_results(self, algorithmic_result: ProcessingResult, llm_result: ProcessingResult) -> ProcessingResult:
         """
-        Merge Safari mode and LLM processing results to get the best of both.
+        Merge algorithmic mode and LLM processing results to get the best of both.
         """
         
         # Use LLM content if it's significantly better
-        if llm_result.quality_score > safari_result.quality_score + 0.1:
+        if llm_result.quality_score > algorithmic_result.quality_score + 0.1:
             base_result = llm_result
-            fallback_result = safari_result
+            fallback_result = algorithmic_result
         else:
-            base_result = safari_result
+            base_result = algorithmic_result
             fallback_result = llm_result
         
         # Merge metadata (take the more complete one)

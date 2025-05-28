@@ -109,6 +109,7 @@ def personalized_feed(request):
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
+            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
             'description': article.description or '',
             'source': {
                 'name': publication_name,
@@ -212,6 +213,7 @@ def world_feed(request):
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
+            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
             'description': article.description or '',
             'source': {
                 'name': publication_name,
@@ -286,6 +288,7 @@ def article_detail(request, public_id):
     article_data = {
         'id': str(article.public_id),
         'title': article.title,
+        'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
         'description': article.description or '',
         'content': article.content or '',
         'source': {
@@ -304,21 +307,21 @@ def article_detail(request, public_id):
         } if summary else None,
         # Rich content data
         'richContent': {
-            'blocks': article.rich_content.get('blocks', []) if article.rich_content else [],
-            'mediaAssets': article.media_assets if article.media_assets else [],
-            'formattingData': article.formatting_data if article.formatting_data else {},
+            'blocks': article.content_blocks if article.content_blocks else [],
+            'mediaAssets': [],  # No separate media_assets field, derive from content_blocks
+            'formattingData': article.extracted_metadata.get('formatting', {}) if article.extracted_metadata else {},
             'hasRichContent': article.has_rich_content,
             'mediaCount': article.media_count,
             'hasImages': article.has_images,
-            'hasVideos': article.has_videos,
+            'hasVideos': article.has_videos, 
             'hasAudio': article.has_audio,
-            'formattingScore': article.formatting_score,
+            'formattingScore': article.content_quality_metrics.get('structure', 0.0) if article.content_quality_metrics else 0.0,
         },
-        'contentStatus': article.content_status,
+        'contentStatus': article.process_status,
         'contentQuality': {
-            'completeness': article.content_completeness,
-            'qualityScore': article.content_quality_score,
-        } if article.content_completeness or article.content_quality_score else None
+            'completeness': article.content_quality_metrics.get('completeness', 0.0) if article.content_quality_metrics else None,
+            'qualityScore': article.content_quality_metrics.get('quality_score', 0.0) if article.content_quality_metrics else None,
+        } if article.content_quality_metrics else None
     }
     
     # Return the response

@@ -183,8 +183,8 @@ class PaywallBypassStrategy(ExtractionStrategy):
         try:
             # Make request with bypass headers
             response = requests.get(
-                url,
-                headers=headers,
+                url, 
+                headers=headers, 
                 timeout=self.timeout,
                 allow_redirects=True,
                 verify=False  # Skip SSL verification for speed

@@ -383,7 +383,7 @@ class ProcessingRouter:
             route = 'llm_enhanced'
             confidence = min(1.0, (overall_score - self.llm_threshold) / (self.hybrid_threshold - self.llm_threshold))
         else:
-            route = 'safari_mode'
+            route = 'algorithmic'
             confidence = min(1.0, (self.llm_threshold - overall_score) / self.llm_threshold)
         
         # Generate reasoning

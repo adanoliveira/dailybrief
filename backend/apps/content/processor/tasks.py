@@ -4,10 +4,12 @@ Handles Safari mode, LLM enhancement, and hybrid processing with cost optimizati
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
+from django.db import transaction
+from django.conf import settings
 
 from apps.articles.models import Article, ProcessingStatus
 from .services import ContentProcessor, ProcessingManager
@@ -15,54 +17,84 @@ from .services import ContentProcessor, ProcessingManager
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=2)
-def process_article_content(self, article_id: int) -> Dict[str, Any]:
+@shared_task(bind=True, max_retries=3)
+def process_article_content(self, article_id: int, route: str = None) -> Dict[str, Any]:
     """
-    Process content for a single article using intelligent routing.
+    Process single article content using intelligent routing.
+    
+    Args:
+        article_id: Article ID to process
+        route: Optional route override ('algorithmic', 'llm_enhanced', 'hybrid')
+    
+    Returns:
+        Dict with processing results
     """
     
     try:
         article = Article.objects.get(id=article_id)
         
-        # Check if article still needs processing
-        if not article.needs_processing:
-            return {
-                'success': False,
-                'article_id': article_id,
-                'message': f'Article no longer needs processing. Status: {article.process_status}'
-            }
-        
-        # Perform content processing
-        processor = ContentProcessor()
-        result = processor.process_article_content(article)
-        
-        if result.success:
-            logger.info(f"Content processing successful for article {article_id} "
-                       f"using {result.route_used}, quality: {result.processing_result.quality_score:.3f}")
+        # Check if article needs processing
+        if article.process_status == ProcessingStatus.COMPLETED:
             return {
                 'success': True,
                 'article_id': article_id,
-                'route_used': result.route_used,
-                'duration_ms': result.duration_ms,
-                'cost_usd': result.cost_usd,
-                'quality_score': result.processing_result.quality_score,
-                'word_count': result.processing_result.extracted_metadata.get('word_count', 0),
-                'content_blocks': len(result.processing_result.content_blocks)
+                'message': 'Article already processed',
+                'route_used': 'none'
             }
+        
+        # Update status to processing
+        article.process_status = ProcessingStatus.PROCESSING
+        article.process_attempts = (article.process_attempts or 0) + 1
+        article.save(update_fields=['process_status', 'process_attempts'])
+        
+        # Process content
+        processor = ContentProcessor()
+        result = processor.process_article_content(article, route)
+        
+        if result.success:
+            # Store results in database
+            with transaction.atomic():
+                article.clean_content = result.clean_content
+                article.content_blocks = [block.__dict__ for block in result.content_blocks]
+                article.extracted_metadata = result.extracted_metadata
+                article.content_quality_metrics = {
+                    'overall_score': result.quality_score,
+                    'processing_time_ms': result.processing_time_ms
+                }
+                article.process_status = ProcessingStatus.COMPLETED
+                article.process_duration_ms = result.processing_time_ms
+                article.save()
+            
+            logger.info(f"Successfully processed article {article_id} with quality {result.quality_score}")
+            
+            return {
+                'success': True,
+                'article_id': article_id,
+                'quality_score': result.quality_score,
+                'processing_time_ms': result.processing_time_ms,
+                'content_blocks_count': len(result.content_blocks),
+                'route_used': route or 'auto'
+            }
+        
         else:
-            logger.error(f"Content processing failed for article {article_id}: {result.error_message}")
+            # Handle processing failure
+            article.process_status = ProcessingStatus.FAILED
+            article.save(update_fields=['process_status'])
+            
+            logger.error(f"Failed to process article {article_id}: {result.error_message}")
             
             # Retry if we haven't exceeded max attempts
-            if article.process_attempts < 3:
-                raise self.retry(countdown=60 * (2 ** self.request.retries))
+            if self.request.retries < self.max_retries:
+                logger.info(f"Retrying article {article_id} (attempt {self.request.retries + 1})")
+                raise self.retry(countdown=60 * (self.request.retries + 1))
             
             return {
                 'success': False,
                 'article_id': article_id,
                 'error_message': result.error_message,
-                'attempts': article.process_attempts
+                'route_used': route or 'auto'
             }
-            
+    
     except Article.DoesNotExist:
         logger.error(f"Article {article_id} not found")
         return {
@@ -72,17 +104,25 @@ def process_article_content(self, article_id: int) -> Dict[str, Any]:
         }
     
     except Exception as e:
-        logger.exception(f"Unexpected error in content processing for article {article_id}: {str(e)}")
+        logger.exception(f"Unexpected error processing article {article_id}: {str(e)}")
         
-        # Retry on unexpected errors
+        # Update article status
+        try:
+            article = Article.objects.get(id=article_id)
+            article.process_status = ProcessingStatus.FAILED
+            article.save(update_fields=['process_status'])
+        except:
+            pass
+        
+        # Retry if we haven't exceeded max attempts
         if self.request.retries < self.max_retries:
-            raise self.retry(countdown=60 * (2 ** self.request.retries))
+            logger.info(f"Retrying article {article_id} due to error (attempt {self.request.retries + 1})")
+            raise self.retry(countdown=60 * (self.request.retries + 1))
         
         return {
             'success': False,
             'article_id': article_id,
-            'error_message': str(e),
-            'retries_exhausted': True
+            'error_message': str(e)
         }
 
 
