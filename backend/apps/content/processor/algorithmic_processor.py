@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass
 from bs4 import BeautifulSoup, Tag, NavigableString, Comment
 from urllib.parse import urljoin, urlparse
+from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,9 @@ class AlgorithmicProcessor:
             # Store article metadata for title comparison
             self._current_article_metadata = article_metadata or {}
             
+            # Clear section delimiter cache for fresh detection
+            self._section_delimiters_cache = None
+            
             if len(raw_html.strip()) < 100:
                 return ProcessingResult(
                     success=False,
@@ -172,6 +176,10 @@ class AlgorithmicProcessor:
                         error_message="Failed to parse HTML content",
                         processing_time_ms=int((time.time() - start_time) * 1000)
                     )
+                
+                # Store soup reference for section delimiter detection
+                self._current_soup = soup
+                
             except Exception as e:
                 return ProcessingResult(
                     success=False,
@@ -920,15 +928,18 @@ class AlgorithmicProcessor:
         seen_content = set()
         seen_images = set()
         
+        # Back to original element types - removing 'div' to prevent duplicates
+        content_element_types = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']
+        
         # Process elements in order, but exclude recommendation/widget sections
-        for element in main_element.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure', 'div', 'section', 'article']):
+        for element in main_element.find_all(content_element_types):
             
             # Skip if this element or its parents should be excluded
             if self._should_skip_element_for_content_blocks(element):
                 continue
             
             # Only process content-relevant elements
-            if element.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']:
+            if element.name in content_element_types:
                 block = self._element_to_content_block(element, position)
                 if block and self._is_unique_content_block(block, seen_content, seen_images):
                     blocks.append(block)
@@ -939,12 +950,20 @@ class AlgorithmicProcessor:
     def _should_skip_element_for_content_blocks(self, element: Tag) -> bool:
         """
         Determine if an element should be skipped when creating content blocks.
-        Check both the element itself and its ancestors to ensure elements within
-        excluded sections (like Page-below) are properly filtered out.
+        Enhanced with Safari-like section filtering that stops processing after
+        encountering section delimiters like "Related Content", "Latest News", etc.
         """
         
         # Check the element itself
         if self._should_exclude_section(element):
+            return True
+        
+        # Enhanced: Check if this element IS a section delimiter heading
+        if self._is_section_delimiter(element):
+            return True
+        
+        # Enhanced: Check if this element comes after a section delimiter
+        if self._is_after_section_delimiter(element):
             return True
         
         # Check all ancestors up to reasonable depth to catch elements within excluded sections
@@ -955,6 +974,11 @@ class AlgorithmicProcessor:
         while current and current.name not in ['body', 'html'] and depth < max_depth:
             if self._should_exclude_section(current):
                 return True
+                
+            # Check if ancestor comes after section delimiter
+            if self._is_after_section_delimiter(current):
+                return True
+                
             current = current.parent
             depth += 1
         
@@ -977,8 +1001,18 @@ class AlgorithmicProcessor:
         classes = element.get('class', [])
         metadata = {}
         
+        # Enhanced: Check for byline/author elements first (highest priority)
+        if self._is_byline_element(element):
+            block_type = 'byline'
+            raw_text = element.get_text(strip=True)
+            
+            # Extract clean author name and metadata
+            author_info = self._extract_author_from_byline(element)
+            content = author_info['display_text']
+            metadata.update(author_info['metadata'])
+            
         # Handle different element types
-        if block_type in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+        elif block_type in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             block_type = 'heading'
             level = int(element.name[1])  # Extract number from h1, h2, etc.
             content = element.get_text(strip=True)
@@ -1050,14 +1084,28 @@ class AlgorithmicProcessor:
                 metadata['src'] = self._extract_image_url(img)
                 metadata['alt'] = img.get('alt', '')
                 
-                # Look for figcaption
-                figcaption = element.find('figcaption')
-                if figcaption:
-                    metadata['caption'] = figcaption.get_text(strip=True)
-                    content = metadata['caption']
+                # Enhanced: Safari-like visible caption extraction
+                visible_caption = self._extract_visible_figure_caption(element)
+                if visible_caption:
+                    metadata['caption'] = visible_caption
+                    content = visible_caption
                 else:
-                    metadata['caption'] = img.get('alt', '')
-                    content = metadata['alt'] or "Figure"
+                    # Fallback to basic caption extraction
+                    figcaption = element.find('figcaption')
+                    if figcaption:
+                        caption_text = figcaption.get_text(strip=True)
+                        metadata['caption'] = caption_text
+                        content = caption_text
+                    else:
+                        # Last resort: try to extract clean caption from alt text
+                        raw_alt = img.get('alt', '')
+                        clean_caption = self._extract_clean_caption_from_alt(raw_alt)
+                        if clean_caption:
+                            metadata['caption'] = clean_caption
+                            content = clean_caption
+                        else:
+                            metadata['caption'] = raw_alt
+                            content = raw_alt or "Figure"
             else:
                 return None  # Figure without valid image
                 
@@ -1067,13 +1115,28 @@ class AlgorithmicProcessor:
             content = "Video content"
             
         else:
-            # For other elements, try to extract meaningful content
-            text_content = element.get_text(strip=True)
-            if len(text_content) > 20:  # Only include if substantial content
-                block_type = 'paragraph'
-                content = text_content
+            # Enhanced: Check if this is a byline element even if it's a div/span
+            if self._is_byline_element(element):
+                block_type = 'byline'
+                author_info = self._extract_author_from_byline(element)
+                content = author_info['display_text']
+                metadata.update(author_info['metadata'])
+            elif element.name == 'div' and self._is_semantic_div(element):
+                # Only process divs that are semantic content, not containers
+                text_content = element.get_text(strip=True)
+                if len(text_content) > 20:  # Only include if substantial content
+                    block_type = 'paragraph'
+                    content = text_content
+                else:
+                    return None  # Skip short divs
             else:
-                return None  # Skip elements without substantial content
+                # For other elements, try to extract meaningful content
+                text_content = element.get_text(strip=True)
+                if len(text_content) > 20:  # Only include if substantial content
+                    block_type = 'paragraph'
+                    content = text_content
+                else:
+                    return None  # Skip elements without substantial content
         
         # Create the content block
         return ContentBlock(
@@ -1818,9 +1881,12 @@ class AlgorithmicProcessor:
         seen_content = set()
         seen_images = set()
         
+        # Back to original element types - removing 'div' to prevent duplicates
+        content_element_types = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']
+        
         # Process prepended elements first
         for sibling in prepended_elements:
-            for element in sibling.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']):
+            for element in sibling.find_all(content_element_types):
                 # Skip if this element or its parents should be excluded
                 if self._should_skip_element_for_content_blocks(element):
                     continue
@@ -1831,7 +1897,7 @@ class AlgorithmicProcessor:
                     position += 1
         
         # Process main content
-        for element in main_element.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']):
+        for element in main_element.find_all(content_element_types):
             # Skip if this element or its parents should be excluded
             if self._should_skip_element_for_content_blocks(element):
                 continue
@@ -1843,7 +1909,7 @@ class AlgorithmicProcessor:
         
         # Process appended elements
         for sibling in appended_elements:
-            for element in sibling.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']):
+            for element in sibling.find_all(content_element_types):
                 # Skip if this element or its parents should be excluded
                 if self._should_skip_element_for_content_blocks(element):
                     continue
@@ -2091,16 +2157,44 @@ class AlgorithmicProcessor:
                     link_text = element.get_text(strip=True)
                     href = element.get('href')
                     if link_text and href:
-                        # Store link metadata for frontend processing
+                        # Enhanced: Handle both absolute and relative links
+                        should_include_link = False
+                        final_href = href
+                        
                         if href.startswith('http'):
+                            # Absolute HTTP/HTTPS links
+                            should_include_link = True
+                            final_href = href
+                        elif href.startswith('/'):
+                            # Relative links starting with / (site-relative)
+                            should_include_link = True
+                            # Convert to absolute URL if we have article metadata with URL
+                            if hasattr(self, '_current_article_metadata') and self._current_article_metadata.get('url'):
+                                from urllib.parse import urljoin, urlparse
+                                base_url = self._current_article_metadata['url']
+                                parsed_base = urlparse(base_url)
+                                base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
+                                final_href = urljoin(base_domain, href)
+                            else:
+                                # Keep as relative if we don't have base URL
+                                final_href = href
+                        elif href.startswith('#'):
+                            # Fragment links (hashtags) - only include if they're external (like Twitter hashtags)
+                            if any(domain in href for domain in ['twitter.com', 'instagram.com', 'facebook.com']):
+                                should_include_link = True
+                                final_href = href
+                            # Skip internal page fragments
+                        # Skip other types of links (javascript:, mailto:, etc.)
+                        
+                        if should_include_link:
                             links_metadata.append({
                                 'text': link_text,
-                                'href': href
+                                'href': final_href
                             })
-                            # Add placeholder text and URL for frontend to process
-                            result.append(f"{link_text} [{href}]")
+                            # Add text with link indicator for content
+                            result.append(f"{link_text}")  # Just the text, frontend will handle linking
                         else:
-                            result.append(link_text)  # Relative links without URL
+                            result.append(link_text)  # Just the text for non-included links
                     elif link_text:
                         result.append(link_text)
                 elif element.name == 'strong' or element.name == 'b':
@@ -2221,12 +2315,36 @@ class AlgorithmicProcessor:
     def _is_unique_content_block(self, block: ContentBlock, seen_content: set, seen_images: set) -> bool:
         """
         Check if a content block is unique to prevent duplicates.
-        Enhanced to catch images with different type classifications.
+        Enhanced to catch images with different type classifications, photo credit duplication,
+        and container divs that duplicate their children's content.
         """
         
+        # Enhanced: Check for photo credit paragraphs that duplicate figure captions
+        if block.type == 'paragraph' and self._is_photo_credit_paragraph(block.content):
+            # Photo credit paragraphs should be filtered out as they're captured in figure captions
+            return False
+        
+        # Enhanced: More aggressive duplicate detection for overly long content
+        content_text = block.content.strip()
+        
+        # Skip extremely long content that might be container divs
+        if len(content_text) > 2000:
+            return False
+        
+        # Enhanced: Check if this content is a significant subset of existing content
+        # This catches cases where a div contains the same text as its children
+        for existing_content in seen_content:
+            # Check if current content is contained within existing content (80% overlap)
+            if len(content_text) > 100:  # Only for substantial content
+                # Check if this content is mostly contained in existing content
+                if content_text.lower() in existing_content.lower():
+                    return False
+                # Check if existing content is mostly contained in this content  
+                if existing_content.lower() in content_text.lower() and len(existing_content) > 50:
+                    return False
+        
         # Create a normalized content fingerprint for all blocks
-        content_text = block.content.strip().lower()
-        content_fingerprint = re.sub(r'\s+', ' ', content_text)  # Normalize whitespace
+        content_fingerprint = re.sub(r'\s+', ' ', content_text.lower())  # Normalize whitespace
         content_fingerprint = re.sub(r'[^\w\s]', '', content_fingerprint)  # Remove punctuation
         
         # For image/media content with src, prioritize URL-based deduplication
@@ -2239,14 +2357,63 @@ class AlgorithmicProcessor:
             seen_images.add(normalized_src)
         
         # For all content, check text-based similarity
-        # Use first 100 characters as fingerprint
-        text_fingerprint = content_fingerprint[:100]
+        # Use first 150 characters as fingerprint (increased from 100)
+        text_fingerprint = content_fingerprint[:150]
         
         if text_fingerprint in seen_content:
             return False
         seen_content.add(text_fingerprint)
         
+        # Also add the full content fingerprint for container detection
+        if len(content_fingerprint) > 150:
+            seen_content.add(content_fingerprint)
+        
         return True
+    
+    def _is_photo_credit_paragraph(self, content: str) -> bool:
+        """
+        Detect if a paragraph contains only photo credit information that would
+        duplicate figure captions. Based on Safari Reader Mode patterns.
+        """
+        
+        if not content or len(content) > 300:  # Photo credits are typically short
+            return False
+        
+        content_lower = content.strip().lower()
+        
+        # Pattern 1: Standard photo credit format 
+        photo_credit_patterns = [
+            r'^\s*©?\s*\(\s*photo\s+by\s+[^)]+\)\s*\([^)]+\)\s*$',  # (Photo by X)(Agency)
+            r'^\s*©\s*\(\s*photo\s+by\s+[^)]+\)\s*\([^)]+\)\s*$',   # © (Photo by X)(Agency)
+            r'^\s*photo:\s*[^.]+(?:ap\s+images?|reuters|getty|sipa|afp)',  # Photo: X AP Images
+            r'^\s*credit:\s*[^.]+(?:ap\s+images?|reuters|getty|sipa|afp)',  # Credit: X Reuters
+            r'^\s*image:\s*[^.]+(?:ap\s+images?|reuters|getty|sipa|afp)',   # Image: X Getty
+        ]
+        
+        for pattern in photo_credit_patterns:
+            if re.match(pattern, content_lower):
+                return True
+        
+        # Pattern 2: Check for typical photo credit agencies/sources
+        photo_agencies = [
+            'ap images', 'reuters', 'getty images', 'sipa usa', 'afp', 'bloomberg',
+            'bildbyran', 'maxim thore', 'associated press', 'press association'
+        ]
+        
+        # If content is short and contains photo agencies, likely a photo credit
+        if len(content) < 150 and any(agency in content_lower for agency in photo_agencies):
+            # Additional checks to ensure it's really just a photo credit
+            # Look for typical photo credit words
+            credit_indicators = ['photo', 'image', 'credit', '©', 'via', 'courtesy']
+            if any(indicator in content_lower for indicator in credit_indicators):
+                # And check it doesn't contain substantial article content
+                if not any(article_word in content_lower for article_word in [
+                    'said', 'according', 'reported', 'announced', 'told', 'explained',
+                    'the', 'and', 'but', 'however', 'therefore', 'meanwhile'
+                ]):
+                    return True
+        
+        return False
     
     def _should_exclude_section(self, element: Tag) -> bool:
         """
@@ -2362,11 +2529,42 @@ class AlgorithmicProcessor:
         return max(text_length / 10, child_count * 50)  # Rough area estimate
 
     def _is_duplicate_title(self, heading: str, article_title: str) -> bool:
-        """Check if the heading is a duplicate of the article title."""
-        # Remove common publication name patterns
-        heading = re.sub(r'\s*[-|–—]\s*.+(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC).*$', '', heading, flags=re.IGNORECASE)
-        article_title = re.sub(r'\s*[-|–—]\s*.+(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC).*$', '', article_title, flags=re.IGNORECASE)
-        return heading.strip().lower() == article_title.strip().lower()
+        """
+        Check if the heading is a duplicate of the article title.
+        Enhanced to handle publication names and common title variations.
+        """
+        if not heading or not article_title:
+            return False
+        
+        # Normalize both titles for comparison
+        def normalize_title(title):
+            """Clean title for comparison by removing publication names."""
+            # Remove common publication name patterns at the end
+            title = re.sub(r'\s*[-|–—]\s*(?:.*?(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC).*?)$', '', title, flags=re.IGNORECASE)
+            
+            # Remove extra whitespace and normalize
+            title = re.sub(r'\s+', ' ', title.strip())
+            return title.lower()
+        
+        normalized_heading = normalize_title(heading)
+        normalized_article_title = normalize_title(article_title)
+        
+        # Check exact match after normalization
+        if normalized_heading == normalized_article_title:
+            return True
+        
+        # Check if heading is substantially contained in article title (80% match)
+        if len(normalized_heading) > 10:  # Only for substantial headings
+            # Check if heading is a substring of article title
+            if normalized_heading in normalized_article_title:
+                return True
+            
+            # Check similarity ratio (allow small differences)
+            similarity = SequenceMatcher(None, normalized_heading, normalized_article_title).ratio()
+            if similarity >= 0.85:  # 85% similarity threshold
+                return True
+        
+        return False
 
     def _extract_image_url(self, img_element: Tag) -> str:
         """
@@ -2415,3 +2613,544 @@ class AlgorithmicProcessor:
                 return first_url
         
         return ''
+    
+    def _is_after_section_delimiter(self, element: Tag) -> bool:
+        """
+        Check if element comes after a section delimiter that indicates the end of main content.
+        Safari Reader Mode stops processing after encountering headers like "Related Content",
+        "Latest News", "More Stories", etc.
+        """
+        
+        # Don't apply delimiter filtering if we don't have a main document context
+        if not hasattr(self, '_section_delimiters_cache'):
+            self._section_delimiters_cache = None
+        
+        # Find section delimiters in the document (cache for performance)
+        if self._section_delimiters_cache is None:
+            self._section_delimiters_cache = self._find_section_delimiters()
+        
+        # If no section delimiters found, don't filter
+        if not self._section_delimiters_cache:
+            return False
+        
+        # Check if element comes after any section delimiter in document order
+        for delimiter in self._section_delimiters_cache:
+            if self._element_comes_after(element, delimiter):
+                return True
+        
+        return False
+    
+    def _find_section_delimiters(self) -> List[Tag]:
+        """
+        Find section delimiter headings that indicate the end of main content.
+        These are patterns Safari Reader Mode uses to stop content extraction.
+        """
+        
+        if not hasattr(self, '_current_soup') or not self._current_soup:
+            return []
+        
+        delimiters = []
+        
+        # Section delimiter patterns (case-insensitive)
+        delimiter_patterns = [
+            # Primary delimiters (very strong indicators)
+            r'^related\s+content$',
+            r'^related\s+articles?$', 
+            r'^related\s+stories$',
+            r'^latest\s+news$',
+            r'^more\s+stories$',
+            r'^more\s+news$',
+            r'^more\s+from\s+',
+            r'^you\s+might\s+also\s+like$',
+            r'^recommended\s+for\s+you$',
+            r'^trending\s+now$',
+            r'^popular\s+stories$',
+            
+            # Secondary delimiters (contextual)
+            r'^also\s+read$',
+            r'^see\s+also$',
+            r'^what\s+to\s+read\s+next$',
+            r'^don\'t\s+miss$',
+            r'^top\s+stories$',
+            
+            # Sport-specific delimiters (for NHL.com and similar)
+            r'^more\s+nhl\s+news$',
+            r'^around\s+the\s+league$',
+            r'^other\s+news$',
+        ]
+        
+        # Find headings that match delimiter patterns
+        headings = self._current_soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+        
+        for heading in headings:
+            heading_text = heading.get_text(strip=True).lower()
+            
+            # Check each pattern
+            for pattern in delimiter_patterns:
+                if re.match(pattern, heading_text):
+                    delimiters.append(heading)
+                    break  # One match per heading is enough
+        
+        return delimiters
+    
+    def _element_comes_after(self, element: Tag, delimiter: Tag) -> bool:
+        """
+        Check if element comes after delimiter in document order.
+        Uses a more robust approach to determine document position.
+        """
+        
+        try:
+            # Get the root document
+            root = delimiter
+            while root.parent and root.parent.name not in ['html', '[document]']:
+                root = root.parent
+            
+            # Get all elements in document order by walking the tree
+            all_elements = []
+            
+            def collect_elements(node):
+                if hasattr(node, 'name') and node.name:  # Is a Tag
+                    all_elements.append(node)
+                # Recurse into children
+                if hasattr(node, 'children'):
+                    for child in node.children:
+                        collect_elements(child)
+            
+            collect_elements(root)
+            
+            # Find positions of delimiter and element
+            delimiter_pos = -1
+            element_pos = -1
+            
+            for i, elem in enumerate(all_elements):
+                if elem == delimiter:
+                    delimiter_pos = i
+                if elem == element:
+                    element_pos = i
+            
+            # Only filter if element clearly comes after delimiter
+            if delimiter_pos >= 0 and element_pos >= 0:
+                return element_pos > delimiter_pos
+            
+            # Fallback: check if element is a descendant of something after delimiter
+            # This is more conservative
+            element_ancestors = []
+            current = element
+            while current and current.parent:
+                element_ancestors.append(current.parent)
+                current = current.parent
+            
+            # Check if any ancestor comes after delimiter
+            for ancestor in element_ancestors:
+                for i, elem in enumerate(all_elements):
+                    if elem == delimiter:
+                        delimiter_pos = i
+                    if elem == ancestor:
+                        ancestor_pos = i
+                        if delimiter_pos >= 0 and ancestor_pos > delimiter_pos:
+                            return True
+            
+            return False
+            
+        except Exception as e:
+            # If position detection fails, don't filter (conservative approach)
+            return False
+    
+    def _is_section_delimiter(self, element: Tag) -> bool:
+        """
+        Check if element is itself a section delimiter heading.
+        These headings should be excluded from the final content.
+        """
+        
+        # Only check heading elements
+        if not element.name or element.name.lower() not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            return False
+        
+        # Get heading text
+        heading_text = element.get_text(strip=True).lower()
+        
+        # Section delimiter patterns (same as in _find_section_delimiters)
+        delimiter_patterns = [
+            # Primary delimiters (very strong indicators)
+            r'^related\s+content$',
+            r'^related\s+articles?$', 
+            r'^related\s+stories$',
+            r'^latest\s+news$',
+            r'^more\s+stories$',
+            r'^more\s+news$',
+            r'^more\s+from\s+',
+            r'^you\s+might\s+also\s+like$',
+            r'^recommended\s+for\s+you$',
+            r'^trending\s+now$',
+            r'^popular\s+stories$',
+            
+            # Secondary delimiters (contextual)
+            r'^also\s+read$',
+            r'^see\s+also$',
+            r'^what\s+to\s+read\s+next$',
+            r'^don\'t\s+miss$',
+            r'^top\s+stories$',
+            
+            # Sport-specific delimiters (for NHL.com and similar)
+            r'^more\s+nhl\s+news$',
+            r'^around\s+the\s+league$',
+            r'^other\s+news$',
+        ]
+        
+        # Check if heading matches any delimiter pattern
+        for pattern in delimiter_patterns:
+            if re.match(pattern, heading_text):
+                return True
+        
+        return False
+
+    def _extract_visible_figure_caption(self, element: Tag) -> Optional[str]:
+        """
+        Extract visible caption from a figure element using Safari Reader Mode logic.
+        Focus on what's actually visible to users, not hidden metadata.
+        """
+        
+        # Safari Rule 1: Skip figures marked as hidden
+        if element.get('aria-hidden') == 'true':
+            return None
+        
+        # Safari Rule 2: Check for actual figcaption (highest priority)
+        figcaption = element.find('figcaption')
+        if figcaption:
+            # Apply visibility filtering to figcaption content
+            visible_caption = self._extract_visible_caption_text(figcaption)
+            if visible_caption:
+                return visible_caption
+        
+        # Safari Rule 3: Look for separate caption elements near the figure
+        # Check next sibling for caption-like content
+        next_sibling = element.find_next_sibling()
+        if next_sibling and next_sibling.name in ['p', 'div', 'span']:
+            sibling_text = next_sibling.get_text(strip=True)
+            # Check if it looks like a photo caption
+            if (len(sibling_text) < 200 and 
+                any(indicator in sibling_text.lower() for indicator in 
+                    ['photo', '©', 'credit', 'image', 'getty', 'reuters', 'ap images', 'sipa'])):
+                return sibling_text
+        
+        # Safari Rule 4: Look in the figure's parent container for caption elements
+        parent = element.parent
+        if parent:
+            # Look for elements with caption-related classes or IDs
+            caption_elements = parent.find_all(['p', 'div', 'span'], class_=lambda x: x and any(
+                caption_class in ' '.join(x).lower() for caption_class in 
+                ['caption', 'credit', 'photo-credit', 'image-credit']
+            ))
+            
+            for caption_elem in caption_elements:
+                caption_text = caption_elem.get_text(strip=True)
+                if caption_text and len(caption_text) < 300:
+                    return caption_text
+        
+        # Safari Rule 5: As last resort, try to extract clean photo credit from alt text
+        img = element.find('img')
+        if img:
+            alt_text = img.get('alt', '')
+            if alt_text:
+                clean_caption = self._extract_clean_caption_from_alt(alt_text)
+                if clean_caption and clean_caption != alt_text:  # Only if we actually cleaned it
+                    return clean_caption
+        
+        return None
+    
+    def _extract_visible_caption_text(self, figcaption: Tag) -> Optional[str]:
+        """
+        Extract visible text from figcaption, filtering out hidden elements.
+        Based on Safari Reader Mode visibility logic.
+        """
+        
+        visible_parts = []
+        
+        # Process each child node to check visibility
+        for content in figcaption.contents:
+            if hasattr(content, 'strip'):  # Text node
+                text = content.strip()
+                if text and len(text) > 2:
+                    visible_parts.append(text)
+            elif hasattr(content, 'name'):  # Element node
+                # Skip if element is hidden
+                if self._is_element_hidden(content):
+                    continue
+                    
+                text = content.get_text(strip=True)
+                if text and len(text) > 2:
+                    visible_parts.append(text)
+        
+        if visible_parts:
+            combined = ' '.join(visible_parts).strip()
+            # Clean up excessive whitespace
+            combined = re.sub(r'\s+', ' ', combined)
+            return combined if len(combined) > 5 else None
+        
+        return None
+    
+    def _is_element_hidden(self, element: Tag) -> bool:
+        """
+        Check if element is hidden using Safari Reader Mode visibility logic.
+        """
+        
+        if not element or not hasattr(element, 'name'):
+            return False
+        
+        # Check aria-hidden
+        if element.get('aria-hidden') == 'true':
+            return True
+        
+        # Check style attribute for hiding
+        style = element.get('style', '').lower()
+        if any(hidden_style in style for hidden_style in [
+            'display:none', 'display: none',
+            'visibility:hidden', 'visibility: hidden',
+            'opacity:0', 'opacity: 0'
+        ]):
+            return True
+        
+        # Check classes for hiding (common patterns)
+        classes = ' '.join(element.get('class', [])).lower()
+        if any(hidden_class in classes for hidden_class in [
+            'hidden', 'sr-only', 'screen-reader-only', 'visually-hidden',
+            'invisible', 'hide', 'off-screen', 'hide-text'
+        ]):
+            return True
+        
+        return False
+    
+    def _extract_clean_caption_from_alt(self, alt_text: str) -> Optional[str]:
+        """
+        Extract clean caption from verbose alt text using Safari-like patterns.
+        Only extracts if we can significantly clean/shorten the text.
+        """
+        
+        if not alt_text or len(alt_text) < 20:
+            return None
+        
+        # Safari Pattern 1: Extract photo credit at the end
+        photo_credit_match = re.search(r'\(Photo by [^)]+\)\([^)]+\)$', alt_text)
+        if photo_credit_match:
+            return photo_credit_match.group(0)
+        
+        # Safari Pattern 2: Extract copyright notice
+        copyright_match = re.search(r'©[^.]*(?:AP Images?|Reuters|Getty|Sipa|AFP)[^.]*$', alt_text, re.IGNORECASE)
+        if copyright_match:
+            return copyright_match.group(0)
+        
+        # Safari Pattern 3: If alt text is very long, try to extract essential photo info
+        if len(alt_text) > 150:
+            # Look for photo credit indicators
+            credit_patterns = [
+                r'Photo:\s*[^.]+(?:AP Images?|Reuters|Getty|Sipa|AFP)',
+                r'Credit:\s*[^.]+(?:AP Images?|Reuters|Getty|Sipa|AFP)',
+                r'Image:\s*[^.]+(?:AP Images?|Reuters|Getty|Sipa|AFP)'
+            ]
+            
+            for pattern in credit_patterns:
+                match = re.search(pattern, alt_text, re.IGNORECASE)
+                if match:
+                    return match.group(0).strip()
+        
+        # Don't return the original verbose alt text
+        return None
+    
+    def _is_byline_element(self, element: Tag) -> bool:
+        """
+        Detect if an element is a byline/author element.
+        Uses Safari Reader Mode patterns and semantic indicators.
+        """
+        
+        if not element or not hasattr(element, 'name'):
+            return False
+        
+        # Check element classes for author/byline indicators
+        classes = ' '.join(element.get('class', [])).lower()
+        author_class_patterns = [
+            'author', 'byline', 'writer', 'correspondent', 'journalist',
+            'credit', 'attribution', 'created-by', 'written-by'
+        ]
+        
+        if any(pattern in classes for pattern in author_class_patterns):
+            return True
+        
+        # Check element ID for author patterns
+        element_id = element.get('id', '').lower()
+        if any(pattern in element_id for pattern in author_class_patterns):
+            return True
+        
+        # Check data attributes for author information
+        data_attrs = []
+        for attr_name in element.attrs:
+            if attr_name.startswith('data-'):
+                data_attrs.append(attr_name.lower())
+                data_attrs.append(str(element.attrs[attr_name]).lower())
+        
+        data_attr_text = ' '.join(data_attrs)
+        if any(pattern in data_attr_text for pattern in author_class_patterns):
+            return True
+        
+        # Check text content for byline patterns (but only for small elements)
+        text_content = element.get_text(strip=True)
+        if len(text_content) < 200:  # Bylines are typically short
+            # Look for "By [Name]" patterns
+            if re.match(r'^by\s+[a-z]+\s+[a-z]+', text_content.lower()):
+                return True
+            
+            # Look for author name patterns with role/affiliation
+            byline_content_patterns = [
+                r'by\s+[\w\s]+(?:correspondent|reporter|editor|writer)',
+                r'[\w\s]+\s+(?:correspondent|reporter|editor|writer)',
+                r'by\s+[\w\s]+\s+[\w\s]+\.com',  # "By Name Publication.com"
+            ]
+            
+            for pattern in byline_content_patterns:
+                if re.search(pattern, text_content.lower()):
+                    return True
+        
+        return False
+    
+    def _extract_author_from_byline(self, element: Tag) -> Dict[str, Any]:
+        """
+        Extract clean author information from a byline element.
+        Returns dict with display_text and metadata.
+        """
+        
+        full_text = element.get_text(strip=True)
+        
+        # Initialize result
+        result = {
+            'display_text': full_text,
+            'metadata': {
+                'raw_byline': full_text
+            }
+        }
+        
+        # Try to extract structured information from child elements
+        # Pattern 1: Separate <span> elements (like NHL.com structure)
+        spans = element.find_all('span')
+        if len(spans) >= 2:
+            # First span might be "By", second might be author name
+            potential_by = spans[0].get_text(strip=True).lower()
+            if potential_by in ['by', 'written by', 'author']:
+                author_name = spans[1].get_text(strip=True)
+                if author_name:
+                    result['metadata']['author_name'] = author_name
+                    
+                    # Look for role/affiliation in remaining spans or child elements
+                    role_elements = element.find_all(['span', 'div'])[2:]  # Skip first two spans
+                    if role_elements:
+                        role = ' '.join(elem.get_text(strip=True) for elem in role_elements)
+                        if role:
+                            result['metadata']['author_role'] = role
+                            result['display_text'] = f"By {author_name}"
+                    else:
+                        result['display_text'] = f"By {author_name}"
+        
+        # Pattern 2: Parse from full text if structured extraction failed
+        if 'author_name' not in result['metadata']:
+            # Try to extract author name from text patterns
+            author_match = re.search(r'^by\s+([\w\s]+?)(?:\s+(?:correspondent|reporter|editor|writer|\.com))', full_text.lower())
+            if author_match:
+                author_name = author_match.group(1).strip().title()
+                result['metadata']['author_name'] = author_name
+                result['display_text'] = f"By {author_name}"
+            else:
+                # Try simpler "By Name Name" pattern
+                simple_match = re.search(r'^by\s+([\w\s]+?)(?:\s|$)', full_text.lower())
+                if simple_match:
+                    potential_name = simple_match.group(1).strip()
+                    # Ensure it looks like a name (at least first and last)
+                    name_parts = potential_name.split()
+                    if len(name_parts) >= 2:
+                        author_name = ' '.join(name_parts[:2]).title()  # First two words
+                        result['metadata']['author_name'] = author_name
+                        result['display_text'] = f"By {author_name}"
+        
+        # If we still don't have a clean author name, try to clean up the display text
+        if 'author_name' not in result['metadata']:
+            # Remove common suffixes
+            clean_text = re.sub(r'\s+(?:correspondent|reporter|editor|writer).*$', '', full_text, flags=re.IGNORECASE)
+            if clean_text != full_text and len(clean_text) < len(full_text):
+                result['display_text'] = clean_text.strip()
+        
+        return result
+
+    def _is_semantic_div(self, element: Tag) -> bool:
+        """
+        Check if a div element represents semantic content rather than just a container.
+        Uses multiple heuristics to avoid processing wrapper divs that would create duplicates.
+        """
+        
+        if not element or element.name != 'div':
+            return False
+        
+        # Rule 1: Skip if this div's content is mostly contained in child elements
+        # This prevents processing wrapper divs
+        div_text = element.get_text(strip=True)
+        
+        # Get text from direct content vs. child elements
+        child_elements = element.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'strong', 'em'])
+        child_text = ' '.join([child.get_text(strip=True) for child in child_elements])
+        
+        # If div is very large (>1000 chars), likely a container
+        if len(div_text) > 1000:
+            return False
+        
+        # If most content comes from children, this is likely a wrapper
+        if len(child_text) > len(div_text) * 0.8:
+            return False
+        
+        # Rule 2: Check for semantic classes/attributes that indicate content
+        classes = ' '.join(element.get('class', [])).lower()
+        semantic_indicators = [
+            'content', 'body', 'text', 'excerpt', 'summary', 'lead',
+            'intro', 'description', 'caption', 'note', 'highlight',
+            'callout', 'quote', 'aside', 'sidebar-content'
+        ]
+        
+        # Positive indicators
+        if any(indicator in classes for indicator in semantic_indicators):
+            return True
+        
+        # Rule 3: Skip container-like classes
+        container_indicators = [
+            'container', 'wrapper', 'layout', 'grid', 'row', 'col',
+            'section', 'main', 'page', 'article-wrapper', 'content-wrapper',
+            'inner', 'outer', 'header', 'footer', 'nav', 'sidebar'
+        ]
+        
+        if any(indicator in classes for indicator in container_indicators):
+            return False
+        
+        # Rule 4: Check element attributes for semantic meaning
+        element_id = element.get('id', '').lower()
+        if any(indicator in element_id for indicator in semantic_indicators):
+            return True
+        
+        # Rule 5: Content length and structure heuristics
+        # Very short content is usually not worth a separate block
+        if len(div_text) < 30:
+            return False
+        
+        # Very long content with many children is usually a container
+        if len(div_text) > 500 and len(element.find_all()) > 10:
+            return False
+        
+        # Rule 6: Check if this div has mostly text content vs. nested elements
+        # Count direct text vs. nested element content
+        direct_text = []
+        for content in element.contents:
+            if hasattr(content, 'strip') and content.strip():  # Text node
+                direct_text.append(content.strip())
+        
+        direct_text_length = sum(len(text) for text in direct_text)
+        
+        # If there's substantial direct text content, likely semantic
+        if direct_text_length > 50:
+            return True
+        
+        # Rule 7: Default to False for safety (be conservative)
+        # Only process divs that clearly pass our semantic tests
+        return False
