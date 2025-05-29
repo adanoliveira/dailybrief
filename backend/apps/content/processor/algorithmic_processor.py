@@ -10,7 +10,7 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass
 from bs4 import BeautifulSoup, Tag, NavigableString, Comment
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, parse_qs
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
@@ -1115,8 +1115,19 @@ class AlgorithmicProcessor:
             content = "Video content"
             
         else:
+            # Enhanced: Check for Twitter embeds first (highest priority for divs)
+            if element.name == 'div' and self._is_twitter_embed(element):
+                block_type = 'twitter_embed'
+                twitter_data = self._extract_twitter_embed_data(element)
+                
+                if twitter_data['tweet_id']:
+                    metadata.update(twitter_data)
+                    content = f"Twitter embed: {twitter_data['tweet_id']}"
+                else:
+                    return None  # Skip if we can't extract tweet ID
+                    
             # Enhanced: Check if this is a byline element even if it's a div/span
-            if self._is_byline_element(element):
+            elif self._is_byline_element(element):
                 block_type = 'byline'
                 author_info = self._extract_author_from_byline(element)
                 content = author_info['display_text']
@@ -1881,8 +1892,8 @@ class AlgorithmicProcessor:
         seen_content = set()
         seen_images = set()
         
-        # Back to original element types - removing 'div' to prevent duplicates
-        content_element_types = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure']
+        # Back to original element types - adding 'div' temporarily for Twitter embeds
+        content_element_types = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure', 'div']
         
         # Process prepended elements first
         for sibling in prepended_elements:
@@ -2316,12 +2327,24 @@ class AlgorithmicProcessor:
         """
         Check if a content block is unique to prevent duplicates.
         Enhanced to catch images with different type classifications, photo credit duplication,
-        and container divs that duplicate their children's content.
+        container divs that duplicate their children's content, and Twitter link paragraphs/quotes
+        that are duplicated by proper Twitter embeds.
         """
         
         # Enhanced: Check for photo credit paragraphs that duplicate figure captions
         if block.type == 'paragraph' and self._is_photo_credit_paragraph(block.content):
             # Photo credit paragraphs should be filtered out as they're captured in figure captions
+            return False
+        
+        # Enhanced: Check if this paragraph block contains Twitter content that's been properly embedded
+        if block.type == 'paragraph' and self._is_twitter_paragraph_duplicate(block):
+            # Skip paragraph blocks that contain tweet content when we have proper Twitter embeds
+            return False
+        
+        # Enhanced: Check if this quote block contains Twitter content that's been properly embedded
+        # Original Twitter blockquotes often get processed as quote blocks before JS transformation
+        if block.type == 'quote' and self._is_twitter_quote_duplicate(block):
+            # Skip quote blocks that contain tweet content when we have proper Twitter embeds
             return False
         
         # Enhanced: More aggressive duplicate detection for overly long content
@@ -3153,4 +3176,277 @@ class AlgorithmicProcessor:
         
         # Rule 7: Default to False for safety (be conservative)
         # Only process divs that clearly pass our semantic tests
+        return False
+
+    def _is_twitter_embed(self, element: Tag) -> bool:
+        """
+        Detect if an element is a Twitter embed.
+        Handles both rendered iframes AND original blockquote patterns before JS transformation.
+        """
+        
+        if not element or not hasattr(element, 'name'):
+            return False
+        
+        # Pattern 1: NHL.com style with oc-c-body-part--twitter class (rendered)
+        classes = ' '.join(element.get('class', [])).lower()
+        if 'twitter' in classes and ('oembed' in classes or 'body-part' in classes):
+            return True
+        
+        # Pattern 2: Direct twitter-tweet container (rendered)
+        if 'twitter-tweet' in classes:
+            return True
+        
+        # Pattern 3: Original blockquote with twitter-tweet class (before JS transformation)
+        if element.name == 'blockquote' and 'twitter-tweet' in classes:
+            return True
+        
+        # Pattern 4: Check if contains Twitter iframe (fully rendered)
+        if element.find('iframe', src=lambda x: x and 'platform.twitter.com/embed' in x):
+            return True
+        
+        # Pattern 5: Check for Twitter embed indicators in children (rendered)
+        twitter_indicators = element.find_all(['div', 'iframe'], class_=lambda x: x and any(
+            indicator in ' '.join(x).lower() for indicator in ['twitter-tweet', 'twitter-embed']
+        ))
+        
+        if twitter_indicators:
+            return True
+        
+        # Pattern 6: Check if element contains tweet URLs (original state)
+        tweet_links = element.find_all('a', href=lambda x: x and (
+            'twitter.com/status/' in x or 
+            'twitter.com/' in x and '/status/' in x or
+            't.co/' in x
+        ))
+        
+        if tweet_links and element.name in ['blockquote', 'div', 'p']:
+            # Additional check: ensure it's actually a tweet embed, not just a link
+            # Look for Twitter widgets script in the page or tweet-like structure
+            if element.name == 'blockquote':
+                return True  # Blockquotes with tweet links are likely embeds
+            
+            # For other elements, be more selective
+            if len(tweet_links) == 1 and len(element.get_text(strip=True)) < 300:
+                return True  # Short elements with single tweet link
+        
+        return False
+    
+    def _extract_twitter_embed_data(self, element: Tag) -> dict:
+        """
+        Extract Twitter embed metadata from the element.
+        Handles both rendered iframes AND original blockquote patterns before JS transformation.
+        Returns dict with tweet_id, embed_url, and other metadata.
+        """
+        
+        metadata = {
+            'tweet_id': None,
+            'embed_url': None,
+            'width': None,
+            'height': None,
+            'embed_type': 'unknown'
+        }
+        
+        # Method 1: Look for iframe with Twitter embed (fully rendered)
+        iframe = element.find('iframe', src=lambda x: x and 'platform.twitter.com/embed' in x)
+        
+        if iframe:
+            src = iframe.get('src', '')
+            metadata['embed_url'] = src
+            metadata['embed_type'] = 'iframe'
+            
+            # Extract tweet ID from data-tweet-id attribute
+            tweet_id = iframe.get('data-tweet-id')
+            if tweet_id:
+                metadata['tweet_id'] = tweet_id
+            else:
+                # Fallback: extract tweet ID from URL parameters
+                import re
+                from urllib.parse import urlparse, parse_qs
+                
+                try:
+                    parsed_url = urlparse(src)
+                    query_params = parse_qs(parsed_url.query)
+                    if 'id' in query_params:
+                        metadata['tweet_id'] = query_params['id'][0]
+                except:
+                    # If URL parsing fails, try regex
+                    tweet_id_match = re.search(r'[&?]id=(\d+)', src)
+                    if tweet_id_match:
+                        metadata['tweet_id'] = tweet_id_match.group(1)
+            
+            # Extract dimensions if available
+            width = iframe.get('width') or iframe.get('style', '')
+            height = iframe.get('height') or iframe.get('style', '')
+            
+            # Parse width/height from style if present
+            if 'width:' in width:
+                width_match = re.search(r'width:\s*(\d+)px', width)
+                if width_match:
+                    metadata['width'] = int(width_match.group(1))
+            elif width.replace('px', '').isdigit():
+                metadata['width'] = int(width.replace('px', ''))
+            
+            if 'height:' in height:
+                height_match = re.search(r'height:\s*(\d+)px', height)
+                if height_match:
+                    metadata['height'] = int(height_match.group(1))
+            elif height.replace('px', '').isdigit():
+                metadata['height'] = int(height.replace('px', ''))
+        
+        # Method 2: Look for tweet URLs in links (original blockquote pattern)
+        else:
+            tweet_links = element.find_all('a', href=lambda x: x and (
+                'twitter.com/status/' in x or 
+                'twitter.com/' in x and '/status/' in x
+            ))
+            
+            if tweet_links:
+                # Get the first status link
+                status_link = tweet_links[0]
+                href = status_link.get('href', '')
+                metadata['embed_url'] = href
+                metadata['embed_type'] = 'blockquote'
+                
+                # Extract tweet ID from URL
+                import re
+                tweet_id_match = re.search(r'twitter\.com/\w+/status/(\d+)', href)
+                if tweet_id_match:
+                    metadata['tweet_id'] = tweet_id_match.group(1)
+                
+                # For blockquotes, set default dimensions
+                metadata['width'] = 550  # Standard Twitter embed width
+                metadata['height'] = 400  # Estimated height
+            
+            # Method 3: Look for t.co short URLs as fallback
+            else:
+                tco_links = element.find_all('a', href=lambda x: x and 't.co/' in x)
+                if tco_links:
+                    tco_link = tco_links[0]
+                    href = tco_link.get('href', '')
+                    metadata['embed_url'] = href
+                    metadata['embed_type'] = 'tco_link'
+                    
+                    # Can't extract tweet ID from t.co URL, but preserve the link
+                    # Tweet ID might be available in other attributes or surrounding context
+                    
+                    # Look for tweet ID in surrounding context
+                    parent_text = element.get_text()
+                    tweet_id_match = re.search(r'(\d{15,})', parent_text)  # Tweet IDs are ~19 digits
+                    if tweet_id_match:
+                        metadata['tweet_id'] = tweet_id_match.group(1)
+        
+        return metadata
+
+    def _is_twitter_paragraph_duplicate(self, block: ContentBlock) -> bool:
+        """
+        Check if a paragraph block contains Twitter content that's already been
+        properly detected as a Twitter embed block.
+        """
+        
+        content = block.content.lower()
+        
+        # Pattern 1: Check for Twitter handles and hashtags that suggest this is tweet content
+        twitter_indicators = ['@', '#', 'twitter.com', 't.co']
+        twitter_count = sum(1 for indicator in twitter_indicators if indicator in content)
+        
+        # If this paragraph has multiple Twitter indicators, it's likely tweet content
+        if twitter_count >= 2:
+            return True
+        
+        # Pattern 2: Check for specific tweet-like content patterns
+        tweet_patterns = [
+            r'@\w+',  # Twitter handles
+            r'#\w+',  # Hashtags
+            r'pic\.twitter\.com',  # Twitter image links
+            r'twitter\.com/\w+/status',  # Tweet status links
+        ]
+        
+        pattern_matches = 0
+        for pattern in tweet_patterns:
+            if re.search(pattern, content):
+                pattern_matches += 1
+        
+        # If this paragraph contains multiple tweet patterns, likely duplicate
+        if pattern_matches >= 2:
+            return True
+        
+        # Pattern 3: Check for very short paragraphs with Twitter links
+        # These are often just the link text without substantial content
+        if len(block.content.strip()) < 200 and any(indicator in content for indicator in twitter_indicators):
+            # Check if it's mostly just Twitter handles and hashtags
+            words = block.content.split()
+            twitter_words = [word for word in words if word.startswith('@') or word.startswith('#') or 'twitter' in word.lower()]
+            
+            # If more than 30% of words are Twitter-related, likely duplicate
+            if len(words) > 0 and (len(twitter_words) / len(words)) > 0.3:
+                return True
+        
+        # Pattern 4: Check for paragraphs that are all caps with Twitter handles (likely tweet text)
+        # This catches the specific case: "TAGE THOMPSON SCORES THE GOLDEN GOAL AND IS THE HERO FOR TEAM USA!!! @usahockey | @BuffaloSabres"
+        if content.isupper() and '@' in content:
+            # Count non-whitespace/punctuation characters that are uppercase
+            uppercase_chars = sum(1 for char in content if char.isupper())
+            total_alpha_chars = sum(1 for char in content if char.isalpha())
+            
+            # If most alphabetic characters are uppercase AND it contains Twitter handles
+            if total_alpha_chars > 0 and (uppercase_chars / total_alpha_chars) > 0.8:
+                return True
+        
+        return False
+
+    def _is_twitter_quote_duplicate(self, block: ContentBlock) -> bool:
+        """
+        Check if a quote block contains Twitter content that's already been
+        properly detected as a Twitter embed block.
+        """
+        
+        content = block.content.lower()
+        
+        # Pattern 1: Check for Twitter handles and hashtags that suggest this is tweet content
+        twitter_indicators = ['@', '#', 'twitter.com', 't.co']
+        twitter_count = sum(1 for indicator in twitter_indicators if indicator in content)
+        
+        # If this quote has multiple Twitter indicators, it's likely tweet content
+        if twitter_count >= 2:
+            return True
+        
+        # Pattern 2: Check for specific tweet-like content patterns
+        tweet_patterns = [
+            r'@\w+',  # Twitter handles
+            r'#\w+',  # Hashtags
+            r'pic\.twitter\.com',  # Twitter image links
+            r'twitter\.com/\w+/status',  # Tweet status links
+        ]
+        
+        pattern_matches = 0
+        for pattern in tweet_patterns:
+            if re.search(pattern, content):
+                pattern_matches += 1
+        
+        # If this quote contains multiple tweet patterns, likely duplicate
+        if pattern_matches >= 2:
+            return True
+        
+        # Pattern 3: Check for very short quotes with Twitter links
+        # These are often just the link text without substantial content
+        if len(block.content.strip()) < 200 and any(indicator in content for indicator in twitter_indicators):
+            # Check if it's mostly just Twitter handles and hashtags
+            words = block.content.split()
+            twitter_words = [word for word in words if word.startswith('@') or word.startswith('#') or 'twitter' in word.lower()]
+            
+            # If more than 30% of words are Twitter-related, likely duplicate
+            if len(words) > 0 and (len(twitter_words) / len(words)) > 0.3:
+                return True
+        
+        # Pattern 4: Check for quotes that are all caps with Twitter handles (likely tweet text)
+        # This catches the specific case: "TAGE THOMPSON SCORES THE GOLDEN GOAL AND IS THE HERO FOR TEAM USA!!! @usahockey | @BuffaloSabres"
+        if content.isupper() and '@' in content:
+            # Count non-whitespace/punctuation characters that are uppercase
+            uppercase_chars = sum(1 for char in content if char.isupper())
+            total_alpha_chars = sum(1 for char in content if char.isalpha())
+            
+            # If most alphabetic characters are uppercase AND it contains Twitter handles
+            if total_alpha_chars > 0 and (uppercase_chars / total_alpha_chars) > 0.8:
+                return True
+        
         return False

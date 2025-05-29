@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Play, Pause, Volume2, VolumeX, ExternalLink, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Tweet } from 'react-tweet'
 
 interface RichArticleRendererProps {
   blocks: ContentBlock[]
@@ -83,6 +84,8 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
       return <TableBlock block={block} />
     case 'embed':
       return <EmbedBlock block={block} />
+    case 'twitter_embed':
+      return <TwitterEmbedBlock block={block} />
     default:
       return <ParagraphBlock block={block} />
   }
@@ -489,6 +492,80 @@ function EmbedBlock({ block }: { block: ContentBlock }) {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function TwitterEmbedBlock({ block }: { block: ContentBlock }) {
+  // Extract Twitter embed data from metadata
+  const tweetId = block.metadata?.tweet_id
+  const embedUrl = block.metadata?.embed_url
+  
+  // Try to extract tweet ID from URL if not available directly
+  const extractTweetId = (url: string): string | null => {
+    if (!url) return null
+    
+    // Match various Twitter URL formats
+    const patterns = [
+      /twitter\.com\/\w+\/status\/(\d+)/,
+      /x\.com\/\w+\/status\/(\d+)/,
+      /platform\.twitter\.com\/embed.*[&?]id=(\d+)/
+    ]
+    
+    for (const pattern of patterns) {
+      const match = url.match(pattern)
+      if (match && match[1]) {
+        return match[1]
+      }
+    }
+    
+    return null
+  }
+  
+  // Get the actual tweet ID to use
+  const finalTweetId = tweetId || extractTweetId(embedUrl || '')
+  
+  // If we can't find a tweet ID, show fallback
+  if (!finalTweetId) {
+    return (
+      <div className="my-8 flex justify-center">
+        <Card className="mx-auto max-w-md">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-sm font-bold">𝕏</span>
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Twitter</p>
+                <p className="text-xs text-muted-foreground">@twitter</p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Unable to load tweet embed.
+              </p>
+              {embedUrl && (
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <a href={embedUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View on Twitter
+                  </a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+  
+  // Use the react-tweet component
+  return (
+    <div className="my-8 flex justify-center">
+      <div className="w-full max-w-lg">
+        <Tweet id={finalTweetId} />
+      </div>
     </div>
   )
 } 
