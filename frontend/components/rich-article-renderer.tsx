@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Play, Pause, Volume2, VolumeX, ExternalLink, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tweet } from 'react-tweet'
+import parse from 'html-react-parser'
 
 interface RichArticleRendererProps {
   blocks: ContentBlock[]
@@ -28,7 +29,7 @@ export function RichArticleRenderer({
     return (
       <div className={cn("prose prose-gray max-w-none dark:prose-invert", className)}>
         {fallbackContent ? (
-          <div dangerouslySetInnerHTML={{ __html: fallbackContent }} />
+          parse(fallbackContent)
         ) : (
           <p className="text-muted-foreground">No content available</p>
         )}
@@ -65,6 +66,8 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
       return <ParagraphBlock block={block} />
     case 'subtitle':
       return <SubtitleBlock block={block} />
+    case 'pullquote':
+      return <PullquoteBlock block={block} />
     case 'image':
     case 'img':  // Backend creates 'img' type blocks
     case 'figure':  // Backend also creates 'figure' type blocks
@@ -140,12 +143,12 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
     <div 
       className={cn(
         "text-lg leading-8 text-muted-foreground font-medium [&:not(:first-child)]:mt-4 mb-6",
+        "prose prose-gray max-w-none dark:prose-invert",
         block.classes?.join(' ')
       )}
-      dangerouslySetInnerHTML={{ 
-        __html: renderContentWithLinks()
-      }}
-    />
+    >
+      {parse(renderContentWithLinks())}
+    </div>
   )
 }
 
@@ -174,12 +177,12 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
     <div 
       className={cn(
         "text-base leading-7 [&:not(:first-child)]:mt-6",
+        "prose prose-gray max-w-none dark:prose-invert",
         block.classes?.join(' ')
       )}
-      dangerouslySetInnerHTML={{ 
-        __html: renderContentWithLinks()
-      }}
-    />
+    >
+      {parse(renderContentWithLinks())}
+    </div>
   )
 }
 
@@ -195,7 +198,18 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
   // Read from metadata first, then fallback to direct properties, then mediaAsset
   const src = block.metadata?.src || block.src || mediaAsset?.src
   const alt = block.metadata?.alt || block.alt || mediaAsset?.alt || ''
-  const caption = block.metadata?.caption || block.caption || mediaAsset?.caption || block.content
+  
+  // Enhanced caption handling: only show meaningful captions
+  let caption = block.metadata?.caption || block.caption || mediaAsset?.caption
+  
+  // If caption is empty or just the content placeholder, don't use content as fallback
+  if (!caption || caption.trim() === '') {
+    caption = block.content && block.content.trim() !== '' ? block.content : ''
+  }
+  
+  // Don't show caption if it's just generic text or empty
+  const shouldShowCaption = caption && caption.trim() !== '' && caption !== 'Image' && caption !== 'Figure'
+  
   const title = block.title || mediaAsset?.title
   
   // Debug logging in development
@@ -206,6 +220,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
       src, 
       alt, 
       caption,
+      shouldShowCaption,
       imageError,
       imageLoading 
     })
@@ -213,12 +228,12 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
   
   // If no src or permanent error, show caption-only version
   if (!src || imageError) {
-    if (caption && process.env.NODE_ENV === 'development') {
+    if (shouldShowCaption && process.env.NODE_ENV === 'development') {
       console.log('Showing caption-only for image:', caption)
     }
     
-    // Show caption in a styled box when image fails
-    if (caption) {
+    // Show caption in a styled box when image fails (only if meaningful)
+    if (shouldShowCaption) {
       return (
         <figure className="my-8">
           <div className="border border-dashed border-muted-foreground/20 rounded-lg p-4 bg-muted/20 text-center">
@@ -265,7 +280,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           loading="lazy"
         />
       </div>
-      {caption && (
+      {shouldShowCaption && (
         <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
           {caption}
         </figcaption>
@@ -566,6 +581,61 @@ function TwitterEmbedBlock({ block }: { block: ContentBlock }) {
       <div className="w-full max-w-lg">
         <Tweet id={finalTweetId} />
       </div>
+    </div>
+  )
+}
+
+function PullquoteBlock({ block }: { block: ContentBlock }) {
+  // Enhanced pullquote rendering with link support
+  const renderContentWithLinks = () => {
+    let content = block.content || block.text || ''
+    const links = block.metadata?.links || []
+    
+    // If we have links metadata, convert them to clickable links
+    if (links.length > 0) {
+      links.forEach((link: { text: string; href: string }) => {
+        const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
+        content = content.replace(linkPattern, '')
+        
+        // Replace the link text with a clickable link
+        const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
+        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors font-medium">${link.text}</a>`)
+      })
+    }
+    
+    return content
+  }
+
+  return (
+    <div className="my-8">
+      <blockquote 
+        className={cn(
+          // Layout and spacing - minimal margins
+          "mx-auto max-w-2xl px-8",
+          
+          // Typography - slightly larger and emphasis without being too bold
+          "text-lg lg:text-xl leading-relaxed",
+          "font-normal text-foreground/95",
+          
+          // Minimal visual accent - just a subtle left border
+          "border-l-2 border-muted-foreground/20 pl-6",
+          
+          // Custom classes
+          block.classes?.join(' ')
+        )}
+      >
+        {/* Clean content without extra decorations */}
+        <div className="prose prose-lg max-w-none dark:prose-invert [&>*]:my-0">
+          {parse(renderContentWithLinks())}
+        </div>
+        
+        {/* Citation if available - clean and minimal */}
+        {block.cite && (
+          <cite className="mt-3 block text-sm text-muted-foreground not-italic">
+            — {block.cite}
+          </cite>
+        )}
+      </blockquote>
     </div>
   )
 } 

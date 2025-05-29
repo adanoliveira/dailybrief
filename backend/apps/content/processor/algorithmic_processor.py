@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup, Tag, NavigableString, Comment
 from urllib.parse import urljoin, urlparse, parse_qs
 from difflib import SequenceMatcher
+import html
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,9 @@ class AlgorithmicProcessor:
             # Store article metadata for title comparison
             self._current_article_metadata = article_metadata or {}
             
+            # Initialize author information storage
+            self._extracted_author_info = []
+            
             # Clear section delimiter cache for fresh detection
             self._section_delimiters_cache = None
             
@@ -169,13 +173,34 @@ class AlgorithmicProcessor:
             
             # Parse HTML with error handling
             try:
-                soup = BeautifulSoup(raw_html, 'html.parser')
+                # Enhanced: Decode HTML entities before parsing to handle encoded Twitter embeds
+                # The Verge (and other sites) sometimes double-encode Twitter content
+                
+                # First, try to decode HTML entities that might be present
+                decoded_html = html.unescape(raw_html)
+                
+                # Also handle Unicode escape sequences that are common in JSON-embedded HTML
+                # Replace common Unicode escapes
+                decoded_html = decoded_html.replace('\\u003c', '<')
+                decoded_html = decoded_html.replace('\\u003e', '>')
+                decoded_html = decoded_html.replace('\\u0026', '&')
+                decoded_html = decoded_html.replace('\\"', '"')
+                decoded_html = decoded_html.replace('\\/', '/')
+                
+                # Parse the decoded HTML
+                soup = BeautifulSoup(decoded_html, 'html.parser')
                 if not soup or not soup.find():
-                    return ProcessingResult(
-                        success=False,
-                        error_message="Failed to parse HTML content",
-                        processing_time_ms=int((time.time() - start_time) * 1000)
-                    )
+                    # Fallback to original HTML if decoding caused issues
+                    logger.warning("Decoded HTML parsing failed, falling back to original")
+                    soup = BeautifulSoup(raw_html, 'html.parser')
+                    if not soup or not soup.find():
+                        return ProcessingResult(
+                            success=False,
+                            error_message="Failed to parse HTML content",
+                            processing_time_ms=int((time.time() - start_time) * 1000)
+                        )
+                else:
+                    logger.info("Successfully decoded and parsed HTML with entity decoding")
                 
                 # Store soup reference for section delimiter detection
                 self._current_soup = soup
@@ -1003,14 +1028,21 @@ class AlgorithmicProcessor:
         
         # Enhanced: Check for byline/author elements first (highest priority)
         if self._is_byline_element(element):
-            block_type = 'byline'
-            raw_text = element.get_text(strip=True)
-            
-            # Extract clean author name and metadata
+            # Extract byline information for metadata but don't create a content block
+            # The frontend can use this information in the page header instead of duplicating it in the body
             author_info = self._extract_author_from_byline(element)
-            content = author_info['display_text']
-            metadata.update(author_info['metadata'])
             
+            # Store the author information in the article metadata if we have a reference
+            if hasattr(self, '_extracted_author_info'):
+                if not self._extracted_author_info:
+                    self._extracted_author_info = []
+                self._extracted_author_info.append(author_info)
+            else:
+                self._extracted_author_info = [author_info]
+            
+            # Don't create a content block for bylines - they should appear in page header
+            return None
+        
         # Handle different element types
         elif block_type in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             block_type = 'heading'
@@ -1038,24 +1070,73 @@ class AlgorithmicProcessor:
                 # This logic could be enhanced by passing article metadata to this method
         
         elif block_type == 'p':
-            # Check if this paragraph should be treated as a subtitle
-            if self._is_subtitle_paragraph(element, position):
-                block_type = 'subtitle'
-            else:
-                block_type = 'paragraph'
-            content, links_metadata = self._extract_paragraph_with_links(element)
-            # Store links metadata for frontend processing
-            if links_metadata:
-                metadata['links'] = links_metadata
+            # Enhanced debug logging for paragraphs containing "by"
+            p_text = element.get_text(strip=True)
+            if 'by ' in p_text.lower() and len(p_text) < 100:
+                logger.info(f"PROCESSING PARAGRAPH: '{p_text}' - checking if byline...")
             
-        elif block_type == 'blockquote':
-            block_type = 'quote'
-            content = element.get_text(strip=True)
-            # Look for citation
-            cite_elem = element.find('cite')
-            if cite_elem:
-                metadata['cite'] = cite_elem.get_text(strip=True)
+            # Enhanced: Check if this paragraph is inside a pullquote container
+            if self._is_pullquote_paragraph(element):
+                block_type = 'pullquote'
+                content, links_metadata = self._extract_paragraph_with_links(element)
+                # Store links metadata for frontend processing
+                if links_metadata:
+                    metadata['links'] = links_metadata
+            
+            # Enhanced: Check for Twitter embeds first (some sites render Twitter content as paragraphs)
+            elif self._is_twitter_embed(element):
+                block_type = 'twitter_embed'
+                twitter_data = self._extract_twitter_embed_data(element)
                 
+                if twitter_data['tweet_id']:
+                    metadata.update(twitter_data)
+                    content = f"Twitter embed: {twitter_data['tweet_id']}"
+                else:
+                    # Fallback to regular paragraph processing
+                    if self._is_subtitle_paragraph(element, position):
+                        block_type = 'subtitle'
+                    else:
+                        block_type = 'paragraph'
+                    content, links_metadata = self._extract_paragraph_with_links(element)
+                    # Store links metadata for frontend processing
+                    if links_metadata:
+                        metadata['links'] = links_metadata
+            else:
+                # Check if this paragraph should be treated as a subtitle
+                if self._is_subtitle_paragraph(element, position):
+                    block_type = 'subtitle'
+                else:
+                    block_type = 'paragraph'
+                content, links_metadata = self._extract_paragraph_with_links(element)
+                # Store links metadata for frontend processing
+                if links_metadata:
+                    metadata['links'] = links_metadata
+        
+        elif block_type == 'blockquote':
+            # Enhanced: Check for Twitter embeds first (Twitter often uses blockquote with twitter-tweet class)
+            if self._is_twitter_embed(element):
+                block_type = 'twitter_embed'
+                twitter_data = self._extract_twitter_embed_data(element)
+                
+                if twitter_data['tweet_id']:
+                    metadata.update(twitter_data)
+                    content = f"Twitter embed: {twitter_data['tweet_id']}"
+                else:
+                    # Fallback to regular blockquote processing
+                    block_type = 'quote'
+                    content = element.get_text(strip=True)
+                    # Look for citation
+                    cite_elem = element.find('cite')
+                    if cite_elem:
+                        metadata['cite'] = cite_elem.get_text(strip=True)
+            else:
+                block_type = 'quote'
+                content = element.get_text(strip=True)
+                # Look for citation
+                cite_elem = element.find('cite')
+                if cite_elem:
+                    metadata['cite'] = cite_elem.get_text(strip=True)
+        
         elif block_type in ['ul', 'ol']:
             block_type = 'list'
             metadata['listType'] = block_type
@@ -1072,9 +1153,16 @@ class AlgorithmicProcessor:
                 
             block_type = 'img'
             metadata['src'] = self._extract_image_url(element)
-            metadata['alt'] = element.get('alt', '')
-            metadata['caption'] = element.get('title') or element.get('alt', '')
-            content = metadata['alt'] or "Image"
+            metadata['alt'] = element.get('alt', '')  # Keep for accessibility
+            
+            # Enhanced: Only use meaningful captions, reject filenames
+            potential_caption = element.get('title') or element.get('alt', '')
+            if potential_caption and self._is_meaningful_caption(potential_caption):
+                metadata['caption'] = potential_caption
+                content = potential_caption
+            else:
+                metadata['caption'] = ''  # Empty caption instead of filename
+                content = ''  # No caption content - frontend can handle this
             
         elif block_type == 'figure':
             block_type = 'figure' 
@@ -1082,30 +1170,35 @@ class AlgorithmicProcessor:
             img = element.find('img')
             if img and self._is_content_image(img):
                 metadata['src'] = self._extract_image_url(img)
-                metadata['alt'] = img.get('alt', '')
+                metadata['alt'] = img.get('alt', '')  # Keep for accessibility
                 
-                # Enhanced: Safari-like visible caption extraction
+                # Enhanced: Safari-like visible caption extraction with meaningful caption filtering
                 visible_caption = self._extract_visible_figure_caption(element)
                 if visible_caption:
                     metadata['caption'] = visible_caption
                     content = visible_caption
                 else:
-                    # Fallback to basic caption extraction
+                    # Fallback to basic caption extraction with meaningful filtering
                     figcaption = element.find('figcaption')
                     if figcaption:
                         caption_text = figcaption.get_text(strip=True)
-                        metadata['caption'] = caption_text
-                        content = caption_text
-                    else:
-                        # Last resort: try to extract clean caption from alt text
-                        raw_alt = img.get('alt', '')
-                        clean_caption = self._extract_clean_caption_from_alt(raw_alt)
-                        if clean_caption:
-                            metadata['caption'] = clean_caption
-                            content = clean_caption
+                        if caption_text and self._is_meaningful_caption(caption_text):
+                            metadata['caption'] = caption_text
+                            content = caption_text
                         else:
+                            # No meaningful caption found
+                            metadata['caption'] = ''
+                            content = ''  # No caption content
+                    else:
+                        # Try alt text only if meaningful
+                        raw_alt = img.get('alt', '')
+                        if raw_alt and self._is_meaningful_caption(raw_alt):
                             metadata['caption'] = raw_alt
-                            content = raw_alt or "Figure"
+                            content = raw_alt
+                        else:
+                            # No meaningful caption found
+                            metadata['caption'] = ''
+                            content = ''  # No caption content
             else:
                 return None  # Figure without valid image
                 
@@ -1128,10 +1221,17 @@ class AlgorithmicProcessor:
                     
             # Enhanced: Check if this is a byline element even if it's a div/span
             elif self._is_byline_element(element):
-                block_type = 'byline'
+                # Extract byline information for metadata but don't create a content block
+                # The frontend can use this information in the page header instead of duplicating it in the body
                 author_info = self._extract_author_from_byline(element)
-                content = author_info['display_text']
-                metadata.update(author_info['metadata'])
+                
+                # Store the author information in the article metadata
+                if not self._extracted_author_info:
+                    self._extracted_author_info = []
+                self._extracted_author_info.append(author_info)
+                
+                # Don't create a content block for bylines - they should appear in page header
+                return None
             elif element.name == 'div' and self._is_semantic_div(element):
                 # Only process divs that are semantic content, not containers
                 text_content = element.get_text(strip=True)
@@ -1195,6 +1295,18 @@ class AlgorithmicProcessor:
         # As mentioned in Ctrl.blog research, h-entry microformat is widely supported
         enhanced_metadata = self._extract_structured_metadata(soup)
         metadata.update(enhanced_metadata)
+        
+        # Add extracted author information from bylines to metadata
+        if hasattr(self, '_extracted_author_info') and self._extracted_author_info:
+            # Use the first (primary) author for the main author field
+            primary_author = self._extracted_author_info[0]
+            metadata['extracted_author'] = primary_author.get('metadata', {}).get('author_name', '')
+            metadata['extracted_author_role'] = primary_author.get('metadata', {}).get('author_role', '')
+            metadata['extracted_byline'] = primary_author.get('display_text', '')
+            
+            # If there are multiple authors, store them all
+            if len(self._extracted_author_info) > 1:
+                metadata['all_extracted_authors'] = self._extracted_author_info
         
         return metadata
     
@@ -1934,10 +2046,10 @@ class AlgorithmicProcessor:
     
     def _is_content_image(self, img_element: Tag) -> bool:
         """
-        Determine if an image is content-relevant (not decoration/icon).
+        Determine if an image is content-relevant (not decoration/icon/profile).
         Based on Safari's image filtering logic but more inclusive.
         Focus on basic filtering since section-level filtering should handle most cases.
-        Enhanced to handle modern responsive images using srcset.
+        Enhanced to handle modern responsive images using srcset and filter out profiles/avatars.
         """
         
         # Get image source from src or srcset (modern responsive images)
@@ -1953,7 +2065,9 @@ class AlgorithmicProcessor:
             'icon', 'logo', 'avatar', 'badge', 'button', 'arrow', 'sprite',
             'newsletter', 'signup', 'subscribe', 'generic', 'placeholder',
             'banner', 'social', 'share', 'facebook', 'twitter', 'linkedin',
-            'footer', 'header', 'nav', 'sidebar', 'widget'
+            'footer', 'header', 'nav', 'sidebar', 'widget',
+            # Enhanced: Profile/author image patterns
+            'headshot', 'profile', 'author', 'byline', 'contributor', 'staff'
         ]
         
         if any(pattern in image_url for pattern in non_content_patterns):
@@ -1963,11 +2077,57 @@ class AlgorithmicProcessor:
         if any(path in image_url for path in ['/dr/resources/', '/assets/icons/', '/static/icons/']):
             return False
         
-        # Check alt text for basic content indicators
+        # Enhanced: Check alt text for author/profile indicators
         alt = img_element.get('alt', '').lower()
         
-        # If alt text is substantial, likely content
-        if len(alt) > 10:
+        # Check for author/profile patterns in alt text
+        author_profile_patterns = [
+            'headshot', 'profile', 'avatar', 'author', 'byline', 'contributor', 
+            'staff', 'writer', 'journalist', 'reporter', 'editor'
+        ]
+        
+        if any(pattern in alt for pattern in author_profile_patterns):
+            return False
+        
+        # Enhanced: Check if alt text looks like a person's name (likely author photo)
+        # Simple heuristic: if alt text is 2-3 words and doesn't contain common article words
+        alt_words = alt.split()
+        if len(alt_words) == 2 or len(alt_words) == 3:
+            # Check if it looks like a name (no common article words)
+            article_words = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']
+            if not any(word in alt_words for word in article_words):
+                # Could be a name, check if context suggests it's an author
+                # Look at parent elements for author/byline context
+                parent = img_element.parent
+                while parent and parent.name not in ['body', 'html']:
+                    parent_class = ' '.join(parent.get('class', [])).lower()
+                    parent_id = parent.get('id', '').lower()
+                    if any(pattern in parent_class or pattern in parent_id for pattern in author_profile_patterns):
+                        return False
+                    parent = parent.parent
+        
+        # Enhanced: Stricter dimension checking for small images
+        width = img_element.get('width')
+        height = img_element.get('height')
+        if width and height:
+            try:
+                w, h = int(width), int(height)
+                # Enhanced: Skip small images (increased from 30 to 60 to catch 36x36 profile pics)
+                if w < 60 or h < 60:
+                    return False
+                # Enhanced: Skip very small images that might be icons/avatars
+                if w <= 100 and h <= 100:
+                    # Allow only if the image has clear content indicators
+                    if not any(indicator in alt for indicator in ['photo', 'image', 'picture', 'screenshot']):
+                        return False
+                # Content images are usually reasonably sized
+                if w > 150 and h > 150:
+                    return True
+            except ValueError:
+                pass
+        
+        # If alt text is substantial, likely content (but check for profile patterns first)
+        if len(alt) > 15 and not any(pattern in alt for pattern in author_profile_patterns):
             return True
         
         # Check for decorative alt patterns
@@ -1975,27 +2135,13 @@ class AlgorithmicProcessor:
             # Don't immediately exclude - check other factors for modern images
             pass
         
-        # Check dimensions if available
-        width = img_element.get('width')
-        height = img_element.get('height')
-        if width and height:
-            try:
-                w, h = int(width), int(height)
-                # Skip very small images (likely icons)
-                if w < 30 or h < 30:
-                    return False
-                # Content images are usually reasonably sized
-                if w > 80 and h > 80:
-                    return True
-            except ValueError:
-                pass
-        
         # Enhanced: Check for modern responsive image attributes
         # Images with srcset and proper dimensions are likely content
         if srcset and width and height:
             try:
                 w, h = int(width), int(height)
-                if w >= 300 and h >= 200:  # Reasonable content image size
+                # Only accept larger responsive images
+                if w >= 200 and h >= 150:  # Increased minimum size for responsive images
                     return True
             except ValueError:
                 pass
@@ -2004,14 +2150,20 @@ class AlgorithmicProcessor:
         loading = img_element.get('loading', '').lower()
         fetchpriority = img_element.get('fetchpriority', '').lower()
         if loading in ['eager', 'lazy'] or fetchpriority in ['high']:
-            # These are typically used for content images
-            return True
+            # These are typically used for content images, but check size
+            if width and height:
+                try:
+                    w, h = int(width), int(height)
+                    if w >= 60 and h >= 60:  # Only larger images with loading attributes
+                        return True
+                except ValueError:
+                    pass
         
         # Check CSS classes for content indicators
         img_classes = ' '.join(img_element.get('class', [])).lower()
         if any(pattern in img_classes for pattern in ['content', 'article', 'story', 'featured', 'main']):
             return True
-        if any(pattern in img_classes for pattern in ['icon', 'logo', 'avatar', 'sprite', 'newsletter', 'signup']):
+        if any(pattern in img_classes for pattern in ['icon', 'logo', 'avatar', 'sprite', 'newsletter', 'signup', 'profile', 'headshot']):
             return False
         
         # Check parent context
@@ -2020,7 +2172,7 @@ class AlgorithmicProcessor:
             parent_class = ' '.join(parent.get('class', [])).lower()
             if any(pattern in parent_class for pattern in ['content', 'article', 'story', 'figure', 'main']):
                 return True
-            if any(pattern in parent_class for pattern in ['nav', 'header', 'footer', 'sidebar', 'ad', 'menu', 'newsletter', 'signup']):
+            if any(pattern in parent_class for pattern in ['nav', 'header', 'footer', 'sidebar', 'ad', 'menu', 'newsletter', 'signup', 'author', 'byline', 'profile']):
                 return False
         
         # Check if image is inside a link (often decorative)
@@ -2035,18 +2187,18 @@ class AlgorithmicProcessor:
         if not image_url.startswith('http') and any(pattern in image_url for pattern in ['generic', 'default', 'placeholder']):
             return False
         
-        # Enhanced: For modern responsive images, be more inclusive
+        # Enhanced: For modern responsive images, be more inclusive but check size
         # If image has proper dimensions and isn't obviously decorative, include it
         if srcset and width and height:
             try:
                 w, h = int(width), int(height)
-                if w >= 200 and h >= 150:  # Lower threshold for responsive images
+                if w >= 150 and h >= 100:  # Reasonable content image size
                     return True
             except ValueError:
                 pass
         
-        # Default to include if uncertain - section filtering should handle the rest
-        return True
+        # Default to exclude if uncertain - be more conservative about small images
+        return False
     
     def _extract_content_with_fallbacks(self, element: Tag, soup: BeautifulSoup) -> str:
         """
@@ -2329,7 +2481,23 @@ class AlgorithmicProcessor:
         Enhanced to catch images with different type classifications, photo credit duplication,
         container divs that duplicate their children's content, and Twitter link paragraphs/quotes
         that are duplicated by proper Twitter embeds.
+        
+        Special handling: Allows intentional pullquote duplicates (pullquote + paragraph).
         """
+        
+        # Enhanced debug logging for byline blocks
+        if 'by ' in block.content.lower() and len(block.content) < 100:
+            logger.info(f"UNIQUENESS CHECK: {block.type} block with content: '{block.content}'")
+        
+        # Enhanced: Check for newsletter content (The Verge specific)
+        if block.type == 'paragraph' and self._is_newsletter_content(block.content):
+            # Newsletter descriptions should be filtered out as they're not article content
+            return False
+        
+        # Enhanced: Check for byline content that might have slipped through the main detection
+        if block.type == 'paragraph' and self._is_byline_content(block.content):
+            logger.info(f"FILTERING OUT BYLINE PARAGRAPH: '{block.content}'")
+            return False
         
         # Enhanced: Check for photo credit paragraphs that duplicate figure captions
         if block.type == 'paragraph' and self._is_photo_credit_paragraph(block.content):
@@ -2354,21 +2522,58 @@ class AlgorithmicProcessor:
         if len(content_text) > 2000:
             return False
         
+        # Create a normalized content fingerprint for duplicate detection
+        content_fingerprint = re.sub(r'\s+', ' ', content_text.lower())  # Normalize whitespace
+        content_fingerprint = re.sub(r'[^\w\s]', '', content_fingerprint)  # Remove punctuation
+        
+        # Enhanced: Special handling for pullquotes - allow intentional duplicates
+        # Pullquotes are editorial highlights of key statements and should coexist with main text
+        if block.type == 'pullquote':
+            # For pullquotes, track separately to allow one pullquote + one paragraph of same content
+            pullquote_fingerprint = f"pullquote:{content_fingerprint[:150]}"
+            
+            # Check if we already have this pullquote
+            if pullquote_fingerprint in seen_content:
+                return False  # Already have this pullquote
+            
+            # Add this pullquote to seen content
+            seen_content.add(pullquote_fingerprint)
+            return True
+        
+        # Enhanced: For paragraphs, check if this might contain a pullquote excerpt
+        # Allow paragraphs that contain pullquote content (they're the full context)
+        if block.type == 'paragraph':
+            # Check if any existing pullquote is contained within this paragraph
+            paragraph_content = content_fingerprint
+            
+            # Look for pullquote entries that might be excerpts of this paragraph
+            for existing_entry in seen_content:
+                if existing_entry.startswith('pullquote:'):
+                    pullquote_content = existing_entry[10:]  # Remove "pullquote:" prefix
+                    
+                    # If this paragraph contains a pullquote (pullquote is excerpt of paragraph)
+                    if pullquote_content and pullquote_content in paragraph_content:
+                        # This is the full paragraph that contains the pullquote excerpt - allow it
+                        seen_content.add(content_fingerprint[:150])
+                        return True
+            
+            # Continue with normal duplicate detection for paragraphs
+        
         # Enhanced: Check if this content is a significant subset of existing content
         # This catches cases where a div contains the same text as its children
         for existing_content in seen_content:
+            # Skip pullquote entries for this comparison
+            if existing_content.startswith('pullquote:'):
+                continue
+                
             # Check if current content is contained within existing content (80% overlap)
             if len(content_text) > 100:  # Only for substantial content
                 # Check if this content is mostly contained in existing content
-                if content_text.lower() in existing_content.lower():
+                if content_fingerprint.lower() in existing_content.lower():
                     return False
                 # Check if existing content is mostly contained in this content  
-                if existing_content.lower() in content_text.lower() and len(existing_content) > 50:
+                if existing_content.lower() in content_fingerprint.lower() and len(existing_content) > 50:
                     return False
-        
-        # Create a normalized content fingerprint for all blocks
-        content_fingerprint = re.sub(r'\s+', ' ', content_text.lower())  # Normalize whitespace
-        content_fingerprint = re.sub(r'[^\w\s]', '', content_fingerprint)  # Remove punctuation
         
         # For image/media content with src, prioritize URL-based deduplication
         if block.metadata and block.metadata.get('src'):
@@ -2379,12 +2584,14 @@ class AlgorithmicProcessor:
                 return False
             seen_images.add(normalized_src)
         
-        # For all content, check text-based similarity
+        # For all other content types, check text-based similarity
         # Use first 150 characters as fingerprint (increased from 100)
         text_fingerprint = content_fingerprint[:150]
         
+        # For non-pullquote content, check normal duplicate detection
         if text_fingerprint in seen_content:
             return False
+        
         seen_content.add(text_fingerprint)
         
         # Also add the full content fingerprint for container detection
@@ -2554,38 +2761,103 @@ class AlgorithmicProcessor:
     def _is_duplicate_title(self, heading: str, article_title: str) -> bool:
         """
         Check if the heading is a duplicate of the article title.
-        Enhanced to handle publication names and common title variations.
+        Enhanced to handle publication names, punctuation variations, and perspective changes.
         """
         if not heading or not article_title:
             return False
         
         # Normalize both titles for comparison
         def normalize_title(title):
-            """Clean title for comparison by removing publication names."""
+            """Clean title for comparison by removing publication names and normalizing text."""
+            import re
+            
             # Remove common publication name patterns at the end
-            title = re.sub(r'\s*[-|–—]\s*(?:.*?(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC).*?)$', '', title, flags=re.IGNORECASE)
+            title = re.sub(r'\s*[-|–—]\s*(?:.*?(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC|The Verge|Verge|TechCrunch|Wired|Ars Technica).*?)$', '', title, flags=re.IGNORECASE)
+            
+            # Normalize punctuation - convert all dashes to regular dash
+            title = re.sub(r'[–—]', '-', title)
+            
+            # Normalize quotes and apostrophes
+            title = re.sub(r'[""''`]', '"', title)
+            title = re.sub(r"['`]", "'", title)
             
             # Remove extra whitespace and normalize
             title = re.sub(r'\s+', ' ', title.strip())
+            
+            # Convert to lowercase for comparison
             return title.lower()
+        
+        def normalize_perspective(title):
+            """Normalize first/third person perspective differences."""
+            import re
+            
+            # Common first/third person substitutions
+            substitutions = [
+                (r'\bi\s+', 'crypto bro '),
+                (r'\bmy\s+', 'the '),
+                (r'\bme\s+', 'him '),
+                (r'\bme$', 'him'),
+                (r'\bus\s+', 'them '),
+                (r'\bour\s+', 'their '),
+                (r'\bwe\s+', 'they '),
+                (r'\bhow\s+i\s+', 'how a crypto bro '),
+                (r'\bhow\s+we\s+', 'how they '),
+            ]
+            
+            for pattern, replacement in substitutions:
+                title = re.sub(pattern, replacement, title, flags=re.IGNORECASE)
+            
+            return title
         
         normalized_heading = normalize_title(heading)
         normalized_article_title = normalize_title(article_title)
+        
+        # Also try perspective normalization
+        perspective_heading = normalize_perspective(normalized_heading)
+        perspective_article_title = normalize_perspective(normalized_article_title)
         
         # Check exact match after normalization
         if normalized_heading == normalized_article_title:
             return True
         
+        # Check perspective-normalized match
+        if perspective_heading == perspective_article_title or perspective_heading == normalized_article_title:
+            return True
+        
         # Check if heading is substantially contained in article title (80% match)
-        if len(normalized_heading) > 10:  # Only for substantial headings
+        if len(normalized_heading) > 20:  # Only for substantial headings
             # Check if heading is a substring of article title
-            if normalized_heading in normalized_article_title:
+            if normalized_heading in normalized_article_title or normalized_article_title in normalized_heading:
                 return True
             
-            # Check similarity ratio (allow small differences)
-            similarity = SequenceMatcher(None, normalized_heading, normalized_article_title).ratio()
-            if similarity >= 0.85:  # 85% similarity threshold
+            # Check similarity ratio with both normalized versions
+            from difflib import SequenceMatcher
+            similarity1 = SequenceMatcher(None, normalized_heading, normalized_article_title).ratio()
+            similarity2 = SequenceMatcher(None, perspective_heading, normalized_article_title).ratio()
+            
+            # Use the higher similarity score
+            max_similarity = max(similarity1, similarity2)
+            
+            if max_similarity >= 0.75:  # 75% similarity threshold (more lenient)
                 return True
+        
+        # Check word overlap for catching paraphrased titles
+        if len(normalized_heading) > 20 and len(normalized_article_title) > 20:
+            heading_words = set(normalized_heading.split())
+            title_words = set(normalized_article_title.split())
+            
+            # Remove common stop words for better comparison
+            stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'how', 'i', 'he', 'she', 'they'}
+            heading_words -= stop_words
+            title_words -= stop_words
+            
+            if len(heading_words) > 3 and len(title_words) > 3:
+                # Calculate word overlap ratio
+                overlap = len(heading_words & title_words)
+                min_words = min(len(heading_words), len(title_words))
+                
+                if overlap / min_words >= 0.7:  # 70% word overlap
+                    return True
         
         return False
 
@@ -2642,6 +2914,9 @@ class AlgorithmicProcessor:
         Check if element comes after a section delimiter that indicates the end of main content.
         Safari Reader Mode stops processing after encountering headers like "Related Content",
         "Latest News", "More Stories", etc.
+        
+        Enhanced: Only apply delimiter filtering if delimiters appear in the final portion of content
+        to avoid cutting off legitimate mid-article content.
         """
         
         # Don't apply delimiter filtering if we don't have a main document context
@@ -2656,12 +2931,54 @@ class AlgorithmicProcessor:
         if not self._section_delimiters_cache:
             return False
         
-        # Check if element comes after any section delimiter in document order
-        for delimiter in self._section_delimiters_cache:
-            if self._element_comes_after(element, delimiter):
-                return True
+        # Enhanced: Only apply section delimiter filtering if the delimiter appears
+        # in the final portion of the content (like Safari Reader Mode intended)
         
-        return False
+        # Get the main content container to calculate position
+        try:
+            # Find the root content container
+            content_root = element
+            while content_root.parent and content_root.parent.name not in ['body', 'html', '[document]']:
+                content_root = content_root.parent
+            
+            # Get all content elements to calculate position percentages
+            content_element_types = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'blockquote', 'ul', 'ol', 'img', 'video', 'figure', 'div']
+            all_content_elements = content_root.find_all(content_element_types)
+            
+            if len(all_content_elements) < 20:  # Too few elements to apply percentage logic
+                return False
+            
+            # Check if any section delimiter appears in the final 25% of content
+            final_portion_threshold = int(len(all_content_elements) * 0.75)  # Final 25%
+            
+            valid_delimiters = []
+            for delimiter in self._section_delimiters_cache:
+                try:
+                    delimiter_position = all_content_elements.index(delimiter)
+                    if delimiter_position >= final_portion_threshold:
+                        valid_delimiters.append(delimiter)
+                        logger.debug(f"Valid delimiter '{delimiter.get_text(strip=True)}' at position {delimiter_position}/{len(all_content_elements)} (final 25%)")
+                    else:
+                        logger.debug(f"Ignoring mid-article delimiter '{delimiter.get_text(strip=True)}' at position {delimiter_position}/{len(all_content_elements)} (not in final 25%)")
+                except ValueError:
+                    # Delimiter not in the main content elements list
+                    continue
+            
+            # Only filter if we have valid delimiters in the final portion
+            if not valid_delimiters:
+                return False
+            
+            # Check if element comes after any valid delimiter in document order
+            for delimiter in valid_delimiters:
+                if self._element_comes_after(element, delimiter):
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.warning(f"Error in enhanced section delimiter filtering: {e}")
+            # Fallback to original logic but be more conservative
+            return False
     
     def _find_section_delimiters(self) -> List[Tag]:
         """
@@ -2680,6 +2997,7 @@ class AlgorithmicProcessor:
             r'^related\s+content$',
             r'^related\s+articles?$', 
             r'^related\s+stories$',
+            r'^related$',  # Enhanced: Just "Related" by itself (common in The Verge)
             r'^latest\s+news$',
             r'^more\s+stories$',
             r'^more\s+news$',
@@ -2688,6 +3006,7 @@ class AlgorithmicProcessor:
             r'^recommended\s+for\s+you$',
             r'^trending\s+now$',
             r'^popular\s+stories$',
+            r'^most\s+popular$',  # Enhanced: "Most Popular" (common in The Verge)
             
             # Secondary delimiters (contextual)
             r'^also\s+read$',
@@ -2695,6 +3014,12 @@ class AlgorithmicProcessor:
             r'^what\s+to\s+read\s+next$',
             r'^don\'t\s+miss$',
             r'^top\s+stories$',
+            
+            # The Verge specific delimiters
+            r'^installer$',  # Enhanced: The Verge's "Installer" newsletter section
+            r'^the\s+vergecast$',  # The Verge's podcast section
+            r'^command\s+line$',  # The Verge's Command Line newsletter
+            r'^decoder$',  # The Verge's Decoder podcast section
             
             # Sport-specific delimiters (for NHL.com and similar)
             r'^more\s+nhl\s+news$',
@@ -2798,6 +3123,7 @@ class AlgorithmicProcessor:
             r'^related\s+content$',
             r'^related\s+articles?$', 
             r'^related\s+stories$',
+            r'^related$',  # Enhanced: Just "Related" by itself (common in The Verge)
             r'^latest\s+news$',
             r'^more\s+stories$',
             r'^more\s+news$',
@@ -2806,6 +3132,7 @@ class AlgorithmicProcessor:
             r'^recommended\s+for\s+you$',
             r'^trending\s+now$',
             r'^popular\s+stories$',
+            r'^most\s+popular$',  # Enhanced: "Most Popular" (common in The Verge)
             
             # Secondary delimiters (contextual)
             r'^also\s+read$',
@@ -2813,6 +3140,12 @@ class AlgorithmicProcessor:
             r'^what\s+to\s+read\s+next$',
             r'^don\'t\s+miss$',
             r'^top\s+stories$',
+            
+            # The Verge specific delimiters
+            r'^installer$',  # Enhanced: The Verge's "Installer" newsletter section
+            r'^the\s+vergecast$',  # The Verge's podcast section
+            r'^command\s+line$',  # The Verge's Command Line newsletter
+            r'^decoder$',  # The Verge's Decoder podcast section
             
             # Sport-specific delimiters (for NHL.com and similar)
             r'^more\s+nhl\s+news$',
@@ -2831,6 +3164,7 @@ class AlgorithmicProcessor:
         """
         Extract visible caption from a figure element using Safari Reader Mode logic.
         Focus on what's actually visible to users, not hidden metadata.
+        Enhanced to reject filename-like captions and technical metadata.
         """
         
         # Safari Rule 1: Skip figures marked as hidden
@@ -2842,7 +3176,7 @@ class AlgorithmicProcessor:
         if figcaption:
             # Apply visibility filtering to figcaption content
             visible_caption = self._extract_visible_caption_text(figcaption)
-            if visible_caption:
+            if visible_caption and self._is_meaningful_caption(visible_caption):
                 return visible_caption
         
         # Safari Rule 3: Look for separate caption elements near the figure
@@ -2850,10 +3184,11 @@ class AlgorithmicProcessor:
         next_sibling = element.find_next_sibling()
         if next_sibling and next_sibling.name in ['p', 'div', 'span']:
             sibling_text = next_sibling.get_text(strip=True)
-            # Check if it looks like a photo caption
+            # Check if it looks like a photo caption and is meaningful
             if (len(sibling_text) < 200 and 
                 any(indicator in sibling_text.lower() for indicator in 
-                    ['photo', '©', 'credit', 'image', 'getty', 'reuters', 'ap images', 'sipa'])):
+                    ['photo', '©', 'credit', 'image', 'getty', 'reuters', 'ap images', 'sipa']) and
+                self._is_meaningful_caption(sibling_text)):
                 return sibling_text
         
         # Safari Rule 4: Look in the figure's parent container for caption elements
@@ -2867,19 +3202,83 @@ class AlgorithmicProcessor:
             
             for caption_elem in caption_elements:
                 caption_text = caption_elem.get_text(strip=True)
-                if caption_text and len(caption_text) < 300:
+                if caption_text and len(caption_text) < 300 and self._is_meaningful_caption(caption_text):
                     return caption_text
         
-        # Safari Rule 5: As last resort, try to extract clean photo credit from alt text
+        # Safari Rule 5: As last resort, check alt text only if it's clearly meaningful
+        # DON'T fall back to filename-like alt text
         img = element.find('img')
         if img:
             alt_text = img.get('alt', '')
-            if alt_text:
+            if alt_text and self._is_meaningful_caption(alt_text):
+                # Only use alt text if it's clearly descriptive, not a filename
                 clean_caption = self._extract_clean_caption_from_alt(alt_text)
                 if clean_caption and clean_caption != alt_text:  # Only if we actually cleaned it
                     return clean_caption
         
+        # Enhanced: Don't return filename-like captions - better to show nothing
         return None
+    
+    def _is_meaningful_caption(self, caption: str) -> bool:
+        """
+        Check if a caption is meaningful to users (not just technical metadata).
+        Rejects filenames, URLs, and other technical artifacts.
+        """
+        
+        if not caption or len(caption.strip()) < 3:
+            return False
+        
+        caption = caption.strip()
+        
+        # Reject obvious filenames
+        filename_patterns = [
+            r'^\d+_[A-Za-z_]+$',  # Pattern like "257774_Shorted_Trump_Coin_CVirginia"
+            r'^[A-Za-z0-9_-]+\.(jpg|jpeg|png|gif|webp|svg)$',  # Image filenames
+            r'^IMG_\d+',  # Camera filenames like IMG_1234
+            r'^DSC\d+',   # Camera filenames like DSC0123
+            r'^[A-Z0-9_]{10,}$',  # Long uppercase/underscore strings (likely IDs)
+            r'^\w{8,}-\w{4,}-\w{4,}-\w{4,}-\w{12,}$',  # UUIDs
+        ]
+        
+        for pattern in filename_patterns:
+            if re.match(pattern, caption, re.IGNORECASE):
+                return False
+        
+        # Reject URLs
+        if caption.startswith(('http://', 'https://', 'www.', '//')):
+            return False
+        
+        # Reject very short technical-looking strings
+        if len(caption) < 10 and re.match(r'^[A-Z0-9_-]+$', caption):
+            return False
+        
+        # Reject if it's mostly underscores or hyphens (technical naming)
+        underscore_ratio = caption.count('_') / len(caption)
+        if underscore_ratio > 0.3:  # More than 30% underscores
+            return False
+        
+        # Reject if it's all uppercase and has no spaces (likely an ID)
+        if caption.isupper() and ' ' not in caption and len(caption) > 8:
+            return False
+        
+        # Require some meaningful content indicators for very short captions
+        if len(caption) < 20:
+            # Must contain some descriptive words or photo credit indicators
+            meaningful_indicators = [
+                'photo', 'image', 'picture', 'credit', '©', 'getty', 'reuters', 
+                'ap images', 'afp', 'via', 'courtesy', 'by', 'from', 'the verge'
+            ]
+            
+            if not any(indicator in caption.lower() for indicator in meaningful_indicators):
+                # For short captions, also accept if they contain common words
+                common_words = [
+                    'the', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'with', 'for', 'of'
+                ]
+                if not any(word in caption.lower().split() for word in common_words):
+                    return False
+        
+        # If it passes all checks, it's likely meaningful
+        return True
     
     def _extract_visible_caption_text(self, figcaption: Tag) -> Optional[str]:
         """
@@ -2983,10 +3382,20 @@ class AlgorithmicProcessor:
         """
         Detect if an element is a byline/author element.
         Uses Safari Reader Mode patterns and semantic indicators.
+        Enhanced to detect simple paragraph-based bylines.
         """
         
         if not element or not hasattr(element, 'name'):
             return False
+        
+        # Get text content for debugging
+        text_content = element.get_text(strip=True)
+        
+        # Enhanced debug logging for "by " containing elements
+        if 'by ' in text_content.lower() and len(text_content) < 100:
+            logger.info(f"CHECKING BYLINE: {element.name} element with text: '{text_content}'")
+            logger.info(f"  Classes: {element.get('class', [])}")
+            logger.info(f"  ID: {element.get('id', '')}")
         
         # Check element classes for author/byline indicators
         classes = ' '.join(element.get('class', [])).lower()
@@ -2996,11 +3405,13 @@ class AlgorithmicProcessor:
         ]
         
         if any(pattern in classes for pattern in author_class_patterns):
+            logger.info(f"  MATCHED class pattern: {classes}")
             return True
         
         # Check element ID for author patterns
         element_id = element.get('id', '').lower()
         if any(pattern in element_id for pattern in author_class_patterns):
+            logger.info(f"  MATCHED ID pattern: {element_id}")
             return True
         
         # Check data attributes for author information
@@ -3012,13 +3423,38 @@ class AlgorithmicProcessor:
         
         data_attr_text = ' '.join(data_attrs)
         if any(pattern in data_attr_text for pattern in author_class_patterns):
+            logger.info(f"  MATCHED data attribute pattern: {data_attr_text}")
             return True
         
         # Check text content for byline patterns (but only for small elements)
-        text_content = element.get_text(strip=True)
         if len(text_content) < 200:  # Bylines are typically short
-            # Look for "By [Name]" patterns
+            # Enhanced: Check paragraph elements for simple byline patterns
+            if element.name == 'p':
+                # Pattern 1: Simple "by Author Name" format (exactly what we found)
+                if re.match(r'^by\s+[a-z]+(?:\s+[a-z]+)*$', text_content.lower()):
+                    logger.info(f"  MATCHED p tag pattern 1: '{text_content}'")
+                    return True
+                
+                # Pattern 2: "by Author Name" with role/publication
+                if re.match(r'^by\s+[a-z]+\s+[a-z]+(?:\s+(?:correspondent|reporter|editor|writer|journalist))?', text_content.lower()):
+                    logger.info(f"  MATCHED p tag pattern 2: '{text_content}'")
+                    return True
+            
+            # Enhanced: Check for simple "by Author Name" patterns in ANY element type
+            # This catches cases where bylines appear in unexpected element types
+            if re.match(r'^by\s+[a-z]+(?:\s+[a-z]+)*$', text_content.lower()):
+                # Additional validation: ensure it looks like a real name (not just random words)
+                words = text_content.lower().split()[1:]  # Skip "by"
+                if len(words) >= 1 and len(words) <= 3:  # 1-3 name parts
+                    # Check if words look like names (start with capital, reasonable length)
+                    original_words = text_content.split()[1:]  # Get original case
+                    if all(word[0].isupper() and 2 <= len(word) <= 20 for word in original_words):
+                        logger.info(f"  MATCHED enhanced byline pattern: '{text_content}'")
+                        return True
+            
+            # Look for "By [Name]" patterns (general case)
             if re.match(r'^by\s+[a-z]+\s+[a-z]+', text_content.lower()):
+                logger.info(f"  MATCHED general pattern: '{text_content}'")
                 return True
             
             # Look for author name patterns with role/affiliation
@@ -3030,7 +3466,12 @@ class AlgorithmicProcessor:
             
             for pattern in byline_content_patterns:
                 if re.search(pattern, text_content.lower()):
+                    logger.info(f"  MATCHED role pattern: '{text_content}' with pattern: {pattern}")
                     return True
+        
+        # Debug log for cases that don't match
+        if 'by ' in text_content.lower() and len(text_content) < 100:
+            logger.info(f"  NO MATCH for byline candidate: '{text_content}'")
         
         return False
     
@@ -3165,7 +3606,7 @@ class AlgorithmicProcessor:
         # Count direct text vs. nested element content
         direct_text = []
         for content in element.contents:
-            if hasattr(content, 'strip') and content.strip():  # Text node
+            if hasattr(content, 'strip') and content and content.strip():  # Text node
                 direct_text.append(content.strip())
         
         direct_text_length = sum(len(text) for text in direct_text)
@@ -3448,5 +3889,154 @@ class AlgorithmicProcessor:
             # If most alphabetic characters are uppercase AND it contains Twitter handles
             if total_alpha_chars > 0 and (uppercase_chars / total_alpha_chars) > 0.8:
                 return True
+        
+        return False
+    
+    def _is_byline_content(self, content: str) -> bool:
+        """
+        Check if content text matches byline patterns.
+        This is a fallback to catch bylines that slipped through element-based detection.
+        """
+        
+        if not content or len(content) > 200:  # Bylines are typically short
+            return False
+        
+        content_lower = content.strip().lower()
+        
+        # Pattern 1: Simple "by Author Name" format
+        if re.match(r'^by\s+[a-z]+(?:\s+[a-z]+)*$', content_lower):
+            # Additional validation: ensure it looks like a real name
+            words = content.strip().split()[1:]  # Skip "by"
+            if len(words) >= 1 and len(words) <= 3:  # 1-3 name parts
+                # Check if words look like names (start with capital, reasonable length)
+                if all(word[0].isupper() and 2 <= len(word) <= 20 for word in words):
+                    return True
+        
+        # Pattern 2: "by Author Name" with role/publication
+        if re.match(r'^by\s+[a-z]+\s+[a-z]+(?:\s+(?:correspondent|reporter|editor|writer|journalist))?', content_lower):
+            return True
+        
+        # Pattern 3: Author name patterns with role/affiliation
+        byline_patterns = [
+            r'^by\s+[\w\s]+(?:correspondent|reporter|editor|writer)',
+            r'^[\w\s]+\s+(?:correspondent|reporter|editor|writer)',
+            r'^by\s+[\w\s]+\s+[\w\s]+\.com$',  # "By Name Publication.com"
+        ]
+        
+        for pattern in byline_patterns:
+            if re.match(pattern, content_lower):
+                return True
+        
+        return False
+
+    def _is_newsletter_content(self, content: str) -> bool:
+        """
+        Check if content is a newsletter description that should be filtered out.
+        Specifically targets The Verge newsletter descriptions.
+        """
+        
+        if not content or len(content) < 50:  # Newsletter descriptions are usually substantial
+            return False
+        
+        content_lower = content.strip().lower()
+        
+        # Pattern 1: The Verge "Installer" newsletter specific description
+        if ('david pierce' in content_lower and 
+            'newsletter' in content_lower and 
+            any(keyword in content_lower for keyword in ['download', 'watch', 'read', 'listen', 'explore'])):
+            return True
+        
+        # Pattern 2: General newsletter signup/description patterns
+        newsletter_patterns = [
+            r'weekly newsletter.*designed to tell you',
+            r'newsletter.*everything you need to.*download.*watch.*read',
+            r'subscribe.*newsletter.*get.*latest',
+            r'newsletter.*deliver.*inbox.*every',
+        ]
+        
+        for pattern in newsletter_patterns:
+            if re.search(pattern, content_lower):
+                return True
+        
+        # Pattern 3: The Verge specific newsletter names
+        verge_newsletters = [
+            'installer', 'command line', 'vergecast', 'decoder', 'hot pod'
+        ]
+        
+        if ('newsletter' in content_lower and 
+            any(newsletter in content_lower for newsletter in verge_newsletters) and
+            len(content) > 100):  # Substantial newsletter description
+            return True
+        
+        # Pattern 4: Generic newsletter signup language
+        newsletter_indicators = [
+            'weekly newsletter', 'daily newsletter', 'subscribe', 'unsubscribe',
+            'email list', 'mailing list', 'inbox', 'sign up'
+        ]
+        
+        # If content has multiple newsletter indicators and is substantial, likely newsletter content
+        indicator_count = sum(1 for indicator in newsletter_indicators if indicator in content_lower)
+        if indicator_count >= 2 and len(content) > 150:
+            return True
+        
+        return False
+
+    def _is_pullquote_paragraph(self, paragraph: Tag) -> bool:
+        """
+        Check if a paragraph is inside a pullquote container.
+        Handles The Verge-style pullquotes and other common journalistic patterns.
+        """
+        
+        if not paragraph or paragraph.name != 'p':
+            return False
+        
+        # Method 1: Check if paragraph itself has pullquote classes
+        p_classes = ' '.join(paragraph.get('class', [])).lower()
+        if 'pullquote' in p_classes or 'pull-quote' in p_classes:
+            return True
+        
+        # Method 2: Check if paragraph is inside a pullquote container (The Verge pattern)
+        parent = paragraph.parent
+        if parent:
+            parent_classes = ' '.join(parent.get('class', [])).lower()
+            # The Verge uses "duet--article--article-pullquote" class
+            if ('pullquote' in parent_classes or 'pull-quote' in parent_classes or
+                'article-pullquote' in parent_classes):
+                return True
+        
+        # Method 3: Check grandparent (sometimes there's a wrapper div)
+        grandparent = parent.parent if parent else None
+        if grandparent:
+            grandparent_classes = ' '.join(grandparent.get('class', [])).lower()
+            if ('pullquote' in grandparent_classes or 'pull-quote' in grandparent_classes or
+                'article-pullquote' in grandparent_classes):
+                return True
+        
+        # Method 4: Check for semantic attributes that indicate pullquotes
+        # Some sites use data attributes or role attributes
+        if paragraph.get('role') == 'quote' or paragraph.get('role') == 'pullquote':
+            return True
+        
+        if parent:
+            if (parent.get('role') == 'quote' or parent.get('role') == 'pullquote' or
+                parent.get('data-type') == 'pullquote' or parent.get('data-component') == 'pullquote'):
+                return True
+        
+        # Method 5: Check for common CSS class patterns used by different news sites
+        pullquote_class_patterns = [
+            'quote-highlight', 'highlight-quote', 'featured-quote', 'emphasis-quote',
+            'callout-quote', 'blockquote-highlight', 'quote-callout', 'standout-quote'
+        ]
+        
+        # Check paragraph classes
+        for pattern in pullquote_class_patterns:
+            if pattern in p_classes:
+                return True
+        
+        # Check parent classes
+        if parent:
+            for pattern in pullquote_class_patterns:
+                if pattern in parent_classes:
+                    return True
         
         return False
