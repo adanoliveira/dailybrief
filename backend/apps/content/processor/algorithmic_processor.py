@@ -155,6 +155,9 @@ class AlgorithmicProcessor:
                     processing_time_ms=int((time.time() - start_time) * 1000)
                 )
             
+            # Store raw HTML for quality assessment access
+            self._current_raw_html = raw_html
+            
             # Store article metadata for title comparison
             self._current_article_metadata = article_metadata or {}
             
@@ -1018,7 +1021,7 @@ class AlgorithmicProcessor:
         # First check: should this element be skipped due to section-level filtering?
         if self._should_skip_element_for_content_blocks(element):
             return None
-        
+
         block_type = element.name.lower()
         content = ""
         level = None
@@ -1413,59 +1416,49 @@ class AlgorithmicProcessor:
     def _assess_quality(self, candidate: CandidateElement, clean_content: str, 
                        content_blocks: List[ContentBlock], metadata: Dict[str, Any]) -> float:
         """
-        Assess content quality using Safari-inspired metrics.
+        Simplified quality assessment - delegates to QualityAssessmentService.
+        Only handles Safari-specific candidate scoring.
         """
         
-        scores = {}
+        from .quality_assessment import QualityAssessmentService, ContentBlock as QAContentBlock
         
-        # Safari score-based quality (0.0-1.0)
-        if candidate.final_score >= self.MIN_SCORE_THRESHOLD * 2:
-            scores['safari_score'] = 1.0
-        elif candidate.final_score >= self.MIN_SCORE_THRESHOLD:
-            scores['safari_score'] = 0.8
-        else:
-            scores['safari_score'] = 0.6
+        # Convert content blocks to quality assessment format
+        qa_blocks = [
+            QAContentBlock(type=block.type, content=block.content, metadata=block.metadata)
+            for block in content_blocks
+        ]
         
-        # Score density quality (0.0-1.0)
-        if candidate.score_density >= self.MIN_SCORE_DENSITY * 2:
-            scores['density'] = 1.0
-        elif candidate.score_density >= self.MIN_SCORE_DENSITY:
-            scores['density'] = 0.8
-        else:
-            scores['density'] = 0.6
-        
-        # Content completeness (0.0-1.0)
-        word_count = metadata.get('word_count', 0)
-        if word_count >= 500:
-            scores['completeness'] = 1.0
-        elif word_count >= 200:
-            scores['completeness'] = word_count / 500
-        else:
-            scores['completeness'] = 0.4
-        
-        # Structure quality (0.0-1.0)
-        heading_count = metadata.get('heading_count', 0)
-        paragraph_count = metadata.get('paragraph_count', 0)
-        
-        structure_score = 0.0
-        if heading_count > 0:
-            structure_score += 0.3
-        if paragraph_count >= 3:
-            structure_score += 0.4
-        if len(content_blocks) >= 5:
-            structure_score += 0.3
-        
-        scores['structure'] = min(1.0, structure_score)
-        
-        # Weighted overall score
-        overall_score = (
-            scores['safari_score'] * 0.3 +
-            scores['density'] * 0.25 +
-            scores['completeness'] * 0.25 +
-            scores['structure'] * 0.2
+        # Use centralized quality assessment service
+        qa_service = QualityAssessmentService()
+        quality_metrics = qa_service.assess_content_quality(
+            clean_content=clean_content,
+            content_blocks=qa_blocks,
+            raw_html=getattr(self, '_current_raw_html', ''),
+            processing_route='algorithmic',
+            article_metadata=metadata
         )
         
-        return round(overall_score, 3)
+        # Store quality metrics in metadata for API response
+        metadata['content_quality_metrics'] = {
+            'quality_score': quality_metrics.quality_score,
+            'content_case': quality_metrics.content_case,
+            'estimated_completeness': quality_metrics.estimated_completeness,
+            'paragraph_count': quality_metrics.paragraph_count,
+            'heading_count': quality_metrics.heading_count,
+            'missing_elements': quality_metrics.missing_elements,
+            'structure_score': quality_metrics.structure_score,
+            'readability_score': quality_metrics.readability_score,
+            'noise_removal_score': quality_metrics.noise_removal_score,
+            'paywall_indicators': quality_metrics.paywall_indicators,
+            'assessment_timestamp': quality_metrics.assessment_timestamp.isoformat(),
+            'score_breakdown': quality_metrics.score_breakdown,
+            # Safari-specific metrics
+            'safari_score': candidate.final_score,
+            'score_density': candidate.score_density,
+            'safari_threshold_met': candidate.final_score >= self.MIN_SCORE_THRESHOLD
+        }
+        
+        return quality_metrics.quality_score
 
     def _calculate_candidate_adjusted_height(self, element: Tag) -> float:
         """
@@ -4040,3 +4033,24 @@ class AlgorithmicProcessor:
                     return True
         
         return False
+
+    def _is_carousel_container(self, element: Tag) -> bool:
+        """
+        Check if an element is a carousel container.
+        Simplified implementation - currently disabled for complexity reasons.
+        """
+        return False  # Disabled for now - carousel content is extracted as regular blocks
+
+    def _has_carousel_in_json(self, script_element: Tag) -> bool:
+        """
+        Check if a JSON script tag contains carousel data.
+        Currently disabled.
+        """
+        return False
+
+    def _process_carousel_content(self, element: Tag, position: int) -> Optional[ContentBlock]:
+        """
+        Extract and structure carousel content.
+        Currently disabled - returns None.
+        """
+        return None

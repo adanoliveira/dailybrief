@@ -90,7 +90,7 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
     case 'twitter_embed':
       return <TwitterEmbedBlock block={block} />
     default:
-      return <ParagraphBlock block={block} />
+      return null
   }
 }
 

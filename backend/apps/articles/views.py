@@ -14,6 +14,37 @@ from .models import Article, UserArticleInteraction
 
 logger = logging.getLogger(__name__)
 
+def get_best_content(article):
+    """
+    Get the best available content for an article, prioritizing processed content.
+    
+    Priority order:
+    1. clean_content (from Step 2 processing)
+    2. basic_content (from Step 1 extraction) 
+    3. content (legacy field)
+    4. description (as final fallback)
+    
+    Args:
+        article (Article): The article instance
+        
+    Returns:
+        str: The best available content
+    """
+    # Priority 1: Processed clean content from Step 2
+    if article.clean_content and len(article.clean_content.strip()) > 100:
+        return article.clean_content
+    
+    # Priority 2: Basic content from Step 1 extraction
+    if article.basic_content and len(article.basic_content.strip()) > 100:
+        return article.basic_content
+    
+    # Priority 3: Legacy content field
+    if article.content and len(article.content.strip()) > 100:
+        return article.content
+    
+    # Priority 4: Description as final fallback
+    return article.description or ''
+
 @require_http_methods(["GET", "OPTIONS"])
 def personalized_feed(request):
     """
@@ -75,7 +106,9 @@ def personalized_feed(request):
         queryset = queryset.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query) |
-            Q(content__icontains=search_query)
+            Q(content__icontains=search_query) |
+            Q(clean_content__icontains=search_query) |
+            Q(basic_content__icontains=search_query)
         )
     
     # Apply sorting
@@ -189,7 +222,9 @@ def world_feed(request):
         queryset = queryset.filter(
             Q(title__icontains=search_query) | 
             Q(description__icontains=search_query) |
-            Q(content__icontains=search_query)
+            Q(content__icontains=search_query) |
+            Q(clean_content__icontains=search_query) |
+            Q(basic_content__icontains=search_query)
         )
     
     # Sort by published date (newest first)
@@ -290,7 +325,7 @@ def article_detail(request, public_id):
         'title': article.title,
         'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
         'description': article.description or '',
-        'content': article.content or '',
+        'content': get_best_content(article),
         'source': {
             'name': article.source_name or (article.publication.name if article.publication else 'Unknown')
         },
