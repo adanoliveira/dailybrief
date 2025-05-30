@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     # Content Domain
     'apps.content.fetcher',
     'apps.content.processor',
+    'apps.content.quality',
 ]
 
 MIDDLEWARE = [
