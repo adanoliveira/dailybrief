@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from apps.articles.models import Article
-from apps.aiproviders.service import AIProviderService, LLMResponse
+from apps.aiproviders.services import AIProviderService, LLMResponse
 from .evaluator import ContentQualityEvaluator, QualityAssessmentResult
 from .pre_filter import SmartPreFilter, PreFilterResult
 from .models import QualityScoring
@@ -58,7 +58,7 @@ class OptimizedQualityService:
         self.pre_filter_assessments = 0
         self.llm_assessments = 0
     
-    async def assess_article_quality(
+    def assess_article_quality(
         self, 
         article: Article,
         force_llm: bool = False,
@@ -103,7 +103,7 @@ class OptimizedQualityService:
             
             # Step 2: LLM evaluation for uncertain cases
             self.llm_assessments += 1
-            llm_result = await self.llm_evaluator.evaluate_article(article, provider)
+            llm_result = self.llm_evaluator.evaluate_article_quality(article)
             
             processing_time = int((time.time() - start_time) * 1000)
             
@@ -132,7 +132,7 @@ class OptimizedQualityService:
                 confidence=0.1
             )
     
-    async def batch_assess_articles(
+    def batch_assess_articles(
         self,
         articles: List[Article],
         provider: str = "openai",
@@ -157,7 +157,7 @@ class OptimizedQualityService:
             logger.info(f"Processing article {i+1}/{len(articles)}: {article.public_id}")
             
             try:
-                result = await self.assess_article_quality(
+                result = self.assess_article_quality(
                     article, 
                     force_llm=force_llm,
                     provider=provider
@@ -166,7 +166,7 @@ class OptimizedQualityService:
                 
                 # Save to database if requested
                 if save_to_db:
-                    await self._save_quality_result(article, result)
+                    self._save_quality_result(article, result)
                     
             except Exception as e:
                 logger.error(f"Failed to assess article {article.public_id}: {e}")
@@ -183,7 +183,7 @@ class OptimizedQualityService:
         
         return results
     
-    async def _save_quality_result(
+    def _save_quality_result(
         self, 
         article: Article, 
         result: OptimizedQualityResult
@@ -201,12 +201,12 @@ class OptimizedQualityService:
         
         # Add detailed scores if from LLM evaluation
         if result.llm_result:
-            quality_scoring.completeness_score = Decimal(str(result.llm_result.completeness_score))
-            quality_scoring.purity_score = Decimal(str(result.llm_result.purity_score))
-            quality_scoring.structure_score = Decimal(str(result.llm_result.structure_score))
-            quality_scoring.readability_score = Decimal(str(result.llm_result.readability_score))
-            quality_scoring.detailed_feedback = result.llm_result.detailed_feedback
-            quality_scoring.identified_issues = result.llm_result.identified_issues
+            quality_scoring.completeness_score = Decimal(str(result.llm_result.completeness))
+            quality_scoring.purity_score = Decimal(str(result.llm_result.purity))
+            quality_scoring.structure_score = Decimal(str(result.llm_result.structure))
+            quality_scoring.readability_score = Decimal(str(result.llm_result.readability))
+            quality_scoring.detailed_feedback = result.llm_result.explanation
+            quality_scoring.identified_issues = result.llm_result.noise_detected
             quality_scoring.save()
         
         # Add pre-filter information if available
@@ -260,7 +260,7 @@ class OptimizedQualityService:
         self.pre_filter_assessments = 0
         self.llm_assessments = 0
     
-    async def compare_methods(
+    def compare_methods(
         self,
         articles: List[Article],
         provider: str = "openai"
@@ -288,7 +288,7 @@ class OptimizedQualityService:
             pre_filter_results.append(pre_filter_result)
             
             # Get LLM result
-            llm_result = await self.llm_evaluator.evaluate_article(article, provider)
+            llm_result = self.llm_evaluator.evaluate_article_quality(article)
             llm_results.append(llm_result)
             
             # Check agreement (if pre-filter was confident)

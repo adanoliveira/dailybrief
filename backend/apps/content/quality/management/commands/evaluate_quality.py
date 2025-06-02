@@ -9,7 +9,6 @@ Usage:
     python manage.py evaluate_quality --all --force-llm  # Skip pre-filter
     python manage.py evaluate_quality --article-id abc123  # Single article
 """
-import asyncio
 from typing import List
 
 from django.core.management.base import BaseCommand, CommandError
@@ -62,6 +61,11 @@ class Command(BaseCommand):
             default="clean",
             help="Filter articles by content type (default: clean)"
         )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="Show detailed evaluation results including LLM responses"
+        )
 
     def handle(self, *args, **options):
         """Execute quality evaluation."""
@@ -80,9 +84,7 @@ class Command(BaseCommand):
             self.stdout.write("🎯 Optimized mode: Pre-filter + LLM evaluation")
         
         # Run evaluation
-        results = asyncio.run(
-            self._evaluate_articles(articles, options)
-        )
+        results = self._evaluate_articles(articles, options)
         
         # Display summary
         self._display_summary(results, options)
@@ -122,12 +124,12 @@ class Command(BaseCommand):
         
         return list(queryset)
 
-    async def _evaluate_articles(self, articles: List[Article], options) -> List:
+    def _evaluate_articles(self, articles: List[Article], options) -> List:
         """Evaluate articles using the optimized service."""
         service = OptimizedQualityService()
         
         # Use batch assessment for efficiency
-        results = await service.batch_assess_articles(
+        results = service.batch_assess_articles(
             articles=articles,
             provider=options["provider"],
             force_llm=options["force_llm"],
@@ -184,15 +186,19 @@ class Command(BaseCommand):
         self.stdout.write(f"  Cost savings rate: {cost_savings_rate:.1f}%")
         self.stdout.write(f"  Articles pre-filtered: {cost_savings_count}")
         
-        # Show a few example results
-        self.stdout.write(f"\n📋 EXAMPLE RESULTS:")
-        for i, result in enumerate(results[:3]):
-            method_icon = "⚡" if result.assessment_method == "pre_filter" else "🤖"
-            self.stdout.write(f"  {i+1}. {method_icon} Score: {result.quality_score:.3f} "
-                            f"({result.assessment_method}) - {result.confidence:.2f} confidence")
-        
-        if len(results) > 3:
-            self.stdout.write(f"  ... and {len(results) - 3} more")
+        # Show detailed results if verbose
+        if options.get("verbose", False):
+            self._display_detailed_results(results)
+        else:
+            # Show a few example results
+            self.stdout.write(f"\n📋 EXAMPLE RESULTS:")
+            for i, result in enumerate(results[:3]):
+                method_icon = "⚡" if result.assessment_method == "pre_filter" else "🤖"
+                self.stdout.write(f"  {i+1}. {method_icon} Score: {result.quality_score:.3f} "
+                                f"({result.assessment_method}) - {result.confidence:.2f} confidence")
+            
+            if len(results) > 3:
+                self.stdout.write(f"  ... and {len(results) - 3} more")
         
         # Quality distribution
         excellent = sum(1 for r in results if r.quality_score >= 0.7)
@@ -206,5 +212,57 @@ class Command(BaseCommand):
         self.stdout.write(f"  Poor (0.0-0.3): {poor}")
         self.stdout.write(f"  Very Poor (<0.0): {very_poor}")
         
-        if not options["no_save"]:
-            self.stdout.write(f"\n💾 Results saved to QualityScoring table") 
+        if not options.get("no_save", False):
+            self.stdout.write(f"\n💾 Results saved to QualityScoring table")
+
+    def _display_detailed_results(self, results: List):
+        """Display detailed evaluation results for review."""
+        self.stdout.write(f"\n" + "="*80)
+        self.stdout.write("📋 DETAILED EVALUATION RESULTS")
+        self.stdout.write("="*80)
+        
+        for i, result in enumerate(results, 1):
+            self.stdout.write(f"\n{'─' * 80}")
+            self.stdout.write(f"📄 ARTICLE {i} - {result.assessment_method.upper()}")
+            self.stdout.write(f"{'─' * 80}")
+            
+            # Basic info
+            self.stdout.write(f"🎯 Overall Score: {result.quality_score:.3f}")
+            self.stdout.write(f"🔍 Assessment Method: {result.assessment_method}")
+            self.stdout.write(f"📊 Confidence: {result.confidence:.2f}")
+            self.stdout.write(f"⏱️  Processing Time: {result.processing_time_ms}ms")
+            self.stdout.write(f"💰 Cost Savings: {'Yes' if result.cost_savings else 'No'}")
+            
+            # Pre-filter details
+            if result.pre_filter_result:
+                self.stdout.write(f"\n⚡ PRE-FILTER ASSESSMENT:")
+                self.stdout.write(f"  Decision: {'Use LLM' if result.pre_filter_result.should_use_llm else 'Skip LLM'}")
+                self.stdout.write(f"  Reason: {result.pre_filter_result.reason}")
+                if result.pre_filter_result.detected_issues:
+                    self.stdout.write(f"  Issues: {', '.join(result.pre_filter_result.detected_issues)}")
+            
+            # LLM evaluation details
+            if result.llm_result:
+                self.stdout.write(f"\n🤖 LLM EVALUATION:")
+                self.stdout.write(f"  Model: {result.llm_result.model_used}")
+                self.stdout.write(f"  Tokens: {result.llm_result.tokens_used}")
+                self.stdout.write(f"  Cost: ${result.llm_result.cost_usd:.6f}")
+                
+                self.stdout.write(f"\n📊 DIMENSIONAL SCORES:")
+                self.stdout.write(f"  Completeness: {result.llm_result.completeness:.3f}")
+                self.stdout.write(f"  Purity: {result.llm_result.purity:.3f}")
+                self.stdout.write(f"  Structure: {result.llm_result.structure:.3f}")
+                self.stdout.write(f"  Readability: {result.llm_result.readability:.3f}")
+                
+                self.stdout.write(f"\n💬 EXPLANATION:")
+                self.stdout.write(f"  {result.llm_result.explanation}")
+                
+                if result.llm_result.missing_elements:
+                    self.stdout.write(f"\n❌ MISSING ELEMENTS:")
+                    for element in result.llm_result.missing_elements:
+                        self.stdout.write(f"  • {element}")
+                
+                if result.llm_result.noise_detected:
+                    self.stdout.write(f"\n🔊 NOISE DETECTED:")
+                    for noise in result.llm_result.noise_detected:
+                        self.stdout.write(f"  • {noise}") 

@@ -54,20 +54,38 @@ ORIGINAL HTML SAMPLE ({html_length} chars):
 {html_sample}
 
 EVALUATION CRITERIA:
-1. COMPLETENESS (0-1): How much core article content was captured?
-   - Check title, author, main text, key details presence
+1. COMPLETENESS (0-1): How much core article content was captured? (Core content is the main text of the article, excluding navigation, ads, recommended articles, comment sections, etc.)
+   - Check title, author, main text, headlines, subheadlines, etc.
    - Assess completeness vs truncation
    - Verify narrative coherence and conclusion
+   - Check for rich content blocks (images, quotes, twitter embeds, videos, carousels, etc.)
+   - Check for proper content formatting (paragraphs, links, headings, lists, bold, italic, pull quotes, etc.)
 
-2. PURITY (0-1): How clean is the extracted content?
-   - Identify navigation, ads, recommended articles
-   - Check for HTML artifacts, social buttons
-   - Assess repetition and irrelevant text
+    Scoring Completeness:
+    - 1 = Perfect extraction: 100% of original core content extracted (text, rich content blocks, formattting, etc.)
+    - 0 = No content extracted: 0% of original core content extracted (no content extracted)
+    - between 0 and 1: Partial extraction: % of original core content extracted (text, rich content blocks, formattting, etc.), proportionally to the amount of core content extracted.
+
+2. PURITY (0-1): How clean is the extracted content? (Purity is the ratio of core content to all content extracted). Here are content pieces that are considered impure/noisy and should NOT be in the extracted content:
+   - Identify navigation, ads, recommended articles, comment sections, etc.
+   - Headlines, subheadlines for non core content sections (Recommended, Related, Comments, etc.)
+   - Check for HTML artifacts, social buttons, paywall indicators, etc.
+   - Assess repetition and irrelevant text  
+   - Newsletter and signup related content, etc.
+   - By lines in text
+   - Timestamps, dates, times, etc.
+   - Categories, breadcrumbs, etc.
+
+   Scoring Purity:
+   - 1 = Perfect purity: 100% of content extracted is core content (text, rich content blocks, formattting, etc.).
+   - 0 = No purity: 100% of content extracted is noise (navigation, ads, recommended articles, comment sections, etc.).
+   - between 0 and 1: Partial purity: % of content extracted that is core content.
 
 3. STRUCTURE (0-1): How well is content structure preserved?
-   - Proper paragraph breaks and headings
+   - Proper paragraph breaks and headings, proper spacing between paragraphs and headings
+   - Order of content blocks (main text, rich content blocks, etc.)
    - Logical flow and organization
-   - Rich content blocks (images, quotes) captured
+   - Rich content blocks (images, quotes, embeds, carousels, etc.) captured integrally and properly formatted
 
 4. READABILITY (0-1): How readable is the extracted content?
    - Clear, coherent sentences
@@ -248,8 +266,16 @@ Respond with JSON only, no other text."""
         Content domain logic - knows how to interpret AI response for content quality.
         """
         try:
+            # Clean the response content - remove markdown code blocks
+            content = llm_response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]  # Remove ```json
+            if content.endswith("```"):
+                content = content[:-3]  # Remove trailing ```
+            content = content.strip()
+            
             # Parse JSON response
-            evaluation_data = json.loads(llm_response.content.strip())
+            evaluation_data = json.loads(content)
             
             # Extract core metrics
             completeness = float(evaluation_data.get("completeness", 0.0))

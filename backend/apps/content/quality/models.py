@@ -4,9 +4,12 @@ Content Quality Assessment Models.
 Domain-specific models for content quality evaluation results and criteria.
 Separate from AI provider infrastructure models.
 """
+import uuid
 from dataclasses import dataclass
 from typing import List
 from decimal import Decimal
+
+from django.db import models
 
 
 @dataclass
@@ -37,13 +40,69 @@ class QualityAssessmentResult:
     cost_usd: Decimal                   # Estimated cost in USD
 
 
-@dataclass
-class QualityScoring:
+class QualityScoring(models.Model):
     """
-    Quality scoring configuration and formulas.
+    Database model for storing quality assessment results.
     
-    Encapsulates the business logic for how quality scores are calculated.
+    Stores the results of quality evaluations for articles including
+    both pre-filter and LLM evaluation results.
     """
+    # Primary key and relationships
+    id = models.AutoField(primary_key=True)
+    public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    article = models.ForeignKey(
+        'articles.Article', 
+        on_delete=models.CASCADE,
+        related_name='quality_assessments'
+    )
+    
+    # Quality scores
+    overall_score = models.DecimalField(max_digits=4, decimal_places=3, help_text="Overall quality score (-1 to 1)")
+    completeness_score = models.DecimalField(max_digits=4, decimal_places=3, null=True, blank=True)
+    purity_score = models.DecimalField(max_digits=4, decimal_places=3, null=True, blank=True)
+    structure_score = models.DecimalField(max_digits=4, decimal_places=3, null=True, blank=True)
+    readability_score = models.DecimalField(max_digits=4, decimal_places=3, null=True, blank=True)
+    
+    # Assessment metadata
+    assessment_method = models.CharField(
+        max_length=50,
+        choices=[
+            ('pre_filter', 'Pre-filter Assessment'),
+            ('llm_evaluation', 'LLM Evaluation'),
+            ('error_fallback', 'Error Fallback'),
+            ('batch_error', 'Batch Error'),
+        ],
+        help_text="Method used for assessment"
+    )
+    confidence_score = models.DecimalField(max_digits=4, decimal_places=3, help_text="Confidence in assessment")
+    processing_time_ms = models.IntegerField(help_text="Processing time in milliseconds")
+    cost_optimized = models.BooleanField(default=False, help_text="Whether cost was optimized via pre-filter")
+    
+    # Detailed results (LLM evaluation)
+    detailed_feedback = models.TextField(null=True, blank=True, help_text="Detailed feedback from LLM")
+    identified_issues = models.JSONField(null=True, blank=True, help_text="List of identified issues")
+    
+    # Pre-filter results
+    pre_filter_reason = models.CharField(max_length=100, null=True, blank=True, help_text="Pre-filter decision reason")
+    pre_filter_issues = models.JSONField(null=True, blank=True, help_text="Issues detected by pre-filter")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'content_quality_scoring'
+        indexes = [
+            models.Index(fields=['article']),
+            models.Index(fields=['overall_score']),
+            models.Index(fields=['assessment_method']),
+            models.Index(fields=['created_at']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"QualityScoring for {self.article.title[:50]} - {self.overall_score}"
+    
     # Dimension weights
     COMPLETENESS_WEIGHT = 0.40
     PURITY_WEIGHT = 0.35
