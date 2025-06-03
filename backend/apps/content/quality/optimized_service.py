@@ -207,6 +207,11 @@ class OptimizedQualityService:
             quality_scoring.readability_score = Decimal(str(result.llm_result.readability))
             quality_scoring.detailed_feedback = result.llm_result.explanation
             quality_scoring.identified_issues = result.llm_result.noise_detected
+            
+            # Save template information from LLM result
+            quality_scoring.template_used = result.llm_result.template_used
+            quality_scoring.template_version = result.llm_result.template_version
+            
             quality_scoring.save()
         
         # Add pre-filter information if available

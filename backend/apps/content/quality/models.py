@@ -38,6 +38,10 @@ class QualityAssessmentResult:
     model_used: str                     # AI model used for assessment
     tokens_used: int                    # Total tokens consumed
     cost_usd: Decimal                   # Estimated cost in USD
+    
+    # Template tracking (for A/B testing)
+    template_used: str = "unknown"      # Template identifier used
+    template_version: str = "unknown"   # Template version used
 
 
 class QualityScoring(models.Model):
@@ -85,6 +89,20 @@ class QualityScoring(models.Model):
     # Pre-filter results
     pre_filter_reason = models.CharField(max_length=100, null=True, blank=True, help_text="Pre-filter decision reason")
     pre_filter_issues = models.JSONField(null=True, blank=True, help_text="Issues detected by pre-filter")
+    
+    # Template tracking (code-based templates)
+    template_used = models.CharField(
+        max_length=100, 
+        null=True, 
+        blank=True, 
+        help_text="Template identifier used (e.g., 'quality_evaluation_v1.1-concise')"
+    )
+    template_version = models.CharField(
+        max_length=50, 
+        null=True, 
+        blank=True, 
+        help_text="Template version used (e.g., 'v1.1-concise')"
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -165,4 +183,273 @@ class QualityScoring(models.Model):
         elif score >= -0.2:
             return ("POOR", "Significant issues")
         else:
-            return ("FAILED", "Extraction failure") 
+            return ("FAILED", "Extraction failure")
+
+
+# Remove PromptTemplate model - using code-based templates instead
+
+# Keep PromptComparisonTest for formal A/B testing experiments (optional)
+class PromptComparisonTest(models.Model):
+    """
+    Tracks formal A/B testing experiments comparing different prompt templates.
+    
+    This is for structured experiments, not day-to-day template usage tracking.
+    Template versions are referenced by their code-based identifiers.
+    """
+    name = models.CharField(max_length=100, help_text="Test experiment name")
+    description = models.TextField(help_text="Description of what's being tested")
+    
+    # Templates being compared (by identifier, not foreign key)
+    baseline_template_id = models.CharField(
+        max_length=100, 
+        help_text="Baseline template identifier (e.g., 'quality_evaluation_v1.0')"
+    )
+    variant_template_id = models.CharField(
+        max_length=100,
+        help_text="Variant template identifier (e.g., 'quality_evaluation_v1.1-concise')"
+    )
+    
+    # Test configuration
+    sample_size = models.IntegerField(help_text="Number of articles to test on")
+    content_type = models.CharField(
+        max_length=20, 
+        choices=[('clean', 'Clean'), ('basic', 'Basic'), ('raw', 'Raw'), ('mixed', 'Mixed')],
+        default='mixed'
+    )
+    
+    # Results
+    baseline_avg_score = models.DecimalField(max_digits=5, decimal_places=3, null=True, blank=True)
+    variant_avg_score = models.DecimalField(max_digits=5, decimal_places=3, null=True, blank=True)
+    baseline_avg_cost = models.DecimalField(max_digits=8, decimal_places=6, null=True, blank=True)
+    variant_avg_cost = models.DecimalField(max_digits=8, decimal_places=6, null=True, blank=True)
+    baseline_avg_tokens = models.IntegerField(null=True, blank=True)
+    variant_avg_tokens = models.IntegerField(null=True, blank=True)
+    
+    # Statistical significance
+    score_improvement = models.DecimalField(max_digits=5, decimal_places=3, null=True, blank=True)
+    cost_change = models.DecimalField(max_digits=5, decimal_places=3, null=True, blank=True)
+    is_significant = models.BooleanField(null=True, blank=True)
+    
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('planned', 'Planned'),
+            ('running', 'Running'),
+            ('completed', 'Completed'),
+            ('cancelled', 'Cancelled')
+        ],
+        default='planned'
+    )
+    
+    # Timestamps
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
+class ReferenceQualityExample(models.Model):
+    """
+    Reference quality examples for evaluation calibration and few-shot learning.
+    
+    These are curated examples with known quality scores that serve multiple purposes:
+    1. Few-shot examples in evaluation prompts 
+    2. Calibration references for quality assessment
+    3. Benchmarks for extraction pipeline evaluation
+    """
+    
+    # Quality Categories
+    class QualityClass(models.TextChoices):
+        PERFECT = 'perfect', 'Perfect (>0.95)'
+        GOOD = 'good', 'Good (0.80-0.95)'
+        IMPERFECT = 'imperfect', 'Imperfect (0.00-0.80)'
+        AWFUL = 'awful', 'Awful (<0.00)'
+    
+    # Basic identification
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    article = models.ForeignKey(
+        'articles.Article', 
+        on_delete=models.CASCADE,
+        related_name='reference_quality_examples'
+    )
+    
+    # Reference classification
+    quality_class = models.CharField(
+        max_length=20,
+        choices=QualityClass.choices,
+        help_text="Reference quality classification"
+    )
+    
+    # Reference scores (ground truth)
+    reference_overall_score = models.FloatField(
+        help_text="Reference overall quality score (-1.0 to 1.0)"
+    )
+    reference_completeness = models.FloatField(
+        help_text="Reference completeness score (0.0 to 1.0)"
+    )
+    reference_purity = models.FloatField(
+        help_text="Reference purity score (0.0 to 1.0)"
+    )
+    reference_structure = models.FloatField(
+        help_text="Reference structure score (0.0 to 1.0)"
+    )
+    reference_readability = models.FloatField(
+        help_text="Reference readability score (0.0 to 1.0)"
+    )
+    
+    # Reference explanation and patterns
+    reference_explanation = models.TextField(
+        help_text="Detailed explanation of quality assessment"
+    )
+    reference_missing_elements = models.JSONField(
+        default=list,
+        help_text="List of missing elements"
+    )
+    reference_noise_detected = models.JSONField(
+        default=list,
+        help_text="List of noise types detected"
+    )
+    reference_key_strengths = models.JSONField(
+        default=list,
+        help_text="List of extraction strengths"
+    )
+    reference_improvement_areas = models.JSONField(
+        default=list,
+        help_text="List of improvement areas"
+    )
+    
+    # Stored content for examples
+    stored_raw_html = models.TextField(
+        blank=True,
+        help_text="Stored raw HTML for reference"
+    )
+    stored_preprocessed_html = models.TextField(
+        blank=True,
+        help_text="Stored preprocessed HTML for reference"
+    )
+    stored_extracted_content = models.TextField(
+        blank=True,
+        help_text="Stored extracted content for reference"
+    )
+    stored_content_blocks = models.JSONField(
+        default=list,
+        help_text="Stored content blocks for reference"
+    )
+    
+    # Usage and metadata
+    use_in_prompts = models.BooleanField(
+        default=True,
+        help_text="Include in few-shot prompt examples"
+    )
+    use_for_calibration = models.BooleanField(
+        default=True,
+        help_text="Use for evaluation calibration"
+    )
+    use_for_benchmarking = models.BooleanField(
+        default=True,
+        help_text="Use for extraction pipeline benchmarking"
+    )
+    
+    # Metadata
+    created_by = models.CharField(max_length=100, default="system")
+    notes = models.TextField(blank=True, help_text="Additional notes about this example")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'quality_reference_examples'
+        ordering = ['quality_class', '-reference_overall_score']
+        indexes = [
+            models.Index(fields=['quality_class']),
+            models.Index(fields=['use_in_prompts']),
+            models.Index(fields=['use_for_calibration']),
+        ]
+    
+    def __str__(self):
+        return f"Reference {self.quality_class}: {self.article.title[:50]}... (Score: {self.reference_overall_score:.3f})"
+    
+    @property
+    def short_title(self):
+        """Shortened title for display."""
+        return self.article.title[:50] + "..." if len(self.article.title) > 50 else self.article.title
+    
+    def get_reference_scores_dict(self):
+        """Get reference scores as dictionary."""
+        return {
+            'overall': self.reference_overall_score,
+            'completeness': self.reference_completeness,
+            'purity': self.reference_purity,
+            'structure': self.reference_structure,
+            'readability': self.reference_readability
+        }
+    
+    def get_formatted_example_text(self, include_html=True, max_content_chars=1000):
+        """
+        Get formatted text for use in prompt examples.
+        
+        Args:
+            include_html: Whether to include HTML sample
+            max_content_chars: Maximum characters of content to include
+            
+        Returns:
+            Formatted example text for prompts
+        """
+        content_sample = self.stored_extracted_content
+        if len(content_sample) > max_content_chars:
+            content_sample = content_sample[:max_content_chars] + "..."
+        
+        html_sample = ""
+        if include_html and self.stored_preprocessed_html:
+            html_sample = self.stored_preprocessed_html[:max_content_chars] + "..."
+        
+        example = f"""
+EXAMPLE - {self.quality_class.upper()} QUALITY:
+Title: {self.article.title}
+Content: {content_sample}
+{f"HTML Sample: {html_sample}" if html_sample else ""}
+
+Reference Assessment:
+- Overall Score: {self.reference_overall_score:.3f}
+- Completeness: {self.reference_completeness:.3f}, Purity: {self.reference_purity:.3f}
+- Structure: {self.reference_structure:.3f}, Readability: {self.reference_readability:.3f}
+- Explanation: {self.reference_explanation}
+"""
+        return example.strip()
+    
+    @classmethod
+    def get_examples_for_prompts(cls, quality_classes=None, max_examples=3):
+        """
+        Get reference examples for use in prompts.
+        
+        Args:
+            quality_classes: List of quality classes to include
+            max_examples: Maximum number of examples to return
+            
+        Returns:
+            QuerySet of reference examples
+        """
+        queryset = cls.objects.filter(use_in_prompts=True)
+        
+        if quality_classes:
+            queryset = queryset.filter(quality_class__in=quality_classes)
+        
+        # Get diverse examples across quality classes
+        examples = []
+        for quality_class in cls.QualityClass.values:
+            class_examples = queryset.filter(quality_class=quality_class)[:1]
+            examples.extend(class_examples)
+            
+        return examples[:max_examples]
+    
+    @classmethod
+    def get_calibration_set(cls):
+        """Get full calibration dataset."""
+        return cls.objects.filter(use_for_calibration=True).order_by('quality_class', '-reference_overall_score')
+    
+    @classmethod
+    def get_benchmark_set(cls):
+        """Get benchmark dataset for extraction evaluation."""
+        return cls.objects.filter(use_for_benchmarking=True).order_by('quality_class', '-reference_overall_score') 
