@@ -32,7 +32,7 @@ class ContentBlockBuilder:
     
     # Valid content block types
     VALID_BLOCK_TYPES = {
-        "heading", "paragraph", "image", "img", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"
+        "heading", "subtitle", "paragraph", "image", "img", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"
     }
     
     # Valid list types
@@ -42,12 +42,13 @@ class ContentBlockBuilder:
         """Initialize the content block builder."""
         self.validation_errors = []
     
-    def build_blocks(self, blocks_data: List[dict]) -> List[ContentBlock]:
+    def build_blocks(self, blocks_data: List[dict], article_metadata: Optional[Dict[str, Any]] = None) -> List[ContentBlock]:
         """
         Convert AI JSON response to ContentBlock objects.
         
         Args:
             blocks_data: List of content block dictionaries from AI response
+            article_metadata: Article metadata for title de-duplication
             
         Returns:
             List of validated ContentBlock objects
@@ -58,6 +59,11 @@ class ContentBlockBuilder:
         if not isinstance(blocks_data, list):
             logger.error("Blocks data is not a list")
             return content_blocks
+        
+        # Extract article title for duplicate detection
+        article_title = None
+        if article_metadata:
+            article_title = article_metadata.get('title') or article_metadata.get('extracted_title')
         
         for i, block_data in enumerate(blocks_data):
             try:
@@ -70,6 +76,9 @@ class ContentBlockBuilder:
                 logger.error(f"Error building content block {i}: {e}")
                 self.validation_errors.append(f"Block {i}: {e}")
                 continue
+        
+        # Apply post-processing filters
+        content_blocks = self._apply_content_filters(content_blocks, article_title)
         
         # Log validation summary
         if self.validation_errors:
@@ -261,6 +270,8 @@ class ContentBlockBuilder:
         Returns:
             Validated image metadata
         """
+        from html import unescape
+        
         cleaned_metadata = {}
         
         # Required: src
@@ -279,12 +290,12 @@ class ContentBlockBuilder:
         # Optional: alt text
         alt = metadata.get("alt", "")
         if isinstance(alt, str):
-            cleaned_metadata["alt"] = alt.strip()
+            cleaned_metadata["alt"] = unescape(alt.strip())
         
         # Optional: caption
         caption = metadata.get("caption", "")
         if isinstance(caption, str):
-            cleaned_metadata["caption"] = caption.strip()
+            cleaned_metadata["caption"] = unescape(caption.strip())
         
         # Optional: width and height
         for dimension in ["width", "height"]:
@@ -308,6 +319,8 @@ class ContentBlockBuilder:
         Returns:
             Validated list metadata
         """
+        from html import unescape
+        
         cleaned_metadata = {}
         
         # Required: items
@@ -320,7 +333,7 @@ class ContentBlockBuilder:
         cleaned_items = []
         for i, item in enumerate(items):
             if isinstance(item, str):
-                cleaned_item = item.strip()
+                cleaned_item = unescape(item.strip())
                 if cleaned_item:
                     cleaned_items.append(cleaned_item)
             else:
@@ -497,12 +510,14 @@ class ContentBlockBuilder:
         Returns:
             Validated quote metadata
         """
+        from html import unescape
+        
         cleaned_metadata = {}
         
         # Optional: cite (source attribution)
         cite = metadata.get("cite", "")
         if isinstance(cite, str) and cite.strip():
-            cleaned_metadata["cite"] = cite.strip()
+            cleaned_metadata["cite"] = unescape(cite.strip())
         
         # Optional: type (pullquote, blockquote, etc.)
         quote_type = metadata.get("type", "")
@@ -594,9 +609,6 @@ class ContentBlockBuilder:
             if not content:
                 self.validation_errors.append(f"Block {position}: Heading has no content")
                 return False
-            # Enhanced: Validate heading context and semantic meaning
-            if not self._validate_heading_context(content, level, position):
-                return False
         
         elif block_type == "paragraph":
             if not content:
@@ -679,61 +691,172 @@ class ContentBlockBuilder:
     
     def get_validation_errors(self) -> List[str]:
         """
-        Get validation errors from the last build operation.
+        Get list of validation errors encountered during block building.
         
         Returns:
             List of validation error messages
         """
         return self.validation_errors.copy()
-    
-    def _validate_heading_context(self, content: str, level: int, position: int) -> bool:
+
+    def _apply_content_filters(self, content_blocks: List[ContentBlock], article_title: Optional[str]) -> List[ContentBlock]:
         """
-        Validate that a heading makes semantic sense in the article context.
+        Apply content filters for title de-duplication and subtitle detection.
         
         Args:
-            content: Heading text content
-            level: Heading level (1-6)
-            position: Position in the content flow
+            content_blocks: List of content blocks to filter
+            article_title: Article title for duplicate detection
             
         Returns:
-            True if heading appears to be legitimate article content
+            Filtered list of content blocks
         """
-        if not content or len(content.strip()) < 3:
+        filtered_blocks = []
+        
+        for i, block in enumerate(content_blocks):
+            # Skip duplicate titles
+            if block.type == "heading" and article_title and self._is_duplicate_title(block.content, article_title):
+                logger.info(f"Skipping duplicate title heading: '{block.content}'")
+                continue
+            
+            # Convert early headings to subtitles if appropriate
+            if block.type == "heading" and self._should_convert_to_subtitle(block, i):
+                logger.info(f"Converting heading to subtitle: '{block.content}'")
+                block.type = "subtitle"
+            
+            filtered_blocks.append(block)
+        
+        return filtered_blocks
+
+    def _is_duplicate_title(self, heading: str, article_title: str) -> bool:
+        """
+        Check if the heading is a duplicate of the article title.
+        Enhanced to handle publication names, punctuation variations, and perspective changes.
+        """
+        if not heading or not article_title:
             return False
         
-        content_lower = content.lower().strip()
+        # Normalize both titles for comparison
+        def normalize_title(title):
+            """Clean title for comparison by removing publication names and normalizing text."""
+            import re
+            
+            # Remove common publication name patterns at the end
+            title = re.sub(r'\s*[-|–—]\s*(?:.*?(?:Post|Times|News|CNN|BBC|Reuters|AP|NPR|Fox|NBC|CBS|ABC|The Verge|Verge|TechCrunch|Wired|Ars Technica).*?)$', '', title, flags=re.IGNORECASE)
+            
+            # Normalize punctuation - convert all dashes to regular dash
+            title = re.sub(r'[–—]', '-', title)
+            
+            # Normalize quotes and apostrophes
+            title = re.sub(r'[""''`]', '"', title)
+            title = re.sub(r"['`]", "'", title)
+            
+            # Remove extra whitespace and normalize
+            title = re.sub(r'\s+', ' ', title.strip())
+            
+            # Convert to lowercase for comparison
+            return title.lower()
         
-        # Skip obvious navigation/sidebar headings
-        navigation_patterns = [
-            "related articles", "more stories", "trending now", "popular posts",
-            "you might like", "recommended", "latest news", "more from",
-            "subscribe", "newsletter", "follow us", "share this", "tags",
-            "categories", "recent posts", "archive", "advertisement",
-            "sponsored content", "also read", "see also", "don't miss"
-        ]
+        def normalize_perspective(title):
+            """Normalize first/third person perspective differences."""
+            import re
+            
+            # Common first/third person substitutions
+            substitutions = [
+                (r'\bi\s+', 'crypto bro '),
+                (r'\bmy\s+', 'the '),
+                (r'\bme\s+', 'him '),
+                (r'\bme$', 'him'),
+                (r'\bus\s+', 'them '),
+                (r'\bour\s+', 'their '),
+                (r'\bwe\s+', 'they '),
+                (r'\bhow\s+i\s+', 'how a crypto bro '),
+                (r'\bhow\s+we\s+', 'how they '),
+            ]
+            
+            for pattern, replacement in substitutions:
+                title = re.sub(pattern, replacement, title, flags=re.IGNORECASE)
+            
+            return title
         
-        for pattern in navigation_patterns:
-            if pattern in content_lower:
-                self.validation_errors.append(
-                    f"Block {position}: Heading '{content[:50]}...' appears to be navigation/sidebar content"
-                )
-                return False
+        normalized_heading = normalize_title(heading)
+        normalized_article_title = normalize_title(article_title)
         
-        # Skip very short headings that are likely navigation
-        if len(content.strip()) < 8 and level > 2:
-            self.validation_errors.append(
-                f"Block {position}: Heading '{content}' is too short for level h{level}"
-            )
+        # Also try perspective normalization
+        perspective_heading = normalize_perspective(normalized_heading)
+        perspective_article_title = normalize_perspective(normalized_article_title)
+        
+        # Check exact match after normalization
+        if normalized_heading == normalized_article_title:
+            return True
+        
+        # Check perspective-normalized match
+        if perspective_heading == perspective_article_title or perspective_heading == normalized_article_title:
+            return True
+        
+        # Check if heading is substantially contained in article title (80% match)
+        if len(normalized_heading) > 20:  # Only for substantial headings
+            # Check if heading is a substring of article title
+            if normalized_heading in normalized_article_title or normalized_article_title in normalized_heading:
+                return True
+            
+            # Check similarity ratio with both normalized versions
+            from difflib import SequenceMatcher
+            similarity1 = SequenceMatcher(None, normalized_heading, normalized_article_title).ratio()
+            similarity2 = SequenceMatcher(None, perspective_heading, normalized_article_title).ratio()
+            
+            # Use the higher similarity score
+            max_similarity = max(similarity1, similarity2)
+            
+            if max_similarity >= 0.75:  # 75% similarity threshold (more lenient)
+                return True
+        
+        # Check word overlap for catching paraphrased titles
+        if len(normalized_heading) > 20 and len(normalized_article_title) > 20:
+            heading_words = set(normalized_heading.split())
+            title_words = set(normalized_article_title.split())
+            
+            # Remove common stop words for better comparison
+            stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'how', 'i', 'he', 'she', 'they'}
+            heading_words -= stop_words
+            title_words -= stop_words
+            
+            if len(heading_words) > 3 and len(title_words) > 3:
+                # Calculate word overlap ratio
+                overlap = len(heading_words & title_words)
+                min_words = min(len(heading_words), len(title_words))
+                
+                if overlap / min_words >= 0.7:  # 70% word overlap
+                    return True
+        
+        return False
+
+    def _should_convert_to_subtitle(self, block: ContentBlock, position: int) -> bool:
+        """
+        Detect if a heading should be converted to a subtitle.
+        Uses content characteristics and position to identify subtitles.
+        """
+        
+        # Only convert headings in first few positions
+        if position > 2:
             return False
         
-        # Validate heading level makes sense for position
-        if level == 1 and position > 3:
-            # H1 after position 3 is unusual - might be a mistake
-            self.validation_errors.append(
-                f"Block {position}: H1 heading at position {position} is unusual - verify content hierarchy"
-            )
+        # Only convert lower-level headings (h2-h6) to subtitles
+        if block.level and block.level == 1:
+            return False
         
-        return True
+        text = block.content.strip()
+        
+        # Subtitles are usually shorter (under 200 chars) and descriptive
+        if len(text) < 200 and position <= 1:
+            # Check if it contains typical subtitle language patterns
+            subtitle_content_patterns = [
+                'if ', 'when ', 'after ', 'before ', 'while ', 'as ',
+                'parents of', 'relatives of', 'people who', 'those who',
+                'restrictions', 'concerns', 'worries', 'face'
+            ]
+            if any(pattern in text.lower() for pattern in subtitle_content_patterns):
+                return True
+        
+        return False
     
     def analyze_heading_hierarchy(self, content_blocks: List[ContentBlock]) -> Dict[str, Any]:
         """

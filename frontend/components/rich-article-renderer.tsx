@@ -113,7 +113,7 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
         block.classes?.join(' ')
       )}
     >
-      {block.content || block.text}
+      {parse(block.content || block.text || '')}
     </HeadingTag>
   )
 }
@@ -245,7 +245,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           <div className="border border-dashed border-muted-foreground/20 rounded-lg p-4 bg-muted/20 text-center">
             <p className="text-sm text-muted-foreground mb-2">📷 Image unavailable</p>
             <figcaption className="text-sm text-muted-foreground italic">
-              {caption}
+              {parse(caption)}
             </figcaption>
           </div>
         </figure>
@@ -288,7 +288,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
       </div>
       {shouldShowCaption && (
         <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
-          {caption}
+          {parse(caption)}
         </figcaption>
       )}
     </figure>
@@ -303,16 +303,17 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
     (asset.type === 'video' || asset.type === 'video_embed') && asset.position === block.position
   )
   
-  const src = block.src || mediaAsset?.src
-  const caption = block.caption || mediaAsset?.caption
-  const platform = mediaAsset?.platform
+  // Read from metadata structure that backend provides
+  const src = block.metadata?.src || block.src || mediaAsset?.src
+  const caption = block.metadata?.caption || block.caption || mediaAsset?.caption || block.content
+  const embedType = block.metadata?.embed_type || mediaAsset?.platform
   
   if (!src) {
     return null
   }
 
   // Handle embedded videos (YouTube, Vimeo, etc.)
-  if (platform || src.includes('youtube.com') || src.includes('youtu.be') || src.includes('vimeo.com')) {
+  if (embedType || src.includes('youtube.com') || src.includes('youtu.be') || src.includes('vimeo.com')) {
     return (
       <figure className="my-8">
         <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
@@ -326,7 +327,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         </div>
         {caption && (
           <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
-            {caption}
+            {parse(caption)}
           </figcaption>
         )}
       </figure>
@@ -348,7 +349,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
       </div>
       {caption && (
         <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
-          {caption}
+          {parse(caption)}
         </figcaption>
       )}
     </figure>
@@ -405,7 +406,7 @@ function AudioBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           </div>
           {caption && (
             <p className="mt-3 text-sm text-muted-foreground italic">
-              {caption}
+              {parse(caption)}
             </p>
           )}
         </CardContent>
@@ -423,7 +424,7 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
       <p>{block.content || block.text}</p>
       {block.cite && (
         <cite className="mt-2 block text-sm text-muted-foreground not-italic">
-          — {block.cite}
+          — {parse(block.cite)}
         </cite>
       )}
     </blockquote>
@@ -431,15 +432,19 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
 }
 
 function ListBlock({ block }: { block: ContentBlock }) {
-  const ListTag = block.listType === 'ol' ? 'ol' : 'ul'
+  // Read from metadata structure that backend provides
+  const listType = block.metadata?.list_type || block.listType || 'ul'
+  const items: string[] = block.metadata?.items || block.items || []
+  
+  const ListTag = listType === 'ol' ? 'ol' : 'ul'
   
   return (
     <ListTag className={cn(
       "my-6 ml-6 list-disc [&>li]:mt-2",
-      block.listType === 'ol' && "list-decimal",
+      listType === 'ol' && "list-decimal",
       block.classes?.join(' ')
     )}>
-      {block.items?.map((item, index) => (
+      {items.map((item: string, index: number) => (
         <li key={index} dangerouslySetInnerHTML={{ __html: item }} />
       ))}
     </ListTag>
@@ -638,7 +643,7 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
         {/* Citation if available - clean and minimal */}
         {block.cite && (
           <cite className="mt-3 block text-sm text-muted-foreground not-italic">
-            — {block.cite}
+            — {parse(block.cite)}
           </cite>
         )}
       </blockquote>

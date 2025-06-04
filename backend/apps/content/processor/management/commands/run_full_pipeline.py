@@ -1,7 +1,7 @@
 """
 Django management command to run the complete content processing pipeline.
 Step 1: Fetch content for articles
-Step 2: Process with enhanced algorithmic processor
+Step 2: Process with selected processor (algorithmic or AI)
 """
 import time
 from datetime import datetime
@@ -15,9 +15,15 @@ from apps.articles.models import Article
 
 
 class Command(BaseCommand):
-    help = 'Run the complete content processing pipeline: fetch → process'
+    help = 'Run the complete content processing pipeline: fetch → process (algorithmic or AI)'
     
     def add_arguments(self, parser):
+        parser.add_argument(
+            '--processor',
+            choices=['algorithmic', 'ai'],
+            default='algorithmic',
+            help='Processor type to use: algorithmic (fast, rule-based) or ai (slower, LLM-based) (default: algorithmic)'
+        )
         parser.add_argument(
             '--fetch-limit',
             type=int,
@@ -69,6 +75,7 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **options):
+        processor_type = options['processor']
         fetch_limit = options['fetch_limit']
         process_limit = options['process_limit']
         fetch_status = options['fetch_status']

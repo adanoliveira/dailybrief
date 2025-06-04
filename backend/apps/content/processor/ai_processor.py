@@ -136,7 +136,8 @@ class AIContentProcessor:
             result = self._create_extraction_result(
                 llm_response, 
                 time.time() - start_time,
-                preprocessed_data
+                preprocessed_data,
+                article_metadata
             )
             
             # 5. Add template and preprocessing metadata
@@ -221,7 +222,8 @@ class AIContentProcessor:
         self,
         llm_response: LLMResponse,
         processing_time: float,
-        preprocessed_data: Dict[str, Any]
+        preprocessed_data: Dict[str, Any],
+        article_metadata: Optional[Dict[str, Any]] = None
     ) -> ProcessingResult:
         """
         Create extraction result from LLM response following quality evaluation patterns.
@@ -258,7 +260,8 @@ class AIContentProcessor:
             
             # Convert AI response to ContentBlock objects
             content_blocks = self.block_builder.build_blocks(
-                response_data.get("content_blocks", [])
+                response_data.get("content_blocks", []),
+                article_metadata
             )
             
             # Analyze heading hierarchy for quality assessment
@@ -271,6 +274,21 @@ class AIContentProcessor:
             extraction_metadata = response_data.get("extraction_metadata", {})
             author_information = response_data.get("author_information", {})
             extraction_feedback = response_data.get("extraction_feedback", {})
+            
+            # Enhanced: Extract visual title from AI response
+            # Check if AI provided an extracted/visual title
+            extracted_title = None
+            if "extraction_metadata" in response_data and response_data["extraction_metadata"]:
+                extracted_title = response_data["extraction_metadata"].get("extracted_title")
+            
+            # If no extracted title in metadata, check if AI provided title in article_metadata
+            if not extracted_title and article_metadata:
+                extracted_title = article_metadata.get("extracted_title")
+            
+            # If we have an extracted title, use it as visual_title (clean title without publication)
+            if extracted_title:
+                extraction_metadata["visual_title"] = extracted_title
+                logger.info(f"Set visual_title from extracted title: '{extracted_title}'")
             
             # Author information is optional but should be validated if present
             if "author_information" in response_data:

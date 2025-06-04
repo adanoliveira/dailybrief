@@ -3253,7 +3253,7 @@ class AlgorithmicProcessor:
         # Process each child node to check visibility
         for content in figcaption.contents:
             if hasattr(content, 'strip'):  # Text node
-                text = content.strip()
+                text = content.strip() if content else ''
                 if text and len(text) > 2:
                     visible_parts.append(text)
             elif hasattr(content, 'name'):  # Element node

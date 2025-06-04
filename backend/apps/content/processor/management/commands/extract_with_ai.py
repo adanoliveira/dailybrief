@@ -558,6 +558,9 @@ class Command(BaseCommand):
                 'model': ai_metadata.get('model', 'unknown'),
                 'extraction_timestamp': datetime.now().isoformat(),
                 
+                # Title extraction (for clean page titles)
+                'visual_title': ai_metadata.get('visual_title'),
+                
                 # Content analysis
                 'total_blocks': len(result.content_blocks),
                 'content_types': ai_metadata.get('content_types', {}),
