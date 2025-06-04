@@ -784,6 +784,7 @@ VALIDATION CHECKLIST:
 ✓ ALL EMBEDS: Every video, twitter / x, iframe, blockquote
 ✓ ALL LINKS: Every <a href="..."> extracted to metadata.external_links
 ✓ SEQUENTIAL POSITIONS: 0, 1, 2, 3... (no gaps, no jumps, all blocks in correct position, no positions swapped)
+✓ VISUAL ORDER: Content appears in same order as in original article (embeds not moved to end)
 ✓ HTML FORMATTING: <strong>, <em> throughout (no markdown)
 ✓ COMPLETE URLS: Full URLs with file extensions
 ✓ READABLE CHARACTERS: ', " not &#39;, &#8220;
@@ -830,21 +831,33 @@ STEP 1: SYSTEMATIC CONTENT INVENTORY
 • TARGET: Expect 20-40+ blocks for typical full articles
 • VERIFY: Your final count should match what you found
 
-STEP 2: EXHAUSTIVE EXTRACTION (NO SKIPPING)
-• Process EVERY content element in reading order (top to bottom)
+STEP 1.5: EMBED POSITION MAPPING (CRITICAL FOR CORRECT ORDERING)
+• Scan article from top to bottom and NOTE where each embed appears
+• Record EXACT CONTEXT for videos, tweets, iframes in reading flow
+• Example mapping: "Twitter embed appears after 'Nintendo didn't respond' paragraph, before 'similar leak happened' paragraph"
+• This position context will be used in Step 2 for precise placement
+• DO NOT extract content yet - just map positions
+
+STEP 2: EXHAUSTIVE EXTRACTION (STRICT VISUAL ORDER)
+• Process content LINEARLY from top to bottom - NO exceptions
+• CRITICAL: Extract each element WHEN you encounter it in the HTML flow
+• DO NOT skip complex elements to process later - handle them immediately
 • Extract ALL headings (h1-h6) - even if they seem similar
 • Extract ALL paragraphs - even short ones with 4+ meaningful words
 • Extract ALL images with captions - miss none
 • Extract ALL lists - even small 2-item lists
 • Extract ALL quotes and blockquotes
-• Extract ALL video/iframe embeds
-• Assign sequential positions: 0, 1, 2, 3, ... (NO GAPS, NO SKIPS)
+• Extract ALL video/iframe/twitter embeds using the position mapping from Step 1.5
+• ASSIGN EMBED POSITIONS: Use the context noted in Step 1.5 to place embeds correctly
+• FORBIDDEN: Moving embeds, videos, or tweets to different positions
+• Assign sequential positions: 0, 1, 2, 3, ... based on the position mapping
 • Convert ALL formatting to HTML: <strong>bold</strong>, <em>italic</em>
 
 STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 • COUNT YOUR EXTRACTED BLOCKS: Should be 20-40+ for full articles
 • VERIFY NOTHING SKIPPED: Go back and double-check you got everything
 • CHECK SEQUENTIAL POSITIONS: 0, 1, 2, 3... no gaps or jumps
+• VALIDATE EMBED POSITIONS: Ensure embeds match the context mapping from Step 1.5
 • VALIDATE ALL URLs: Complete with file extensions
 • CONFIRM HTML FORMATTING: No markdown syntax anywhere
 • IDENTIFY UNMAPPED CONTENT: Note any content that couldn't be mapped to blocks
@@ -867,6 +880,8 @@ STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 ❌ Skipping short content elements
 ❌ Incomplete URL extraction
 ❌ Non-sequential position numbers
+❌ Embeds/tweets appearing at end instead of their original position
+❌ Processing content "out of order" for any reason
 
 🔥 REMEMBER: Be COMPREHENSIVE, not selective. Extract MORE, not less."""
     
@@ -983,7 +998,7 @@ Each content type follows this consistent pattern:
 ### 📄 PARAGRAPH  
 ✅ INCLUDE: Main body text with complete sentences and HTML formatting
 🎯 FORMAT: content="Text with <strong>bold</strong> and <em>italic</em>"
-🚫 EXCLUDE: Navigation text, ad copy, sidebar content, newsletter and signup calls to action, commission text, author byline (should be in author_information and metadata), article date and timestamp, suggested reading, etc.
+🚫 EXCLUDE: Navigation text, ad copy, sidebar content, newsletter and signup calls to action, commission text, author byline (should be in author_information and metadata), article date and timestamp, suggested reading, empty paragraphs or with meaningless characters, etc.
 
 ### 🖼️ IMAGE
 ✅ INCLUDE: Article images with captions and complete URLs
@@ -1008,6 +1023,7 @@ Each content type follows this consistent pattern:
 🎯 FORMAT: content="Tweet text with <strong>formatting</strong>"
 🚫 EXCLUDE: Social sharing buttons, follow prompts
 📝 METADATA: {"tweet_id": "id", "embed_url": "url"}
+⚠️ CRITICAL: Extract twitter embeds in their EXACT visual position, not at the end
 
 ### 🎥 VIDEO_EMBED
 ✅ INCLUDE: YouTube, Vimeo, and other video embeds in article
