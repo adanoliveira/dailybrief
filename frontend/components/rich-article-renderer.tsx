@@ -144,6 +144,9 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
       className={cn(
         "text-lg leading-8 text-muted-foreground font-medium [&:not(:first-child)]:mt-4 mb-6",
         "prose prose-gray max-w-none dark:prose-invert",
+        // Enhanced link styling to ensure visibility
+        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-primary/60",
+        "[&_a:hover]:text-primary/80 [&_a:hover]:decoration-primary/80 [&_a]:transition-colors",
         block.classes?.join(' ')
       )}
     >
@@ -178,6 +181,9 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
       className={cn(
         "text-base leading-7 [&:not(:first-child)]:mt-6",
         "prose prose-gray max-w-none dark:prose-invert",
+        // Enhanced link styling to ensure visibility
+        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-primary/60",
+        "[&_a:hover]:text-primary/80 [&_a:hover]:decoration-primary/80 [&_a]:transition-colors",
         block.classes?.join(' ')
       )}
     >

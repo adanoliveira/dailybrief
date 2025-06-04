@@ -25,7 +25,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--operation',
             type=str,
-            choices=['quality_assessment', 'summarization', 'digest_generation', 'translation'],
+            choices=['quality_assessment', 'summarization', 'digest_generation', 'translation', 'content_extraction'],
             help='Operation to configure'
         )
         parser.add_argument(
@@ -105,7 +105,7 @@ class Command(BaseCommand):
         
         # Show current models for common operations
         self.stdout.write(f"\n📊 Current Models:")
-        for operation in ['quality_assessment', 'summarization', 'digest_generation']:
+        for operation in ['quality_assessment', 'content_extraction', 'summarization', 'digest_generation']:
             config = AIProviderConfig.objects.filter(
                 operation=operation, 
                 is_active=True
@@ -162,9 +162,9 @@ class Command(BaseCommand):
             self.style.SUCCESS(f'✅ {action} configuration: {operation} → {provider}/{model}')
         )
         
-        # Show cost estimate for quality assessment
-        if operation == 'quality_assessment':
-            self._show_cost_estimate(model)
+        # Show cost estimate for quality assessment and content extraction
+        if operation in ['quality_assessment', 'content_extraction']:
+            self._show_cost_estimate(model, operation)
 
     def _activate_configuration(self, operation):
         """Activate configuration for operation."""
@@ -194,13 +194,20 @@ class Command(BaseCommand):
                 self.style.ERROR(f'Configuration for {operation} not found')
             )
 
-    def _show_cost_estimate(self, model):
-        """Show cost estimate for quality assessment."""
+    def _show_cost_estimate(self, model, operation='quality_assessment'):
+        """Show cost estimate for AI operations."""
+        if operation == 'quality_assessment':
         self.stdout.write(f"\n💰 Cost Estimates (per 1000 evaluations):")
-        
         # Typical quality assessment: ~8000 input tokens, ~800 output tokens
         typical_input = 8000
         typical_output = 800
+        elif operation == 'content_extraction':
+            self.stdout.write(f"\n💰 Cost Estimates (per 1000 extractions):")
+            # Typical content extraction: ~15000 input tokens, ~2000 output tokens
+            typical_input = 15000
+            typical_output = 2000
+        else:
+            return
         
         model_lower = model.lower()
         
@@ -209,12 +216,14 @@ class Command(BaseCommand):
                 # GPT-4.1 Nano: $0.10/1M input, $0.40/1M output
                 cost_per_eval = (typical_input * 0.0000001) + (typical_output * 0.0000004)
                 cost_1k = cost_per_eval * 1000
-                self.stdout.write(f"   🟢 GPT-4.1 Nano: ~${cost_1k:.2f} (${cost_per_eval:.6f} per evaluation)")
+                suffix = "evaluation" if operation == 'quality_assessment' else "extraction"
+                self.stdout.write(f"   🟢 GPT-4.1 Nano: ~${cost_1k:.2f} (${cost_per_eval:.6f} per {suffix})")
             elif 'mini' in model_lower:
                 # GPT-4.1 Mini: $0.40/1M input, $1.60/1M output
                 cost_per_eval = (typical_input * 0.0000004) + (typical_output * 0.0000016)
                 cost_1k = cost_per_eval * 1000
-                self.stdout.write(f"   🟡 GPT-4.1 Mini: ~${cost_1k:.2f} (${cost_per_eval:.6f} per evaluation)")
+                suffix = "evaluation" if operation == 'quality_assessment' else "extraction"
+                self.stdout.write(f"   🟡 GPT-4.1 Mini: ~${cost_1k:.2f} (${cost_per_eval:.6f} per {suffix})")
             else:
                 # GPT-4.1 (full): $2.00/1M input, $8.00/1M output
                 cost_per_eval = (typical_input * 0.000002) + (typical_output * 0.000008)
@@ -224,6 +233,7 @@ class Command(BaseCommand):
             # GPT-4o-mini: $0.15/1M input, $0.075/1M output
             cost_per_eval = (typical_input * 0.00000015) + (typical_output * 0.000000075)
             cost_1k = cost_per_eval * 1000
-            self.stdout.write(f"   💚 GPT-4o-mini: ~${cost_1k:.2f} (${cost_per_eval:.6f} per evaluation)")
+            suffix = "evaluation" if operation == 'quality_assessment' else "extraction"
+            self.stdout.write(f"   💚 GPT-4o-mini: ~${cost_1k:.2f} (${cost_per_eval:.6f} per {suffix})")
         
-        self.stdout.write(f"   📊 Based on ~{typical_input:,} input + {typical_output:,} output tokens per evaluation") 
+        self.stdout.write(f"   📊 Based on ~{typical_input:,} input + {typical_output:,} output tokens per {suffix}") 

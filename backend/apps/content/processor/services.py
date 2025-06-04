@@ -246,22 +246,15 @@ class ContentProcessor:
     
     def _store_processing_results(self, article: Article, result: ProcessingResult, route: str, cost: float):
         """
-        Store processing results in the article model.
+        Store content processing results in article model.
         """
+        
+        from .models import serialize_content_blocks
         
         with transaction.atomic():
             # Store processed content
             article.clean_content = result.clean_content
-            article.content_blocks = [
-                {
-                    'type': block.type,
-                    'content': block.content,
-                    'level': block.level,
-                    'position': block.position,
-                    'metadata': block.metadata
-                }
-                for block in result.content_blocks
-            ]
+            article.content_blocks = serialize_content_blocks(result.content_blocks)  # Use unified serialization
             article.extracted_metadata = result.extracted_metadata
             article.content_quality_metrics = {
                 'overall_score': result.quality_score,

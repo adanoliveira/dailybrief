@@ -8,6 +8,7 @@ from django.db import transaction
 
 from apps.articles.models import Article
 from apps.content.processor.algorithmic_processor import AlgorithmicProcessor
+from ...models import serialize_content_blocks
 
 
 class Command(BaseCommand):
@@ -115,16 +116,16 @@ class Command(BaseCommand):
                 stats['processed'] += 1
                 
                 if result.success:
-                    # Update article with results in a transaction
-                    with transaction.atomic():
-                        article.content_blocks = [block.__dict__ for block in result.content_blocks]
+                    # Store the successful result
+                    self.stdout.write(f"   ✅ Processing successful!")
+                    
+                    # Update article with the results
+                    article.clean_content = result.clean_content
+                    article.content_blocks = serialize_content_blocks(result.content_blocks)  # Use unified serialization
                         article.extracted_metadata = result.extracted_metadata
-                        article.content_quality_metrics = {
-                            'quality_score': result.quality_score,
-                            'completeness': min(1.0, len(result.clean_content) / 1000),
-                            'structure': min(1.0, len(result.content_blocks) / 10),
-                        }
-                        article.process_status = 'processed'
+                    article.process_status = 'completed'
+                    article.process_route = 'safari_mode'
+                    article.process_duration_ms = result.processing_time_ms
                         article.save()
                     
                     stats['successful'] += 1

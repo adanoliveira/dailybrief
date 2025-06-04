@@ -1,0 +1,1954 @@
+You are an expert content extraction specialist with deep knowledge of web publishing, journalism, and HTML structure. Your task is to extract clean, structured content from web articles while preserving semantic meaning and proper formatting.
+
+EXTRACTION MINDSET:
+- Be COMPREHENSIVE: Extract every piece of main content (aim for 15-30+ blocks)
+- Be SYSTEMATIC: Process content sequentially from top to bottom
+- Be PRECISE: Use exact position numbers (0, 1, 2, 3, ...) with no gaps
+- Be CONSISTENT: Always use HTML formatting (<strong>, <em>) never markdown
+
+CORE PRINCIPLES:
+- Focus only on main article content (ignore navigation, ads, sidebars, comments)
+- Preserve content hierarchy and semantic relationships
+- Maintain original meaning and context
+- Extract comprehensive metadata for rich content elements
+- Ensure structured output for downstream processing
+- Never skip content elements - capture everything in the main article flow
+
+QUALITY STANDARDS:
+- Complete URL extraction (including file extensions)
+- Sequential position numbering with no gaps
+- Consistent HTML formatting throughout
+- Comprehensive metadata for all block types
+
+TASK: Extract ALL main article content sequentially and structure it into comprehensive semantic content blocks.
+
+CRITICAL REQUIREMENTS:
+- EXTRACT EVERY content element from the article (do not skip any paragraphs, headings, images, etc.)
+- ASSIGN sequential position numbers starting from 0 (0, 1, 2, 3, ...)
+- PROCESS content in reading order (top to bottom as it appears)
+- INCLUDE complete URLs without truncation
+
+SUPPORTED CONTENT TYPES: heading, paragraph, image, quote, list, twitter_embed, video_embed, editorial_note
+
+TARGET: 15-30+ content blocks for typical articles (ensure completeness)
+
+OUTPUT FORMAT: Return ONLY a JSON object with this exact structure:
+
+STEP-BY-STEP PROCESSING:
+1. Extract content blocks sequentially (position 0, 1, 2...)
+2. For each block with formatting: convert to HTML tags
+3. For each block with links: extract COMPLETE href values to metadata
+4. For images: extract COMPLETE src URLs (including file extensions)
+5. Validate: ensure all URLs are complete and not truncated
+
+FORMATTING RULES:
+- Bold: <strong>text</strong> (NOT **text**)
+- Italic: <em>text</em> (NOT *text*)  
+- Links: Extract href to metadata, keep plain text in content
+- NEVER truncate URLs - always include complete paths and file extensions
+
+{
+  "content_blocks": [
+    {
+      "type": "heading|paragraph|image|quote|list|twitter_embed|video_embed|editorial_note",
+      "content": "text with HTML formatting (NO markdown)",
+      "level": "number for headings (1-6), null for others",
+      "position": "sequential number starting from 0",
+      "metadata": {
+        // Type-specific metadata (see below)
+      }
+    }
+  ],
+  "author_information": {
+    "primary_author": {
+      "name": "Author full name",
+      "title": "Job title if visible",
+      "affiliation": "Publication name"
+    },
+    "byline_text": "Complete byline as it appears",
+    "source_confidence": "high|low"
+  },
+  "extraction_metadata": {
+    "total_blocks": "number",
+    "estimated_word_count": "number",
+    "has_headings": "boolean",
+    "has_paragraphs": "boolean", 
+    "has_images": "boolean",
+    "has_lists": "boolean",
+    "has_embeds": "boolean",
+    "has_videos": "boolean",
+    "has_editorial_notes": "boolean",
+    "has_formatted_text": "boolean",
+    "formatting_types": ["bold", "italic", "links"] // detected formatting types
+  },
+  "extraction_feedback": {
+    "unmapped_content": [
+      {
+        "content_type": "Type of content found but not mapped",
+        "description": "Brief description of the unmapped content",
+        "sample_text": "Short sample of the content (max 100 chars)",
+        "suggested_block_type": "Suggested new block type name",
+        "frequency": "How often this type appeared (rare|occasional|frequent)"
+      }
+    ],
+    "structural_observations": [
+      "Observations about page structure, layout patterns, or content organization"
+    ],
+    "extraction_challenges": [
+      "Specific challenges encountered during extraction (e.g., complex tables, unusual formatting)"
+    ],
+    "improvement_suggestions": [
+      "Suggestions for improving the extraction system or templates"
+    ],
+    "confidence_notes": "Overall confidence in extraction quality and any concerns",
+    "content_completeness": {
+      "is_complete": "boolean - true if content appears complete, false if truncated",
+      "truncation_indicators": [
+        "List of signs suggesting content truncation (e.g., 'paywall detected', 'abrupt ending', 'continue reading prompt')"
+      ],
+      "confidence": "high|medium|low - confidence in completeness assessment",
+      "estimated_completeness_percentage": "number 0-100 - rough estimate of content availability",
+      "assessment_notes": "Brief explanation of the completeness assessment"
+    }
+  }
+}
+
+CONTENT BLOCK TYPES WITH FORMATTING:
+
+1. HEADING (h1-h6):
+   - content: heading text with HTML formatting (REQUIRED)
+   - level: 1-6 (heading level) (REQUIRED)
+   - position: sequential number (REQUIRED - start from 0)
+   - metadata: {
+       "has_formatting": boolean,
+       "formatting_types": ["bold", "italic", "links"] // if applicable
+     }
+
+2. PARAGRAPH:
+   - content: paragraph text with HTML formatting (REQUIRED)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "has_formatting": boolean,
+       "formatting_types": ["bold", "italic", "links"], // detected formatting
+       "link_count": number, // number of links in paragraph
+       "external_links": [{"url": "url", "text": "link text", "domain": "domain"}] // external links only
+     }
+
+3. IMAGE:
+   - content: image caption/description with HTML formatting (can be empty)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "src": "image full URL (REQUIRED, NO TRUNCATION)",
+       "alt": "alt text",
+       "caption": "figure caption with HTML formatting",
+       "width": number,
+       "height": number,
+       "has_formatting": boolean
+     }
+
+4. VIDEO_EMBED (YouTube, Vimeo, etc.):
+   - content: video title/description with HTML formatting (if available)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "src": "embed URL (REQUIRED)",
+       "embed_type": "youtube|vimeo|other",
+       "video_id": "extracted video ID",
+       "thumbnail": "thumbnail URL if available",
+       "has_formatting": boolean
+     }
+
+5. QUOTE (blockquotes, pullquotes):
+   - content: quote text with HTML formatting (REQUIRED)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "cite": "attribution/source with HTML formatting",
+       "type": "blockquote|pullquote",
+       "has_formatting": boolean,
+       "attribution_formatted": boolean
+     }
+
+6. LIST (ul/ol):
+   - content: "" (empty)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "list_type": "ul|ol",
+       "items": ["item 1 with <strong>formatting</strong>", "item 2 with <em>formatting</em>"], // with HTML
+       "list_context": "what this list describes",
+       "has_formatting": boolean,
+       "formatted_items": boolean
+     }
+
+7. TWITTER_EMBED:
+   - content: tweet text with HTML formatting (if available)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "tweet_id": "tweet ID",
+       "embed_url": "twitter URL",
+       "has_formatting": boolean
+     }
+
+8. EDITORIAL_NOTE (updates, corrections, editor notes):
+   - content: editorial note text with HTML formatting (REQUIRED)
+   - position: sequential number (REQUIRED)
+   - metadata: {
+       "note_type": "update|correction|editor_note",
+       "timestamp": "timestamp if available",
+       "has_formatting": boolean
+     }
+
+HTML FORMATTING RULES:
+- **Bold text**: Use <strong>text</strong> for <strong> or <b> tags
+- *Italic text*: Use <em>text</em> for <em> or <i> tags  
+- **Links**: Store link information in metadata.external_links array, keep plain text in content
+- **Combined formatting**: Use <strong><em>text</em></strong> for nested bold+italic
+- **Code text**: Use <code>text</code> for <code> tags (if present)
+- Preserve line breaks with proper spacing
+- Maintain original paragraph structure
+
+FORMATTING PRESERVATION EXAMPLES:
+INPUT HTML: <p>This is <strong>bold</strong> and <em>italic</em> text with a <a href="https://example.com">link text</a>.</p>
+OUTPUT: "This is <strong>bold</strong> and <em>italic</em> text with link text."
+METADATA: external_links: [{"url": "https://example.com", "text": "link text", "domain": "example.com"}]
+
+INPUT HTML: <blockquote>The <em>future</em> is <strong>now</strong>, according to <a href="/expert">Dr. Smith</a>.</blockquote>
+OUTPUT: "The <em>future</em> is <strong>now</strong>, according to Dr. Smith."
+METADATA: external_links: [{"url": "/expert", "text": "Dr. Smith", "domain": "internal"}]
+
+CRITICAL REQUIREMENTS:
+- EVERY block MUST have a "position" field with sequential numbers (0, 1, 2, ...)
+- PRESERVE all inline formatting using HTML tags
+- Extract ALL main content, not just summaries
+- Include comprehensive metadata for rich content
+- Track formatting presence in metadata
+- Convert HTML formatting to consistent HTML tags
+- Do not include any explanation or commentary outside the JSON
+
+EXTRACTION GUIDELINES:
+
+INCLUDE:
+✓ Main article headlines and subheadings
+✓ All body paragraphs with full text and formatting
+✓ Article content inline images with captions and metadata
+✓ Article content blockquotes and pullquotes
+✓ Ordered and unordered lists with formatted items
+✓ Embedded tweets and social media
+✓ Embedded videos and audio
+✓ Figure captions and photo credits
+✓ All inline formatting (bold, italic, links, code)
+
+EXCLUDE:
+✗ Navigation menus and breadcrumbs
+✗ Advertisement content
+✗ Sidebar content and related, recommended, or similar articles
+✗ Comment sections
+✗ Footer information
+✗ Cookie notices and popups
+✗ Social sharing buttons
+✗ Sign up, newsletter, or other subscription calls to action
+✗ Author bio sections (unless part of article)
+
+CONTENT PRESERVATION WITH FORMATTING:
+- Maintain original text without summarization
+- PRESERVE ALL INLINE FORMATTING using HTML tags
+- Convert HTML formatting to consistent HTML tags
+- Preserve paragraph breaks and structure
+- Keep important formatting context and semantic meaning
+- Extract complete list items with their formatting
+- Include full quote text with attribution formatting
+- Maintain link relationships and preserve link text
+
+FORMATTING CONVERSION RULES:
+
+1. BOLD TEXT:
+   - Convert <strong>text</strong> → <strong>text</strong> (preserve)
+   - Convert <b>text</b> → <strong>text</strong> (normalize)
+   - Handle nested bold in quotes, headings, captions
+
+2. ITALIC TEXT:
+   - Convert <em>text</em> → <em>text</em> (preserve)
+   - Convert <i>text</i> → <em>text</em> (normalize)
+   - Handle nested italic in quotes, headings, captions
+
+3. LINKS:
+   - Extract link information to external_links metadata
+   - Store plain link text in content: <a href="url">text</a> → text
+   - CRITICAL: Always extract the full href attribute value from <a> tags
+   - Include link metadata: {"url": "complete_href_value", "text": "link_text", "domain": "domain_name"}
+   - Make relative URLs absolute when possible using article base URL
+   - Handle links within formatted text: <em><a href="url">text</a></em> → <em>text</em>
+
+4. COMBINED FORMATTING:
+   - <strong><em>text</em></strong> → <strong><em>text</em></strong>
+   - <em><strong>text</strong></em> → <strong><em>text</em></strong>
+   - Links within formatting: extract link to metadata, preserve surrounding formatting
+
+5. CODE TEXT (if present):
+   - Convert <code>text</code> → <code>text</code> (preserve)
+   - Handle inline code within paragraphs
+
+6. LINE BREAKS:
+   - Preserve meaningful paragraph breaks
+   - Convert <br> to appropriate spacing
+   - Maintain list structure and spacing
+
+FORMATTING IN DIFFERENT CONTENT TYPES:
+
+HEADINGS:
+- Preserve formatting in heading text: <h2>The <em>Future</em> of <strong>Technology</strong></h2>
+- Output: "The <em>Future</em> of <strong>Technology</strong>"
+- Track formatting in metadata: has_formatting: true
+
+PARAGRAPHS:
+- Convert all inline formatting to HTML
+- Extract link information to metadata
+- Count formatting elements for metadata
+- Example: "Scientists have made a <strong>breakthrough</strong> discovery that changes everything." (with link in metadata)
+
+QUOTES:
+- Preserve formatting in quote text and attribution
+- Handle formatted citations: "said Dr. Smith" (with link in metadata)
+- Maintain quote structure with embedded formatting
+
+LISTS:
+- Format each list item with HTML
+- Handle links and emphasis within list items
+- Example items: ["<strong>Important</strong> finding", "Read more details", "See <em>additional research</em>"]
+
+IMAGE CAPTIONS:
+- Preserve formatting in caption text
+- Handle photo credits with links and emphasis
+- Example: "Photo credit: <em>John Doe</em>" (with link in metadata)
+
+METADATA EXTRACTION:
+- Complete image URLs (make absolute if relative)
+- Accurate alt text and captions with formatting preserved
+- Proper list structure (ul vs ol) with formatted items
+- Twitter embed identification with formatted content
+- Link analysis: count, domains, internal vs external
+- Formatting tracking: types present, frequency, complexity
+
+LINK HANDLING SPECIFICS:
+- Extract ALL links within content
+- ALWAYS capture the complete href attribute value from <a> tags
+- Store link text without surrounding formatting in content
+- Store complete link information in external_links metadata with full URLs
+- Identify external links (different domain) for metadata
+- Handle relative links (make absolute when base URL available)
+- Track link density and types (internal, external, social media)
+- Special handling for social media links, references, citations
+- NEVER leave url field empty - if href is present, extract it completely
+
+FORMATTING QUALITY CHECKS:
+- Ensure consistent HTML syntax
+- Verify link URLs are complete and valid
+- Check for properly closed HTML tags
+- Validate nested formatting combinations
+- Maintain readability while preserving semantics
+
+HEADING HIERARCHY & SUBHEADINGS:
+- Identify and preserve the complete heading hierarchy (h1-h6)
+- H1: Usually the main article title - include if different from article metadata title
+- H2-H3: Primary subheadings that break up main content sections  
+- H4-H6: Secondary subheadings within sections
+- PRESERVE all formatting within headings using HTML
+- CONTEXT: Consider the semantic meaning - subheadings should relate to the content they introduce
+- SKIP: Navigation headings, sidebar headings, "Related Articles", "More Stories", etc.
+- PRESERVE: Original heading text exactly as written by the author WITH formatting
+
+AUTHOR INFORMATION EXTRACTION:
+- Extract author name from byline areas ("By [Name]", "Written by [Name]")
+- Include job title if visible (Staff Writer, Reporter, etc.)
+- Capture complete byline text as it appears WITH formatting
+- Note multiple authors if present
+- Skip generic bylines like "Staff Report" or organization names
+- Confidence: high for clear bylines, low for unclear/missing
+- Handle linked author names: "By John Smith" (with link in metadata)
+
+EXTRACTION FEEDBACK:
+- Report content types you encounter that don't fit current block types
+- Note unusual page structures or layout patterns
+- Identify extraction challenges (complex tables, interactive elements, etc.)
+- Suggest new block types for unmapped content
+- Provide improvement suggestions for better extraction
+- Give overall confidence assessment and concerns
+- Report formatting complexity and conversion challenges
+
+CONTENT COMPLETENESS ASSESSMENT:
+- Evaluate if the article content appears complete or truncated
+- TRUNCATION INDICATORS to look for:
+  • Paywall messages ("Subscribe to continue", "Sign in to read more")
+  • Abrupt content endings (sentences cut off mid-thought)
+  • "Continue reading" or "Read more" prompts
+  • Login/registration requirements embedded in content
+  • Subscription offers interrupting article flow
+  • Content that ends without natural conclusion
+  • Missing typical article elements (no conclusion, incomplete quotes)
+  • Teaser text followed by access restrictions
+- COMPLETENESS SIGNS to look for:
+  • Natural article conclusion or summary
+  • Complete quotes and paragraphs
+  • Full author bylines and publication info
+  • Typical article structure (intro, body, conclusion)
+  • No obvious content gaps or interruptions
+- Estimate completeness percentage based on content flow and structure
+- High confidence: clear indicators present, Medium: some signs but ambiguous, Low: difficult to assess
+
+QUALITY STANDARDS:
+- Minimum 85% content completeness
+- Accurate content block typing
+- Proper hierarchical structure
+- Complete metadata for rich content
+- Consistent HTML formatting conversion
+- Preserved semantic meaning and readability
+- Valid JSON structure
+
+EXTRACTION EXAMPLES:
+
+Example 1 - Basic Article Structure with Formatting:
+INPUT HTML:
+<article>
+  <h1>Breaking News: <em>Major</em> Discovery</h1>
+  <p>Scientists have made a <strong>groundbreaking</strong> discovery that could <a href="https://example.com/research">change everything</a>.</p>
+  <figure>
+    <img src="/images/discovery.jpg" alt="Laboratory equipment">
+    <figcaption>Scientists <em>working</em> in the lab. Photo by <a href="https://photographer.com/profile">John Doe</a></figcaption>
+  </figure>
+  <h2>Key Findings</h2>
+  <ul>
+    <li><strong>First</strong> major finding</li>
+    <li>Second <em>important</em> result with <a href="https://journal.com/details">more details</a></li>
+  </ul>
+  <blockquote>
+    "<em>This changes our understanding</em> <strong>completely</strong>," said <a href="https://university.edu/expert">Dr. Smith</a>.
+  </blockquote>
+</article>
+
+OUTPUT JSON:
+{
+  "content_blocks": [
+    {
+      "type": "heading",
+      "content": "Breaking News: <em>Major</em> Discovery",
+      "level": 1,
+      "position": 0,
+      "metadata": {
+        "has_formatting": true,
+        "formatting_types": ["italic"]
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Scientists have made a <strong>groundbreaking</strong> discovery that could change everything.",
+      "level": null,
+      "position": 1,
+      "metadata": {
+        "has_formatting": true,
+        "formatting_types": ["bold", "links"],
+        "link_count": 1,
+        "external_links": [{"url": "https://example.com/research", "text": "change everything", "domain": "example.com"}]
+      }
+    },
+    {
+      "type": "image",
+      "content": "Scientists <em>working</em> in the lab. Photo by John Doe",
+      "level": null,
+      "position": 2,
+      "metadata": {
+        "src": "/images/discovery.jpg",
+        "alt": "Laboratory equipment",
+        "caption": "Scientists <em>working</em> in the lab. Photo by John Doe",
+        "has_formatting": true,
+        "external_links": [{"url": "/photographer", "text": "John Doe", "domain": "internal"}]
+      }
+    },
+    {
+      "type": "heading",
+      "content": "Key Findings",
+      "level": 2,
+      "position": 3,
+      "metadata": {
+        "has_formatting": false,
+        "formatting_types": []
+      }
+    },
+    {
+      "type": "list",
+      "content": "",
+      "level": null,
+      "position": 4,
+      "metadata": {
+        "list_type": "ul",
+        "items": ["<strong>First</strong> major finding", "Second <em>important</em> result with more details"],
+        "has_formatting": true,
+        "formatted_items": true,
+        "external_links": [{"url": "/details", "text": "more details", "domain": "internal"}]
+      }
+    },
+    {
+      "type": "quote",
+      "content": ""<em>This changes our understanding</em> <strong>completely</strong>," said Dr. Smith.",
+      "level": null,
+      "position": 5,
+      "metadata": {
+        "has_formatting": true,
+        "attribution_formatted": true,
+        "external_links": [{"url": "/expert", "text": "Dr. Smith", "domain": "internal"}]
+      }
+    }
+  ],
+  "extraction_metadata": {
+    "total_blocks": 6,
+    "estimated_word_count": 55,
+    "has_headings": true,
+    "has_paragraphs": true,
+    "has_images": true,
+    "has_lists": true,
+    "has_embeds": false,
+    "has_formatted_text": true,
+    "formatting_types": ["bold", "italic", "links"]
+  }
+}
+
+Example 2 - Complex Formatting:
+INPUT HTML:
+<p>The <strong><em>revolutionary</em></strong> study found that <code>AI systems</code> can <a href="https://research.com"><strong>dramatically improve</strong></a> outcomes.</p>
+
+OUTPUT JSON:
+{
+  "content_blocks": [
+    {
+      "type": "paragraph",
+      "content": "The <strong><em>revolutionary</em></strong> study found that <code>AI systems</code> can dramatically improve outcomes.",
+      "level": null,
+      "position": 0,
+      "metadata": {
+        "has_formatting": true,
+        "formatting_types": ["bold", "italic", "links", "code"],
+        "link_count": 1,
+        "external_links": [{"url": "https://research.com", "text": "dramatically improve", "domain": "research.com"}]
+      }
+    }
+  ],
+  "extraction_metadata": {
+    "total_blocks": 1,
+    "estimated_word_count": 15,
+    "has_headings": false,
+    "has_paragraphs": true,
+    "has_images": false,
+    "has_lists": false,
+    "has_embeds": false,
+    "has_formatted_text": true,
+    "formatting_types": ["bold", "italic", "links", "code"]
+  }
+}
+
+Example 3 - Twitter Embed with Formatting:
+INPUT HTML:
+<blockquote class="twitter-tweet">
+  <p>Exciting news about our <strong>latest research</strong>! Read more: <a href="https://example.com">here</a> #science</p>
+  <a href="https://twitter.com/scientist/status/1234567890">@scientist</a>
+</blockquote>
+
+OUTPUT JSON:
+{
+  "content_blocks": [
+    {
+      "type": "twitter_embed",
+      "content": "Exciting news about our <strong>latest research</strong>! Read more: here #science",
+      "level": null,
+      "position": 0,
+      "metadata": {
+        "tweet_id": "1234567890",
+        "embed_url": "https://twitter.com/scientist/status/1234567890",
+        "has_formatting": true,
+        "external_links": [{"url": "https://example.com", "text": "here", "domain": "example.com"}]
+      }
+    }
+  ],
+  "extraction_metadata": {
+    "total_blocks": 1,
+    "estimated_word_count": 10,
+    "has_headings": false,
+    "has_paragraphs": false,
+    "has_images": false,
+    "has_lists": false,
+    "has_embeds": true,
+    "has_formatted_text": true,
+    "formatting_types": ["bold", "links"]
+  }
+}
+
+Follow these examples for structure, format consistency, and proper HTML conversion.
+
+LINK EXTRACTION PROTOCOL (CRITICAL):
+For EACH <a> tag found:
+1. Extract the COMPLETE href attribute value (never truncate)
+2. Extract the link text (content between <a> tags)  
+3. Determine domain from href (external vs internal)
+4. Store in external_links array as separate entries
+5. Replace link in content with plain text only
+
+LINK EXTRACTION EXAMPLES:
+<a href="https://example.com/article">read more</a> + <a href="https://other.com/page">details</a>
+→ content: "read more details"
+→ external_links: [
+    {"url": "https://example.com/article", "text": "read more", "domain": "example.com"},
+    {"url": "https://other.com/page", "text": "details", "domain": "other.com"}
+  ]
+
+IMAGE URL PROTOCOL (CRITICAL):
+- Extract COMPLETE src attribute including file extension (.jpg, .png, etc.)
+- NEVER truncate URLs - include full path and filename  
+- Example: "https://site.com/path/image-12345.jpg" (complete)
+- NOT: "https://site.com/path/image-123..." (truncated)
+
+FORMATTING VALIDATION:
+- Use <strong>bold</strong> NOT **bold**
+- Use <em>italic</em> NOT *italic*
+- Store links in metadata NOT [text](url)  
+- Include complete URLs with extensions
+
+Extract content from this preprocessed HTML:
+
+ARTICLE METADATA:
+Title: Switch 2 Startup And Menu Settings Appear Online As Early Player Shows Off Console In 'Code Red' Leak For Nintendo - Kotaku
+URL: https://kotaku.com/nintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656
+Source: Kotaku
+
+HTML CONTENT:
+<body>
+  <div id="trackers"></div>
+
+  <div class="js_toast-container"></div>
+
+  <div>
+    <div id="splashy-ad-container-top" class="sc-1jyyn8e-0 eOnqd">
+      <div>
+        <div class="ad-container dfp dfp-slot-SPLASHY_TOP ad-splashy-top placement-default GoogleActiveViewElement"></div>
+      </div>
+    </div>
+
+    <div class="sc-101yw2y-7 fgAtaA">
+      <div class="js_mobile-nav"></div>
+
+      <div class="sc-17y8tyw-0 dvfEOq js_topbar"></div>
+
+      <span>
+        <div class="js_header">
+          <div class="sc-dp60f1-12 hQHYSr js_scrollback-nav compact-nav">
+            <div class="sc-dp60f1-11 iLhJyF">
+              <div id="styled-global-nav" class="sc-3263uo-0 sc-dp60f1-7 cPqQOi cRubWU js_global-nav">
+                <div class="sc-3263uo-1 sc-dp60f1-6 fLAMyT hpxWWb layout-shift-tracker-ignore">
+                <div class="sc-3263uo-2 sc-dp60f1-5 jBJrHE kNsSjT">
+                <a href="//kotaku.com" title="Kotaku"></a>
+
+                <div class="sc-dp60f1-0 iPBjyJ">Gaming Reviews, News, Tips and More.</div>
+                </div>
+
+                <div class="sc-3263uo-2 sc-dp60f1-10 jBJrHE cjkAPl">
+                <a href="//kotaku.com" title="Kotaku"></a>
+                </div>
+
+                <nav>
+                <ul>
+                <li>
+                <a href="//kotaku.com/">
+                <span>Home</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="//kotaku.com/latest">
+                <span>Latest</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/entertainment">
+                <span>Entertainment</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/reviews">
+                <span>Reviews</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/culture/news">
+                <span>News</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/game-tips">
+                <span>Tips & Guides</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/games">
+                <span>Games</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="//kotaku.com/">
+                <span>
+                <span></span>
+
+                  Editions                </span>
+
+                <span></span>
+                </a>
+
+                <div class="sc-s18sc9-1 dTPXnV">
+                <span></span>
+
+                <ul>
+                <li>
+                <a href="//es.kotaku.com/">Español</a>
+                </li>
+
+                <li>
+                <a href="//de.kotaku.com/">Deutsch</a>
+                </li>
+
+                <li>
+                <a href="//fr.kotaku.com/">Français</a>
+                </li>
+                </ul>
+                </div>
+                </li>
+                </ul>
+                </nav>
+
+                <div class="sc-dp60f1-2 jDaplk">
+                <a href="/search">
+                <span></span>
+                </a>
+
+                <a href="/newsletter">
+                <span>
+                <span></span>
+                </span>
+                </a>
+
+                <div class="sc-dp60f1-9 koccaI js_user-button">
+                <div class="sc-1il3uru-2 ksaEXL">
+                <span>
+                <span></span>
+                </span>
+                </div>
+                </div>
+
+                <button>
+                <span></span>
+                </button>
+                </div>
+
+                <div class="sc-dp60f1-13 eaxzwt js_hamburger-menu-container">
+                <div class="sc-13ksbzk-0 sc-12e36gp-4 jxCdYQ hgnBmF">
+                <div class="sc-12e36gp-3 kQuawc">
+                <div class="sc-1w5tf6l-2 hOhTZf">
+                <div class="sc-1w5tf6l-1 jkouG js_nav-close-button">
+                <span></span>
+                </div>
+                </div>
+
+                <a href="/" title="Kotaku">
+                <div class="sc-2d8w30-0 brHsSd">
+                <div class="sc-2d8w30-1 bnnizt kotaku"></div>
+                </div>
+                </a>
+                </div>
+
+                <div class="sc-12e36gp-6 heONve">
+                <div class="sc-1a9gghc-1 iixBjF sc-12e36gp-0 ifbkKy js_hamburger-search-bar">
+                <label></label>
+
+                <div class="sc-1a9gghc-3 jXZnMU">
+                <input>
+                </div>
+                </div>
+
+                <div class="sc-1w5tf6l-0 sc-12e36gp-5 HAPMj fCMMKy js_hamburger-v2-search-button"></div>
+                </div>
+
+                <div class="sc-12e36gp-8 aEEsT">
+                <div class="sc-12e36gp-7 Zrzuh">
+                <div class="sc-12e36gp-1 lfTldE">Discover</div>
+
+                <ul>
+                <li>
+                <a href="//kotaku.com">
+                <span>Home</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="//kotaku.com/latest">
+                <span>Latest</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/entertainment">
+                <span>Entertainment</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/reviews">
+                <span>Reviews</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/culture/news">
+                <span>News</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/game-tips">
+                <span>Tips & Guides</span>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/games">
+                <span>Games</span>
+                </a>
+                </li>
+                </ul>
+
+                <div class="sc-12e36gp-1 lfTldE">Editions</div>
+
+                <div class="sc-28rdhj-1 luhfn">
+                <a href="//es.kotaku.com/">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Español</span>
+                </a>
+
+                <a href="//de.kotaku.com/">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Deutsch</span>
+                </a>
+
+                <a href="//fr.kotaku.com/">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Français</span>
+                </a>
+                </div>
+
+                <div class="sc-12e36gp-1 lfTldE">More</div>
+
+                <div class="js-hide_on_auth js_user-button">
+                <div class="sc-1il3uru-2 ksaEXL">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Log In / Sign Up</span>
+                </div>
+                </div>
+
+                <div class="sc-1e6db28-2 glVYqs">
+                <a href="mailto:tips@kotaku.com">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Send us a Tip!</span>
+                </a>
+
+                <a href="/newsletter">
+                <span>
+                <span></span>
+                </span>
+
+                <span>Subscribe</span>
+                </a>
+                </div>
+
+                <div class="sc-12e36gp-1 lfTldE">Extra</div>
+
+                <div class="sc-1vsngyl-0 blryYp">
+                <a href="/about">About</a>
+                </div>
+
+                <div class="sc-nq5mrb-0 cfvGca">
+                <a href="https://g-omedia.com">Advertising</a>
+
+                <a href="https://g-omedia.com/privacy-policy/">Privacy</a>
+
+                <a href="https://gomedia.applytojob.com/apply">Jobs</a>
+
+                <a href="https://g-omedia.com/terms-of-service/">Terms of Use</a>
+                </div>
+                </div>
+
+                <div class="sc-12e36gp-2 llBlTO">
+                <div class="sc-2d8w30-0 eHJrma">
+                <div class="sc-2d8w30-1 bnnizt gomedia"></div>
+                </div>
+
+                <div>Explore our other sites</div>
+                </div>
+
+                <div class="sc-11nm2hw-1 ggevbK">
+                <ul>
+                <li>
+                <a href="//kotaku.com">
+                <span>
+                <img alt="kotaku" data-src="https://i.kinja-img.com/image/upload/c_fill,h_80,q_80,w_80/18d63ac9623ac5e0687ac291f2633e59.png">
+                </span>
+                </a>
+                </li>
+
+                <li>
+                <a href="//theroot.com">
+                <span>
+                <img alt="theroot" data-src="https://i.kinja-img.com/image/upload/c_fill,h_80,q_80,w_80/f5zr3vuc90hrpnmx0nme.png">
+                </span>
+                </a>
+                </li>
+                </ul>
+                </div>
+
+                <div class="sc-171odxs-0 iFDYRI">
+                <div class="sc-mimimi-0 hmGSzK">
+                <ul>
+                <li>
+                <a href="https://facebook.com/kotaku">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span></span>
+                </div>
+                </button>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://twitter.com/kotaku">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span></span>
+                </div>
+                </button>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://instagram.com/kotakudotcom">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span></span>
+                </div>
+                </button>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://www.youtube.com/user/KotakuNYC">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span></span>
+                </div>
+                </button>
+                </a>
+                </li>
+
+                <li>
+                <a href="https://kotaku.com/rss">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span></span>
+                </div>
+                </button>
+                </a>
+                </li>
+                </ul>
+                </div>
+                </div>
+
+                <span>© 2025 G/O Media</span>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-dp60f1-3 dtaikk">We may earn a commission from links on this page</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sc-101yw2y-0 hRpGth initWrappers">
+          <span></span>
+
+          <div class="sc-101yw2y-1 jTpzRe js_curation-toolbar-container"></div>
+        </div>
+
+        <div class="curation-block">
+          <div class="sc-101yw2y-1 jTpzRe js_curation-editor-container"></div>
+        </div>
+      </span>
+
+      <div class="sc-1op1dd6-0 japmJB js_sticky-top-ad">
+        <div class="sc-1jotqfp-0 sc-1jotqfp-2 NpQLg dbAYht js_desktop-horizontal-ad">
+          <div class="ad-container dfp dfp-slot-TOP_BANNER ad-top-banner collapsed-ad placement-default"></div>
+
+          <div class="bt-wrapper">
+            <span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-157agsr-1 sc-157agsr-2 bDcOAo ivPAJA">
+        <div class="js_privacy_policy"></div>
+
+        <div class="sc-9tztzq-3 jaiIvZ">
+          <div class="sc-235a11-0 hkfFcV">
+            <a href="/culture/news">
+              <div class="sc-fek4t4-1 jlwWIu">News</div>
+            </a>
+          </div>
+
+          <header>
+            <h1>
+              Switch 2 Startup And Menu Settings Appear Online As Early Player Shows Off Console In 'Code Red' Leak For Nintendo
+            </h1>
+          </header>
+
+          <h2>There's new Nintendo music while setting up the Switch 2 but not after</h2>
+        </div>
+      </div>
+
+      <div class="sc-157agsr-0 kQaSNa">
+        <main class="sc-11qwj9y-1 dAHyXr">
+          <div class="sc-11qwj9y-0 iMtYxk">
+            <div class="js_starterpost">
+              <div class="sc-1fofo4n-1 giwIFv">
+                <div class="sc-1gm16hm-0 iAeyDr">
+                <a href="https://kotaku.com/tag/nintendo">nintendo</a>
+                </div>
+              </div>
+
+              <div class="sc-1fofo4n-0 dvJeFx">
+                <div class="sc-83o472-4 edgkDi">
+                <div class="sc-83o472-0 ehisvA">
+                <div class="sc-1jc3ukb-0 zHFdO">
+                <div class="sc-1jc3ukb-4 gSRUuI">
+                <span>By</span>
+
+                <div class="sc-1mep9y1-0 sc-1ixdk2y-0 iVflSZ voDAY">
+                <a href="/author/ethangach">Ethan Gach</a>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-83o472-10 YLYps">
+                <div class="sc-1jc3ukb-2 gpatta">
+                <time>
+                <span>Updated</span>
+
+                  Yesterday                </time>
+                </div>
+
+                <div class="sc-15g8630-0 fmAUzE"></div>
+
+                <div class="sc-83o472-11 LnLDT">
+                <div class="post-tools-wrapper">
+                <div class="sc-1vjnuu8-0 jyhgOT">
+                <div class="sc-12i6d45-0 gQWscq">
+                <div class="sc-12i6d45-1 gTvGbo"></div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-83o472-2 gGkhyB">
+                  We may earn a commission from links on this page
+                <<cyfunction comment at 0xffff9b86fb90>></<cyfunction comment at 0xffff9b86fb90>>
+
+                  .                </div>
+
+                <div class="sc-dl6a2x-0 lhDuGq share-tools-buttons-top share-tools-v2">
+                <div class="sc-17x7c2u-2 cxBtAS">
+                <a href="https://twitter.com/intent/tweet?via=kotaku&url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656%3Futm_medium%3Dsharefromsite%26utm_source%3Dkotaku_twitter&text=Switch%202%20Startup%20And%20Menu%20Settings%20Appear%20Online%20As%20Early%20Player%20Shows%20Off%20Console%20In%20%26%2339%3BCode%20Red%26%2339%3B%20Leak%20For%20Nintendo" title="Share to Twitter">
+                <span>
+                <span></span>
+                </span>
+                </a>
+
+                <a href="https://facebook.com/sharer.php?u=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656%3Futm_medium%3Dsharefromsite%26utm_source%3Dkotaku_facebook" title="Share to Facebook">
+                <span>
+                <span></span>
+                </span>
+                </a>
+
+                <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656%3Futm_medium%3Dsharefromsite%26utm_source%3Dkotaku_reddit&title=Switch%202%20Startup%20And%20Menu%20Settings%20Appear%20Online%20As%20Early%20Player%20Shows%20Off%20Console%20In%20%26%2339%3BCode%20Red%26%2339%3B%20Leak%20For%20Nintendo" title="Share to Reddit">
+                <span>
+                <span></span>
+                </span>
+                </a>
+
+                <a href="mailto:?subject=Switch%202%20Startup%20And%20Menu%20Settings%20Appear%20Online%20As%20Early%20Player%20Shows%20Off%20Console%20In%20%26%2339%3BCode%20Red%26%2339%3B%20Leak%20For%20Nintendo&body=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656%3Futm_medium%3Dsharefromsite%26utm_source%3Dkotaku_email" title="Share via Email">
+                <span>
+                <span></span>
+                </span>
+                </a>
+
+                <a href="https://kotaku.com/nintendo-switch-2-menu-settings-firmware-day-one-patch-1851782656" title="Share via Link">
+                <span>
+                <span></span>
+                </span>
+                </a>
+                </div>
+                </div>
+                </div>
+              </div>
+
+              <div class="js_expandable-container">
+                <div class="sc-1xy34fw-1 hrJShL">
+                <div class="sc-1xy34fw-0 rBsvk">
+                <div>
+                <div class="sc-xs32fe-0 fjQXVQ js_post-content">
+                <figure>
+                <div class="sc-1eow4w5-2 fDJNBs has-data img-wrapper">
+                <span>
+                <div class="sc-1m41dwj-0 jwxrZb magnifier js_lightbox lightbox hide">
+                <span></span>
+                </div>
+
+                <div class="sc-1eow4w5-3 hGpdBg">
+                <picture>
+                <source></source>
+
+                <source></source>
+
+                <img src="https://i.kinja-img.com/image/upload/c_fit,q_60,w_645/941d2836ccd680ea12124cb0b2afd1c0.jpg" alt="Someone holds up an early Switch 2. ">
+                </picture>
+                </div>
+                </span>
+
+                <div class="sc-1xgz690-0 hvSdOV image-meta">
+                <figcaption>
+                  Screenshot
+                <<cyfunction comment at 0xffff9b86fb90>></<cyfunction comment at 0xffff9b86fb90>>
+
+                  :
+                <<cyfunction comment at 0xffff9b86fb90>></<cyfunction comment at 0xffff9b86fb90>>
+
+                  Подкаст «Пóпы и культура» / YouTube / Switch 2                </figcaption>
+                </div>
+                </div>
+
+                <span></span>
+                </figure>
+
+                <div class="sc-r43lxo-1 cwnrYD">
+                <p>
+                <span>
+                <a href="https://kotaku.com/nintendo-switch-2-price-release-date-specs-1851773502">The Switch 2 is just days away</a>
+                </span>
+
+                  from its official June 5 launch, but already footage is beginning to spread online of people  going hands-on with Nintendo’s next console. One fan based in Russia recently uploaded a nearly 10-minute video that includes the Switch 2's startup sequence and a tour through its menu settings. “Respects to this man for sacrificing his life to unbox the console a week before launch,” reads the top comment on YouTube.                </p>
+
+                <div class="sc-zw09q1-0 kFrQuT js_suggested-stories">
+                <div class="sc-zw09q1-5 jgKdrQ">
+                <h4>Suggested Reading</h4>
+
+                <div class="sc-zw09q1-2 lhebUw">
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/gamestop-500-million-bitcoin-purchase-stores-close-1851782982">GameStop Doubles Down On Crypto With Massive Bitcoin Purchase As Stores Close</a>
+                </div>
+
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/peacemaker-dancing-musical-intro-new-season-2-dc-hbo-1851782964">Peacemaker Season 2 Will Feature A Whole New Dancing Intro</a>
+                </div>
+
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/nintendo-switch-2-app-update-screenshots-upload-qr-code-1851782946">The Nintendo Switch Phone App Just Got A Lot Better</a>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-egjw6t-1 jNxVjO"></div>
+
+                <div class="sc-1needdh-1 gRtQsx">
+                <div class="sc-1needdh-0 dccRTD instream-native-video instream-permalink instream-native-video--mobile">
+                <div class="sc-1h0epat-0 crfeiW">
+                <div class="sc-1wkneyl-4 kDKXjm video-html5-playlist">
+                <div class="sc-1wkneyl-0 hAZDOz video-html5-loaded">
+                <div class="sc-1wkneyl-1 jShsAa video-html5-player">
+                <div class="sc-lhhce6-0 ldLvgq video-html5 autoplay muted mobile">
+                <div class="sc-lhhce6-2 emBeiF video-top-bar">
+                <div class="sc-lhhce6-3 lpgZMc">Nintendo Switch 2 Could Launch With Almost No Reviews</div>
+                </div>
+
+                <video>
+
+                <div class="sc-lhhce6-1 jPisVC advertisement"></div>
+
+                <div class="sc-ag987e-0 lenjVo btn btn-play">
+                <div class="icon-wrapper play-icon"></div>
+                </div>
+
+                <div class="sc-lhhce6-4 JBDzI video-secondary-controls">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-3 ghtqRH video-controls">
+                <div class="sc-1yhvqfu-1 hthLfh progress">
+                <progress></progress>
+
+                <div class="sc-1yhvqfu-7 fdWqqj progress-circle"></div>
+                </div>
+
+                <div class="sc-1yhvqfu-2 elBHkL">
+                <div class="sc-1yhvqfu-4 dhpUyz">
+                <div class="sc-1yhvqfu-0 bMQYez play-pause ">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez fast-forward">
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez rewind">
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez mute-volume">
+                <div class="sc-1yhvqfu-0 bMQYez mute-unmute muted">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-1 hthLfh volume">
+                <progress></progress>
+                </div>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez duration"></div>
+                </div>
+
+                <div class="sc-1yhvqfu-5 ewSbLP">
+                <div class="sc-1yhvqfu-0 bMQYez closed-captions">
+                <button>CC</button>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez share">
+                  Share
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez fullscreen">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-1sfctwm-2 fXTnmP closed-captions-box hide">
+                <div class="sc-qxnql2-4 fAImHG">
+                <div class="sc-1sfctwm-3 ivgJYm">Subtitles</div>
+
+                <span>
+                <span></span>
+                </span>
+                </div>
+
+                <div class="sc-1sfctwm-1 jglhFk">
+                <div class="sc-1sfctwm-0 hbyQRD">
+                <ul>
+                <li>Off</li>
+
+                <li>English</li>
+                </ul>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1yhvqfu-6 kIPDMa js_video_share_tools">
+                <div class="sc-qxnql2-2 ibLXi share-tools hide">
+                <div class="sc-qxnql2-4 fAImHG">
+                <div class="sc-qxnql2-3 dfxqbr">Share this Video</div>
+
+                <span>
+                <span></span>
+                </span>
+                </div>
+
+                <div class="sc-qxnql2-1 yBSAy">
+                <div class="sc-qxnql2-0 fojPTk">
+                <div class="sc-qxnql2-5 hrlzjo">
+                <a href="https://facebook.com/sharer.php?u=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dfacebook" title="Share to Facebook">
+                <span>
+                <span></span>
+
+                  Facebook                </span>
+                </a>
+
+                <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dtwitter&text=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews" title="Share to Twitter">
+                <span>
+                <span></span>
+
+                  Twitter                </span>
+                </a>
+
+                <a href="mailto:?subject=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews&body=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Demail" title="Share via Email">
+                <span>
+                <span></span>
+
+                  Email                </span>
+                </a>
+                </div>
+
+                <div class="sc-qxnql2-7 bVTXmg"></div>
+
+                <div class="sc-qxnql2-6 duJiKm">
+                <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dreddit&title=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews" title="Share to Reddit">
+                <span>
+                <span></span>
+
+                  Reddit                </span>
+                </a>
+
+                <a href="https://kotaku.com/nintendo-switch-2-launch-no-reviews-1851780840" title="Share via Link">
+                <span>
+                <span></span>
+
+                  Link                </span>
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1wkneyl-2 bVFRGB video-html5-info">
+                <div>
+                <div class="sc-1ltrdwy-3 lnnvOh">
+                <div class="sc-1ltrdwy-5 cKwiUP"></div>
+
+                <a href="https://kotaku.com/nintendo-switch-2-launch-no-reviews-1851780840">view video</a>
+                </div>
+
+                <div class="sc-1ltrdwy-0 fSHIBC">
+                <a href="https://kotaku.com/nintendo-switch-2-launch-no-reviews-1851780840">
+                <span>Nintendo Switch 2 Could Launch With Almost No Reviews</span>
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1wkneyl-3 kBAftT video-html5-thumbs"></div>
+                </div>
+
+                <div class="sc-1h0epat-2 hnfufp js_close-sticky-mobile-video">
+                <span></span>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-zw09q1-0 gVhCiX js_suggested-stories">
+                <div class="sc-zw09q1-5 jgKdrQ">
+                <h4>Suggested Reading</h4>
+
+                <div class="sc-zw09q1-2 lhebUw">
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/gamestop-500-million-bitcoin-purchase-stores-close-1851782982">GameStop Doubles Down On Crypto With Massive Bitcoin Purchase As Stores Close</a>
+                </div>
+
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/peacemaker-dancing-musical-intro-new-season-2-dc-hbo-1851782964">Peacemaker Season 2 Will Feature A Whole New Dancing Intro</a>
+                </div>
+
+                <div class="sc-zw09q1-3 eFlqwH">
+                <a href="/gateway/nintendo-switch-2-app-update-screenshots-upload-qr-code-1851782946">The Nintendo Switch Phone App Just Got A Lot Better</a>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-egjw6t-1 cGdLwF">
+                <div class="sc-egjw6t-0 SPLGM related-stories-inset-video">
+                <div class="sc-1yqkh4a-4 ivWwwh js_inset-videoplayer">
+                <div class="sc-1yqkh4a-0 hAQgHT">
+                <div class="sc-1yqkh4a-3 ceCiqS">
+                <div class="sc-1wkneyl-4 kDKXjm video-html5-playlist">
+                <div class="sc-1wkneyl-0 hAZDOz video-html5-loaded">
+                <div class="sc-1wkneyl-1 jShsAa video-html5-player">
+                <div class="sc-lhhce6-0 ldLvgq video-html5 autoplay muted ">
+                <div class="sc-lhhce6-2 emBeiF video-top-bar">
+                <div class="sc-lhhce6-3 lpgZMc">Nintendo Switch 2 Could Launch With Almost No Reviews</div>
+                </div>
+
+                <video>
+
+                <div class="sc-lhhce6-1 jPisVC advertisement"></div>
+
+                <div class="sc-ag987e-0 lenjVo btn btn-play">
+                <div class="icon-wrapper play-icon"></div>
+                </div>
+
+                <div class="sc-lhhce6-4 JBDzI video-secondary-controls">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-3 ghtqRH video-controls">
+                <div class="sc-1yhvqfu-1 hthLfh progress">
+                <progress></progress>
+
+                <div class="sc-1yhvqfu-7 fdWqqj progress-circle"></div>
+                </div>
+
+                <div class="sc-1yhvqfu-2 elBHkL">
+                <div class="sc-1yhvqfu-4 dhpUyz">
+                <div class="sc-1yhvqfu-0 bMQYez play-pause ">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez fast-forward">
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez rewind">
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez mute-volume">
+                <div class="sc-1yhvqfu-0 bMQYez mute-unmute muted">
+                <span></span>
+
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-1 hthLfh volume">
+                <progress></progress>
+                </div>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez duration"></div>
+                </div>
+
+                <div class="sc-1yhvqfu-5 ewSbLP">
+                <div class="sc-1yhvqfu-0 bMQYez closed-captions">
+                <button>CC</button>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez share">
+                  Share
+                <span></span>
+                </div>
+
+                <div class="sc-1yhvqfu-0 bMQYez fullscreen">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-1sfctwm-2 fXTnmP closed-captions-box hide">
+                <div class="sc-qxnql2-4 fAImHG">
+                <div class="sc-1sfctwm-3 ivgJYm">Subtitles</div>
+
+                <span>
+                <span></span>
+                </span>
+                </div>
+
+                <div class="sc-1sfctwm-1 jglhFk">
+                <div class="sc-1sfctwm-0 hbyQRD">
+                <ul>
+                <li>Off</li>
+
+                <li>English</li>
+                </ul>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1yhvqfu-6 kIPDMa js_video_share_tools">
+                <div class="sc-qxnql2-2 ibLXi share-tools hide">
+                <div class="sc-qxnql2-4 fAImHG">
+                <div class="sc-qxnql2-3 dfxqbr">Share this Video</div>
+
+                <span>
+                <span></span>
+                </span>
+                </div>
+
+                <div class="sc-qxnql2-1 yBSAy">
+                <div class="sc-qxnql2-0 fojPTk">
+                <div class="sc-qxnql2-5 hrlzjo">
+                <a href="https://facebook.com/sharer.php?u=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dfacebook" title="Share to Facebook">
+                <span>
+                <span></span>
+
+                  Facebook                </span>
+                </a>
+
+                <a href="https://twitter.com/intent/tweet?url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dtwitter&text=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews" title="Share to Twitter">
+                <span>
+                <span></span>
+
+                  Twitter                </span>
+                </a>
+
+                <a href="mailto:?subject=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews&body=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Demail" title="Share via Email">
+                <span>
+                <span></span>
+
+                  Email                </span>
+                </a>
+                </div>
+
+                <div class="sc-qxnql2-7 bVTXmg"></div>
+
+                <div class="sc-qxnql2-6 duJiKm">
+                <a href="https://www.reddit.com/submit?url=https%3A%2F%2Fkotaku.com%2Fnintendo-switch-2-launch-no-reviews-1851780840%3Futm_medium%3Dsharefromsite%26utm_source%3Dreddit&title=Nintendo%20Switch%202%20Could%20Launch%20With%20Almost%20No%20Reviews" title="Share to Reddit">
+                <span>
+                <span></span>
+
+                  Reddit                </span>
+                </a>
+
+                <a href="https://kotaku.com/nintendo-switch-2-launch-no-reviews-1851780840" title="Share via Link">
+                <span>
+                <span></span>
+
+                  Link                </span>
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1wkneyl-2 bVFRGB video-html5-info">
+                <div>
+                <div class="sc-1ltrdwy-0 fSHIBC">
+                <a href="https://kotaku.com/nintendo-switch-2-launch-no-reviews-1851780840">
+                <span>Nintendo Switch 2 Could Launch With Almost No Reviews</span>
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <p>
+                  The early player in question runs a Telegram channel where he’s been answering questions about the new hardware. His video includes a demonstration of what sounds like some bespoke Nintendo menu music for the boot-up sequence, though it unfortunately goes away once hitting the main menu. Fans of the ambient
+                <span>
+                <a href="https://www.youtube.com/watch?v=5-E_0uhPzaE&pp=0gcJCdgAo7VqN5tD">Wii theme music</a>
+                </span>
+
+                  will have their hearts broken once again.                </p>
+
+                <div class="sc-ooo3c9-1 jYCSHx align--bleed has-video media-large video-embed embed-frame">
+                <span>
+                <div class="sc-ooo3c9-0 kirmji js_embed-loading-spinner">
+                <span>
+                <span></span>
+
+                <span></span>
+
+                <span></span>
+                </span>
+                </div>
+
+                <iframe data-src="https://kotaku.com/embed/inset/iframe?id=youtube-video-I1tqpstjJlA&start=0">
+
+                <span></span>
+                </span>
+                </div>
+
+                <p>
+                  The leaker did answer
+                <span>
+                <a href="https://www.reddit.com/r/NintendoSwitch2/comments/1kxf7xw/new_system_settings_screenshots_with_translation/">as many fan questions as he could</a>
+                </span>
+
+                  , and said a second video is on its way. Here’s what we’ve learned about the Switch 2 hardware in practice, according to him:                </p>
+
+                <ul>
+                <li>The only menu themes are black and white</li>
+
+                <li>He couldn’t find a toggle for variable refresh rate</li>
+
+                <li>HDR calibration does exist in handheld mode</li>
+
+                <li>The firmware version listed for the console is 19.0.0.0</li>
+
+                <li>The available storage is 221GB</li>
+
+                <li>Game Share and other features don’t work without the day-one update</li>
+                </ul>
+
+                <p>
+                  Like the Switch 2
+                <span>
+                <a href="https://kotaku.com/switch-2-unboxing-day-one-patch-nintendo-youtube-review-1851782563?rev=1748373858747">unboxed in a separate brief video</a>
+                </span>
+
+                  (since removed by Nintendo), this one appears to need a day-one patch to be fully capable. While early players have reported not being able to run Switch 1 games on the new hardware, it’s not clear yet if that means Switch 2 games won’t work right out of the box or not. Switch 1 games require a software layer for backwards compatibility, and
+                <span>
+                <a href="https://bsky.app/profile/laurakbuzz.bsky.social/post/3lqa54rytqs2t">it’s possible that Switch 2 cartridges might play just fine</a>
+                </span>
+
+                  even ahead of the launch date, though it’s not yet clear if anyone out in the wild has both a Switch 2 and a Switch 2 game in their possession and has been able to test that yet.                </p>
+
+                <div class="sc-17kx9cd-5 bHUtBb js_ad-mobile-dynamic js_ad-dynamic ad-mobile-dynamic">
+                <div class="sc-17kx9cd-1 sc-17kx9cd-2 bGgkuB cLmdPT"></div>
+
+                <div class="sc-17kx9cd-4 bNalPz ad-unit ad-mobile">
+                <div class="sc-17kx9cd-0 fjNuCW">Advertisement</div>
+
+                <div class="ad-container dfp dfp-slot-MOBILE_IN_POST ad-mobile placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-17kx9cd-1 sc-17kx9cd-3 bGgkuB kTRrxu"></div>
+                </div>
+
+                <div class="sc-1xxadal-0 eHpYYe js_related-stories-inset-mobile">
+                <div class="sc-1xxadal-6 jLqHKJ">
+                <h4>Related Content</h4>
+
+                <div class="sc-1xxadal-3 cpbrOh">
+                <span></span>
+
+                <div class="sc-1xxadal-4 CNSbO">
+                <a href="https://kotaku.com/switch-2-free-upgrade-pokemon-scarlet-violet-mario-1851781005">11 Nintendo Games Are Getting Free Upgrades To Look And Run Better On Switch 2</a>
+                </div>
+
+                <span></span>
+
+                <div class="sc-1xxadal-4 CNSbO">
+                <a href="https://kotaku.com/switch-2-my-nintendo-store-pre-order-delays-emails-1851777702">
+                  Nintendo Warns Some Switch 2 Pre-Order Invites Might Not Arrive Until After Launch
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-1xxadal-0 bKGfty js_related-stories-inset">
+                <div class="sc-1xxadal-6 jLqHKJ">
+                <h4>Related Content</h4>
+
+                <div class="sc-1xxadal-3 cpbrOh">
+                <span></span>
+
+                <div class="sc-1xxadal-4 CNSbO">
+                <a href="https://kotaku.com/switch-2-free-upgrade-pokemon-scarlet-violet-mario-1851781005">11 Nintendo Games Are Getting Free Upgrades To Look And Run Better On Switch 2</a>
+                </div>
+
+                <span></span>
+
+                <div class="sc-1xxadal-4 CNSbO">
+                <a href="https://kotaku.com/switch-2-my-nintendo-store-pre-order-delays-emails-1851777702">
+                  Nintendo Warns Some Switch 2 Pre-Order Invites Might Not Arrive Until After Launch
+                </a>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <p>
+                  Nintendo didn’t respond to a request for comment about
+                <span>
+                <a href="https://kotaku.com/switch-2-review-day-one-patch-delay-nintendo-mario-kart-1851780793?_gl=1*1c1xwi2*_ga*MTc0MjY2NTg1OS4xNzQwMzc1OTc4*_ga_V4QNJTT5L0*czE3NDg0NDAwMTEkbzEwNiRnMCR0MTc0ODQ0MDAxMyRqNTgkbDAkaDA.">what the reported day-one patch</a>
+                </span>
+
+                  will entail.                </p>
+
+                <div class="sc-17kx9cd-5 bHUtBb js_ad-mobile-dynamic js_ad-dynamic ad-mobile-dynamic">
+                <div class="sc-17kx9cd-1 sc-17kx9cd-2 bGgkuB cLmdPT"></div>
+
+                <div class="sc-17kx9cd-4 bNalPz ad-unit ad-mobile">
+                <div class="sc-17kx9cd-0 fjNuCW">Advertisement</div>
+
+                <div class="ad-container dfp dfp-slot-MOBILE_IN_POST ad-mobile placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-17kx9cd-1 sc-17kx9cd-3 bGgkuB kTRrxu"></div>
+                </div>
+
+                <div class="sc-ooo3c9-1 cDrTuO embed-frame">
+                <span>
+                <div class="sc-ooo3c9-0 kirmji js_embed-loading-spinner">
+                <span>
+                <span></span>
+
+                <span></span>
+
+                <span></span>
+                </span>
+                </div>
+
+                <iframe data-src="https://kotaku.com/embed/inset/iframe?id=twitter-1927670693413413175&autosize=1">
+                </span>
+                </div>
+
+                <div class="sc-17kx9cd-5 bHUtBb js_ad-mobile-dynamic js_ad-dynamic ad-mobile-dynamic">
+                <div class="sc-17kx9cd-1 sc-17kx9cd-2 bGgkuB cLmdPT"></div>
+
+                <div class="sc-17kx9cd-4 bNalPz ad-unit ad-mobile">
+                <div class="sc-17kx9cd-0 fjNuCW">Advertisement</div>
+
+                <div class="ad-container dfp dfp-slot-MOBILE_IN_POST ad-mobile placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-17kx9cd-1 sc-17kx9cd-3 bGgkuB kTRrxu"></div>
+                </div>
+
+                <p>
+                  A similar leak happened
+                <span>
+                <a href="https://www.businessinsider.com/nintendo-switch-console-stolen-release-date-2017-2">with the original Switch</a>
+                </span>
+
+                  when someone with early access began sharing images of the home screen and menu settings weeks ahead of release. At Nintendo it was “like code red to find out what happened,” former marketing manager Kit Ellis said
+                <span>
+                <a href="https://www.youtube.com/watch?v=pOiZGbpR4bY">on a recent podcast episode</a>
+                </span>
+
+                  (via
+                <span>
+                <a href="https://www.gamesradar.com/hardware/switch-2-leakers-beware-even-former-nintendo-marketing-leads-found-it-surprising-how-good-the-company-was-at-tracking-people-down-they-will-find-who-it-is/">
+                <em>Gamesradar</em>
+                </a>
+                </span>
+
+                  ). “It was actually really surprising for me to see that, like, ‘Oh! You actually can track this,’” he continued. “Like, again, these things get scanned and identified, and there are so many little identifiers that you might not even think of, like they will find who it is, but the fact that the leak has happened...” “It’s almost too late,” his co-host who worked alongside him at Nintendo said, finishing the thought.                </p>
+
+                <div class="sc-v7tysz-0 ilZXoP connatix-main-container">
+                <div id="connatix-mid-article-thumbnails"></div>
+                </div>
+
+                <p>
+                  The Switch 2 leaks should in many ways be less exciting to fans since the console is more of a straightforward upgrade to the existing hardware than a radical departure from the past, like the original Switch was from the Wii U. But the current console’s massive success has also propelled Switch 2 hype to new levels, with players combing through
+                <span>
+                <a href="https://kotaku.com/target-switch-2-consoles-cage-early-store-floor-walmart-1851782518">each new piece of footage and information</a>
+                </span>
+
+                  until they can try it for themselves. Watching someone else do that is the next best thing, and comes without having to worry about any consequences from Nintendo.                </p>
+
+                <div class="sc-17kx9cd-5 bHUtBb js_ad-mobile-dynamic js_ad-dynamic ad-mobile-dynamic">
+                <div class="sc-17kx9cd-1 sc-17kx9cd-2 bGgkuB cLmdPT"></div>
+
+                <div class="sc-17kx9cd-4 bNalPz ad-unit ad-mobile">
+                <div class="sc-17kx9cd-0 fjNuCW">Advertisement</div>
+
+                <div class="ad-container dfp dfp-slot-MOBILE_IN_POST ad-mobile placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-17kx9cd-1 sc-17kx9cd-3 bGgkuB kTRrxu"></div>
+                </div>
+
+                <p>
+                <strong>Update 5/28/2025 2:37 p.m. ET:</strong>
+
+                  The Switch 2 owner has now shared a full tour of the console setup sequence and system settings options.                </p>
+
+                <div class="sc-166b7vj-0 eEDRKr js_ymal-below-post"></div>
+
+                <div class="sc-7pt2sm-0 kGSzqB js_more-below-post"></div>
+
+                <div class="sc-bxm4mm-1 kayzfW">
+                <div class="ad-container dfp dfp-slot-IN_ARTICLE_NEWSLETTER_PROMO ad-in-article-newsletter-promo placement-defau..."></div>
+                </div>
+
+                <div class="sc-ooo3c9-1 jYCSHx align--bleed has-video media-large video-embed embed-frame">
+                <span>
+                <div class="sc-ooo3c9-0 kirmji js_embed-loading-spinner">
+                <span>
+                <span></span>
+
+                <span></span>
+
+                <span></span>
+                </span>
+                </div>
+
+                <iframe data-src="https://kotaku.com/embed/inset/iframe?id=youtube-video-Y49k7XwfE6k&start=0">
+
+                <span></span>
+                </span>
+                </div>
+
+                <p>.</p>
+                </div>
+                </div>
+
+                <div class="js_postbottom-waypoint-hook"></div>
+                </div>
+                </div>
+
+                <div class="sc-1xy34fw-2 hyozBz">
+                <button>
+                <div class="sc-j48i5d-1 kyiNRO">
+                <span>Continue reading</span>
+
+                <span></span>
+                </div>
+                </button>
+                </div>
+                </div>
+              </div>
+
+              <div class="js_post-truncation-waypoint-hook"></div>
+
+              <div class="js_liveblog-controls"></div>
+
+              <div class="js_qanda-controls"></div>
+
+              <div class="sc-166b7vj-0 eEDRKr js_ymal-below-post"></div>
+
+              <div class="sc-hrm52d-0 fJSfeA taboola-container">
+                <div id="taboola-below-article-thumbnails"></div>
+              </div>
+
+              <div class="sc-1bdg1q0-0 gWeaYM js_sticky-footer">
+                <div class="sc-xs5oto-0 iRIWiO js_ad-sticky-footer">
+                <div class="sc-xs5oto-1 bykbjH">
+                <div class="ad-container dfp dfp-slot-MOBILE_STICKY_BOTTOM ad-mobile-sticky-bottom placement-default"></div>
+                </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside>
+          <div class="sc-101yw2y-5 iTgzvi">
+            <div id="sidebar_wrapper" class="sc-ynugv2-3 dXmttL">
+              <div class="sc-ynugv2-4 ipOuFR sidebar-inner">
+                <div class="sc-1ez0oyg-0 kPuzMS js_sidebar_sticky_container">
+                <div class="sc-1ez0oyg-1 ldEjxQ sidebar-sticky">
+                <div class="sidebar-sticky-children">
+                <div class="sc-16d6l1x-0 cgapzV left-top-ad">
+                <div class="sc-ynugv2-1 iBPDQm">
+                <div class="ad-container dfp dfp-slot-LEFT_TOP ad-left-top placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+                </div>
+
+                <div class="sc-ynugv2-0 sc-16d6l1x-6 dSjZHJ eMLEKC">
+                <div class="sc-ynugv2-1 sc-16d6l1x-7 iBPDQm cBHeRX">
+                <div class="ad-container dfp dfp-slot-LEFT_RAIL ad-left-rail placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+
+                <div class="sc-ynugv2-1 sc-16d6l1x-7 iBPDQm cBHeRX">
+                <div class="ad-container dfp dfp-slot-LEFT_RAIL ad-left-rail placement-default"></div>
+
+                <div class="bt-wrapper">
+                <span></span>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+                </div>
+
+                <div class="js_newsletter-container"></div>
+              </div>
+
+              <div id="leftrail_dynamic_ad_wrapper" class="sc-16d6l1x-5 iSUxyw"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div>
+        <div class="sc-1f135w2-0 htHuYd js_reading-list"></div>
+      </div>
+
+      <div class="js_footer-container"></div>
+
+      <div class="js_lightbox-container"></div>
+    </div>
+  </div>
+
+  <div class="js_modal_exit_intent"></div>
+
+  <div class="js_modal"></div>
+</body>
+
+EXTRACTION PROCESS:
+1. Scan the entire HTML content from start to finish
+2. Identify ALL content elements (headings, paragraphs, images, quotes, lists, embeds)
+3. Extract each element in reading order with sequential positions (0, 1, 2, ...)
+4. Preserve all formatting using HTML tags (<strong>, <em>, <code>)
+5. Extract all URLs completely without truncation
+6. Return comprehensive JSON with all content blocks
+
+VALIDATION CHECKLIST:
+✓ All content elements extracted (none skipped)
+✓ Position numbers are sequential (0, 1, 2, 3, ...)
+✓ All URLs are complete with file extensions
+✓ HTML formatting preserved (not markdown)
+✓ All required metadata fields present
+
+Return the structured content blocks as JSON following the specified format and examples.

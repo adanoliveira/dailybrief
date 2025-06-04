@@ -14,39 +14,9 @@ from urllib.parse import urljoin, urlparse, parse_qs
 from difflib import SequenceMatcher
 import html
 
+from .models import ContentBlock, ProcessingResult
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ContentBlock:
-    """Structured content block."""
-    type: str  # heading, paragraph, image, video, quote, list
-    content: str
-    level: Optional[int] = None  # For headings (1-6)
-    position: int = 0
-    metadata: Dict[str, Any] = None
-    
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
-
-
-@dataclass
-class ProcessingResult:
-    """Result of algorithmic processing."""
-    success: bool
-    clean_content: str = ""
-    content_blocks: List[ContentBlock] = None
-    extracted_metadata: Dict[str, Any] = None
-    quality_score: float = 0.0
-    processing_time_ms: int = 0
-    error_message: str = ""
-    
-    def __post_init__(self):
-        if self.content_blocks is None:
-            self.content_blocks = []
-        if self.extracted_metadata is None:
-            self.extracted_metadata = {}
 
 
 @dataclass
@@ -1416,49 +1386,48 @@ class AlgorithmicProcessor:
     def _assess_quality(self, candidate: CandidateElement, clean_content: str, 
                        content_blocks: List[ContentBlock], metadata: Dict[str, Any]) -> float:
         """
-        Simplified quality assessment - delegates to QualityAssessmentService.
-        Only handles Safari-specific candidate scoring.
+        Assess content quality using simplified scoring.
+        Focuses on Safari-specific candidate scoring and basic content analysis.
         """
         
-        from .quality_assessment import QualityAssessmentService, ContentBlock as QAContentBlock
+        # Calculate basic quality metrics
+        word_count = len(clean_content.split()) if clean_content else 0
+        block_count = len(content_blocks)
         
-        # Convert content blocks to quality assessment format
-        qa_blocks = [
-            QAContentBlock(type=block.type, content=block.content, metadata=block.metadata)
-            for block in content_blocks
-        ]
+        # Content type diversity
+        content_types = set(block.type for block in content_blocks)
+        type_diversity = len(content_types)
         
-        # Use centralized quality assessment service
-        qa_service = QualityAssessmentService()
-        quality_metrics = qa_service.assess_content_quality(
-            clean_content=clean_content,
-            content_blocks=qa_blocks,
-            raw_html=getattr(self, '_current_raw_html', ''),
-            processing_route='algorithmic',
-            article_metadata=metadata
+        # Basic quality scoring
+        length_score = min(1.0, word_count / 500)  # 500+ words = good
+        structure_score = min(1.0, block_count / 10)  # 10+ blocks = good
+        diversity_score = min(1.0, type_diversity / 4)  # 4+ types = good
+        
+        # Weighted combination
+        basic_quality = (
+            length_score * 0.4 +
+            structure_score * 0.3 +
+            diversity_score * 0.3
         )
         
         # Store quality metrics in metadata for API response
         metadata['content_quality_metrics'] = {
-            'quality_score': quality_metrics.quality_score,
-            'content_case': quality_metrics.content_case,
-            'estimated_completeness': quality_metrics.estimated_completeness,
-            'paragraph_count': quality_metrics.paragraph_count,
-            'heading_count': quality_metrics.heading_count,
-            'missing_elements': quality_metrics.missing_elements,
-            'structure_score': quality_metrics.structure_score,
-            'readability_score': quality_metrics.readability_score,
-            'noise_removal_score': quality_metrics.noise_removal_score,
-            'paywall_indicators': quality_metrics.paywall_indicators,
-            'assessment_timestamp': quality_metrics.assessment_timestamp.isoformat(),
-            'score_breakdown': quality_metrics.score_breakdown,
+            'quality_score': basic_quality,
+            'word_count': word_count,
+            'block_count': block_count,
+            'content_types': list(content_types),
+            'type_diversity': type_diversity,
+            'length_score': length_score,
+            'structure_score': structure_score,
+            'diversity_score': diversity_score,
+            'evaluation_route': 'algorithmic_basic',
             # Safari-specific metrics
             'safari_score': candidate.final_score,
             'score_density': candidate.score_density,
             'safari_threshold_met': candidate.final_score >= self.MIN_SCORE_THRESHOLD
         }
         
-        return quality_metrics.quality_score
+        return basic_quality
 
     def _calculate_candidate_adjusted_height(self, element: Tag) -> float:
         """

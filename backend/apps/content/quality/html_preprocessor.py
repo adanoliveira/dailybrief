@@ -70,6 +70,7 @@ class HTMLPreprocessor:
         "iframe": ["src", "title", "data-src"],
         "video": ["src", "poster", "data-src"],
         "audio": ["src", "data-src"],
+        "a": ["href", "title"],  # Keep href for link extraction
         "blockquote": ["cite"],
         "article": ["id", "class"],
         "main": ["id", "class", "role"],
@@ -145,27 +146,31 @@ class HTMLPreprocessor:
     def _preprocess_with_lxml(self, raw_html: str, max_tokens: int, preserve_html_structure: bool) -> PreprocessedHTML:
         """Preprocess using lxml (preferred method) with robust error handling."""
         try:
+            # Step 0: Decode HTML entities early in the pipeline
+            from html import unescape
+            decoded_html = unescape(raw_html)
+            
             # Step 1: Parse and normalize - try multiple parsing approaches
             doc = None
             parsing_errors = []
             
-            # Try fromstring first (strict parsing)
+            # Try fromstring first (strict parsing) with decoded HTML
             try:
-                doc = lxml_html.fromstring(raw_html.encode('utf-8', 'replace'))
+                doc = lxml_html.fromstring(decoded_html.encode('utf-8', 'replace'))
             except Exception as e:
                 parsing_errors.append(f"fromstring: {e}")
                 
             # Fallback to document_fromstring (more lenient)
             if doc is None:
                 try:
-                    doc = lxml_html.document_fromstring(raw_html.encode('utf-8', 'replace'))
+                    doc = lxml_html.document_fromstring(decoded_html.encode('utf-8', 'replace'))
                 except Exception as e:
                     parsing_errors.append(f"document_fromstring: {e}")
             
-            # If lxml parsing completely fails, fall back to BeautifulSoup
+            # If lxml parsing completely fails, fall back to BeautifulSoup with decoded HTML
             if doc is None:
                 logger.warning(f"lxml parsing failed: {parsing_errors}. Falling back to BeautifulSoup.")
-                return self._preprocess_with_beautifulsoup(raw_html, max_tokens, preserve_html_structure)
+                return self._preprocess_with_beautifulsoup(decoded_html, max_tokens, preserve_html_structure)
             
             # Step 2: Remove boilerplate (safely)
             removed_elements = self._remove_boilerplate_lxml_safe(doc)
@@ -317,10 +322,15 @@ class HTMLPreprocessor:
                         for attr in allowed_attrs:
                             if attr in element.attrib:
                                 value = str(element.attrib[attr])
-                                # Truncate very long URLs but keep them readable
-                                if len(value) > 100:
+                                # Don't truncate critical URL attributes - they're needed for content extraction
+                                if attr in ["href", "src", "data-src", "poster"]:
+                                    attrs.append(f'{attr}="{value}"')
+                                # Truncate very long non-URL values but keep them readable
+                                elif len(value) > 100:
                                     value = value[:100] + "..."
-                                attrs.append(f'{attr}="{value}"')
+                                    attrs.append(f'{attr}="{value}"')
+                                else:
+                                    attrs.append(f'{attr}="{value}"')
                         if attrs:
                             attrs_str = " " + " ".join(attrs)
                 
@@ -510,7 +520,14 @@ class HTMLPreprocessor:
     
     def _preprocess_with_beautifulsoup(self, raw_html: str, max_tokens: int, preserve_html_structure: bool) -> PreprocessedHTML:
         """Fallback preprocessing using BeautifulSoup."""
-        soup = BeautifulSoup(raw_html, 'html.parser')
+        # Decode HTML entities if not already done
+        from html import unescape
+        if not hasattr(raw_html, '_entities_decoded'):
+            decoded_html = unescape(raw_html)
+        else:
+            decoded_html = raw_html
+            
+        soup = BeautifulSoup(decoded_html, 'html.parser')
         
         # Simple boilerplate removal
         removed_elements = []

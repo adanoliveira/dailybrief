@@ -17,6 +17,7 @@ class AIProviderUsage(models.Model):
         ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
+        ('content_extraction', 'Content Extraction'),
     )
     
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
@@ -67,6 +68,7 @@ class AIProviderConfig(models.Model):
         ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
+        ('content_extraction', 'Content Extraction'),
     )
     
     PROVIDER_CHOICES = (

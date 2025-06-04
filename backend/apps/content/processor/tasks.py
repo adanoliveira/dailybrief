@@ -13,6 +13,7 @@ from django.conf import settings
 
 from apps.articles.models import Article, ProcessingStatus
 from .services import ContentProcessor, ProcessingManager
+from .models import serialize_content_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +56,14 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
             # Store results in database
             with transaction.atomic():
                 article.clean_content = result.clean_content
-                article.content_blocks = [block.__dict__ for block in result.content_blocks]
+                article.content_blocks = serialize_content_blocks(result.content_blocks)
                 article.extracted_metadata = result.extracted_metadata
                 article.content_quality_metrics = {
                     'overall_score': result.quality_score,
                     'processing_time_ms': result.processing_time_ms
                 }
                 article.process_status = ProcessingStatus.COMPLETED
+                article.process_route = 'safari_mode'
                 article.process_duration_ms = result.processing_time_ms
                 article.save()
             
