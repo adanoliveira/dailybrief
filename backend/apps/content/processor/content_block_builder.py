@@ -32,7 +32,9 @@ class ContentBlockBuilder:
     
     # Valid content block types
     VALID_BLOCK_TYPES = {
-        "heading", "subtitle", "paragraph", "image", "img", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"
+        "heading", "subtitle", "paragraph", "image", "img", "figure", "quote", "list", 
+        "twitter_embed", "video_embed", "editorial_note", "iframe", "embed",
+        "table", "code", "divider", "raw_html"
     }
     
     # Valid list types
@@ -255,6 +257,18 @@ class ContentBlockBuilder:
             return self._extract_quote_metadata(raw_metadata, position)
         elif block_type == "editorial_note":
             return self._extract_editorial_metadata(raw_metadata, position)
+        elif block_type == "iframe":
+            return self._extract_iframe_metadata(raw_metadata, position)
+        elif block_type == "embed":
+            return self._extract_embed_metadata(raw_metadata, position)
+        elif block_type == "table":
+            return self._extract_table_metadata(raw_metadata, position)
+        elif block_type == "code":
+            return self._extract_code_metadata(raw_metadata, position)
+        elif block_type == "divider":
+            return self._extract_divider_metadata(raw_metadata, position)
+        elif block_type == "raw_html":
+            return self._extract_raw_html_metadata(raw_metadata, position)
         else:
             # For headings and other types, return cleaned metadata
             return self._clean_generic_metadata(raw_metadata)
@@ -553,6 +567,231 @@ class ContentBlockBuilder:
         timestamp = metadata.get("timestamp", "")
         if isinstance(timestamp, str) and timestamp.strip():
             cleaned_metadata["timestamp"] = timestamp.strip()
+        
+        return cleaned_metadata
+    
+    def _extract_iframe_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate iframe metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated iframe metadata
+        """
+        cleaned_metadata = {}
+        
+        # Required: src
+        src = metadata.get("src", "")
+        if not isinstance(src, str) or not src.strip():
+            self.validation_errors.append(f"Block {position}: Iframe missing src")
+            src = ""
+        else:
+            # Validate and clean URL
+            src = self._clean_url(src.strip())
+            if not src:
+                self.validation_errors.append(f"Block {position}: Iframe src is not a valid URL")
+        
+        cleaned_metadata["src"] = src
+        
+        # Optional: width and height
+        for dimension in ["width", "height"]:
+            value = metadata.get(dimension)
+            if value is not None:
+                try:
+                    cleaned_metadata[dimension] = int(value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Block {position}: Invalid iframe {dimension}: {value}")
+        
+        # Optional: embed_type
+        embed_type = metadata.get("embed_type", "")
+        if isinstance(embed_type, str) and embed_type.strip():
+            embed_type = embed_type.strip().lower()
+            if embed_type in ["map", "widget", "interactive", "other"]:
+                cleaned_metadata["embed_type"] = embed_type
+            else:
+                cleaned_metadata["embed_type"] = "other"
+        
+        return cleaned_metadata
+    
+    def _extract_embed_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate generic embed metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated embed metadata
+        """
+        cleaned_metadata = {}
+        
+        # Optional: src or embed_code (at least one should be present)
+        src = metadata.get("src", "")
+        if isinstance(src, str) and src.strip():
+            src = self._clean_url(src.strip())
+            if src:
+                cleaned_metadata["src"] = src
+        
+        embed_code = metadata.get("embed_code", "")
+        if isinstance(embed_code, str) and embed_code.strip():
+            cleaned_metadata["embed_code"] = embed_code.strip()
+        
+        # Optional: embed_type
+        embed_type = metadata.get("embed_type", "")
+        if isinstance(embed_type, str) and embed_type.strip():
+            embed_type = embed_type.strip().lower()
+            if embed_type in ["interactive", "widget", "other"]:
+                cleaned_metadata["embed_type"] = embed_type
+            else:
+                cleaned_metadata["embed_type"] = "other"
+        
+        return cleaned_metadata
+    
+    def _extract_table_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate table metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated table metadata
+        """
+        from html import unescape
+        
+        cleaned_metadata = {}
+        
+        # Optional: rows (table data)
+        rows = metadata.get("rows", [])
+        if isinstance(rows, list):
+            cleaned_rows = []
+            for i, row in enumerate(rows):
+                if isinstance(row, list):
+                    cleaned_row = []
+                    for j, cell in enumerate(row):
+                        if isinstance(cell, str):
+                            cleaned_cell = unescape(cell.strip())
+                            cleaned_row.append(cleaned_cell)
+                        else:
+                            cleaned_row.append(str(cell) if cell is not None else "")
+                    cleaned_rows.append(cleaned_row)
+                else:
+                    logger.warning(f"Block {position}: Table row {i} is not a list")
+            
+            if cleaned_rows:
+                cleaned_metadata["rows"] = cleaned_rows
+        
+        # Optional: headers
+        headers = metadata.get("headers", [])
+        if isinstance(headers, list):
+            cleaned_headers = []
+            for header in headers:
+                if isinstance(header, str):
+                    cleaned_header = unescape(header.strip())
+                    if cleaned_header:
+                        cleaned_headers.append(cleaned_header)
+            
+            if cleaned_headers:
+                cleaned_metadata["headers"] = cleaned_headers
+        
+        # Optional: caption
+        caption = metadata.get("caption", "")
+        if isinstance(caption, str) and caption.strip():
+            cleaned_metadata["caption"] = unescape(caption.strip())
+        
+        return cleaned_metadata
+    
+    def _extract_code_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate code block metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated code metadata
+        """
+        cleaned_metadata = {}
+        
+        # Optional: language
+        language = metadata.get("language", "")
+        if isinstance(language, str) and language.strip():
+            language = language.strip().lower()
+            # Common programming languages
+            valid_languages = {
+                "javascript", "js", "python", "py", "html", "css", "java", "c", "cpp", 
+                "csharp", "c#", "php", "ruby", "go", "rust", "swift", "kotlin", 
+                "typescript", "ts", "sql", "shell", "bash", "json", "xml", "yaml", "other"
+            }
+            if language in valid_languages:
+                cleaned_metadata["language"] = language
+            else:
+                cleaned_metadata["language"] = "other"
+        
+        # Optional: syntax_highlight
+        syntax_highlight = metadata.get("syntax_highlight")
+        if isinstance(syntax_highlight, bool):
+            cleaned_metadata["syntax_highlight"] = syntax_highlight
+        
+        return cleaned_metadata
+    
+    
+    def _extract_divider_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate divider metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated divider metadata
+        """
+        cleaned_metadata = {}
+        
+        # Optional: divider_type
+        divider_type = metadata.get("divider_type", "")
+        if isinstance(divider_type, str) and divider_type.strip():
+            divider_type = divider_type.strip().lower()
+            if divider_type in ["horizontal_rule", "section_break", "visual_separator"]:
+                cleaned_metadata["divider_type"] = divider_type
+            else:
+                cleaned_metadata["divider_type"] = "visual_separator"
+        
+        return cleaned_metadata
+    
+    def _extract_raw_html_metadata(self, metadata: dict, position: int) -> Dict[str, Any]:
+        """
+        Extract and validate raw HTML metadata.
+        
+        Args:
+            metadata: Raw metadata dictionary
+            position: Position for error reporting
+            
+        Returns:
+            Validated raw HTML metadata
+        """
+        cleaned_metadata = {}
+        
+        # Optional: html_type
+        html_type = metadata.get("html_type", "")
+        if isinstance(html_type, str) and html_type.strip():
+            html_type = html_type.strip().lower()
+            if html_type in ["complex_structure", "special_formatting", "other"]:
+                cleaned_metadata["html_type"] = html_type
+            else:
+                cleaned_metadata["html_type"] = "other"
+        
+        # Optional: sanitized flag
+        sanitized = metadata.get("sanitized")
+        if isinstance(sanitized, bool):
+            cleaned_metadata["sanitized"] = sanitized
         
         return cleaned_metadata
     

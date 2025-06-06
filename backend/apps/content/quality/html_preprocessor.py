@@ -310,7 +310,7 @@ class HTMLPreprocessor:
                     removed_elements.append(f"small_images({small_images_removed})")
             except Exception as e:
                 logger.debug(f"Failed to remove small images: {e}")
-                
+        
         except Exception as e:
             logger.debug(f"Boilerplate removal failed: {e}")
         
@@ -458,7 +458,7 @@ class HTMLPreprocessor:
                                 # Don't truncate alt text and title - they're crucial for accessibility and content understanding
                                 elif attr in ["alt", "title"]:
                                     attrs.append(f'{attr}="{value}"')
-                                # Truncate very long non-critical values but keep them readable
+                                                                # Truncate very long non-critical values but keep them readable
                                 elif len(value) > 200:
                                     value = value[:200] + "..."
                                     attrs.append(f'{attr}="{value}"')

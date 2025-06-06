@@ -123,17 +123,12 @@ class AIContentProcessor:
             )
             
             # 3. Call AI service following quality evaluation patterns
-            # Calculate dynamic token limit based on content complexity
-            estimated_blocks = min(max(len(preprocessed_data["html_sample"]) // 1000, 10), 100)
-            # Base tokens (1000) + tokens per estimated block (150) + buffer (500)
-            dynamic_max_tokens = min(1000 + (estimated_blocks * 150) + 500, 16000)
-            
-            logger.info(f"Using dynamic max_tokens: {dynamic_max_tokens} (estimated {estimated_blocks} blocks)")
-            
+            # Use generous token limit to avoid truncation - let the AI complete the response
+            # Large articles can require 20k-30k+ output tokens for complete JSON responses
             llm_response = self.ai_service.call_llm(
                 prompt=prompt,
                 operation="content_extraction",
-                max_tokens=dynamic_max_tokens,  # Dynamic based on content complexity
+                max_tokens=None,  # Use high default (30k) for content extraction to avoid truncation
                 temperature=0.1,  # Low temperature for consistent extraction
                 model_override=model_override,
                 response_format="json"
@@ -474,34 +469,61 @@ class AIContentProcessor:
             logger.error("'content_blocks' is not a list")
             return False
         
-        # Validate each block structure
-        valid_types = {"heading", "subtitle", "paragraph", "image", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"}
+        # Validate and filter blocks structure with graceful error handling
+        valid_types = {
+            "heading", "subtitle", "paragraph", "image", "figure", "quote", "list", 
+            "twitter_embed", "video_embed", "editorial_note", "iframe", "embed",
+            "table", "code", "divider", "raw_html"
+        }
+        
+        valid_blocks = []
+        invalid_blocks = []
         
         for i, block in enumerate(blocks):
             if not isinstance(block, dict):
-                logger.error(f"Block {i} is not a dictionary")
-                return False
+                logger.warning(f"Block {i} is not a dictionary, skipping")
+                invalid_blocks.append(f"Block {i}: not a dictionary")
+                continue
             
             # Required fields
             if "type" not in block:
-                logger.error(f"Block {i} missing 'type' field")
-                return False
+                logger.warning(f"Block {i} missing 'type' field, skipping")
+                invalid_blocks.append(f"Block {i}: missing 'type' field")
+                continue
             
             if "position" not in block:
-                logger.error(f"Block {i} missing 'position' field")
-                return False
+                logger.warning(f"Block {i} missing 'position' field, skipping")
+                invalid_blocks.append(f"Block {i}: missing 'position' field")
+                continue
             
-            # Valid content block type
+            # Handle unknown content block types gracefully
             if block["type"] not in valid_types:
-                logger.error(f"Block {i} has invalid type: {block['type']}")
-                return False
+                logger.warning(f"Block {i} has unknown type: {block['type']}, skipping")
+                invalid_blocks.append(f"Block {i}: unknown type '{block['type']}'")
+                continue
             
             # Type-specific validation
             if not self._validate_content_block_type(block):
-                logger.error(f"Block {i} failed type-specific validation")
-                return False
+                logger.warning(f"Block {i} failed type-specific validation, skipping")
+                invalid_blocks.append(f"Block {i}: failed type-specific validation")
+                continue
+            
+            # Block is valid, add to valid list
+            valid_blocks.append(block)
         
-        return True
+        # Update response data with only valid blocks
+        response_data["content_blocks"] = valid_blocks
+        
+        # Log summary of validation results
+        if invalid_blocks:
+            logger.warning(f"Filtered out {len(invalid_blocks)} invalid blocks: {invalid_blocks}")
+        
+        if valid_blocks:
+            logger.info(f"Successfully validated {len(valid_blocks)} content blocks")
+            return True
+        else:
+            logger.error("No valid content blocks found after validation")
+            return False
     
     def _validate_content_block_type(self, block: Dict[str, Any]) -> bool:
         """
@@ -594,7 +616,53 @@ class AIContentProcessor:
                 len(block.get("content", "")) > 0
             )
         
-        return True  # Unknown types pass for now
+        elif block_type == "iframe":
+            # Iframes should have metadata with src
+            metadata = block.get("metadata", {})
+            return (
+                isinstance(metadata, dict) and
+                "src" in metadata and
+                isinstance(metadata["src"], str) and
+                len(metadata["src"]) > 0
+            )
+        
+        elif block_type == "embed":
+            # Generic embeds should have metadata with src or embed_code
+            metadata = block.get("metadata", {})
+            return (
+                isinstance(metadata, dict) and
+                ("src" in metadata or "embed_code" in metadata)
+            )
+        
+        elif block_type == "table":
+            # Tables should have metadata with rows or content
+            metadata = block.get("metadata", {})
+            return (
+                isinstance(metadata, dict) and
+                ("rows" in metadata or block.get("content"))
+            )
+        
+        elif block_type == "code":
+            # Code blocks should have content
+            return (
+                isinstance(block.get("content"), str) and
+                len(block.get("content", "")) > 0
+            )
+        
+
+        
+        elif block_type == "divider":
+            # Dividers don't need specific validation
+            return True
+        
+        elif block_type == "raw_html":
+            # Raw HTML should have content
+            return (
+                isinstance(block.get("content"), str) and
+                len(block.get("content", "")) > 0
+            )
+        
+        return True  # Allow unknown types to pass validation for forward compatibility
     
     def _blocks_to_text(self, content_blocks: List[ContentBlock]) -> str:
         """

@@ -126,7 +126,7 @@ class AIProviderService:
         self,
         prompt: str,
         operation: str,
-        max_tokens: int = 1000,
+        max_tokens: Optional[int] = None,
         temperature: float = 0.3,
         model_override: Optional[str] = None,
         response_format: Optional[str] = None
@@ -186,7 +186,7 @@ class AIProviderService:
         self,
         prompt: str,
         model: str,
-        max_tokens: int,
+        max_tokens: Optional[int],
         temperature: float,
         operation: str,
         start_time: float
@@ -208,14 +208,32 @@ class AIProviderService:
             )
         
         try:
-            response = self._openai_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
+            # Handle max_tokens=None by using high defaults for content extraction
+            # or letting OpenAI use model defaults for other operations
+            api_params = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature
+            }
+            
+            if max_tokens is not None:
+                api_params["max_tokens"] = max_tokens
+            elif operation == "content_extraction":
+                # For content extraction, use a high token limit based on model capabilities
+                # Large articles can have 100+ blocks requiring 20k-30k+ output tokens
+                model_lower = model.lower()
+                if "gpt-4.1" in model_lower:
+                    # GPT-4.1 can handle up to 32,768 output tokens
+                    api_params["max_tokens"] = 30000
+                elif "gpt-4o" in model_lower or "gpt-4" in model_lower:
+                    # GPT-4o and GPT-4 can handle 4k-8k output tokens safely
+                    api_params["max_tokens"] = 8000
+                else:
+                    # Conservative default for other models
+                    api_params["max_tokens"] = 4000
+            # For other operations, let OpenAI use model defaults (no max_tokens param)
+            
+            response = self._openai_client.chat.completions.create(**api_params)
             
             response_time = time.time() - start_time
             content = response.choices[0].message.content or ""
@@ -264,7 +282,7 @@ class AIProviderService:
                 usage=usage,
                 response_time=response_time,
                 success=True,
-                request_data={"prompt_length": len(prompt), "max_tokens": max_tokens, "temperature": temperature},
+                request_data={"prompt_length": len(prompt), "max_tokens": max_tokens or "auto", "temperature": temperature},
                 response_data={"content_length": len(content)}
             )
             
@@ -291,7 +309,7 @@ class AIProviderService:
                 response_time=response_time,
                 success=False,
                 error_message=error_message,
-                request_data={"prompt_length": len(prompt), "max_tokens": max_tokens, "temperature": temperature}
+                request_data={"prompt_length": len(prompt), "max_tokens": max_tokens or "auto", "temperature": temperature}
             )
             
             logger.error(f"OpenAI API call failed: {error_message}")
@@ -310,7 +328,7 @@ class AIProviderService:
         self,
         prompt: str,
         model: str,
-        max_tokens: int,
+        max_tokens: Optional[int],
         temperature: float,
         operation: str,
         start_time: float

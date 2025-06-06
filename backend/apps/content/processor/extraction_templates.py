@@ -416,6 +416,42 @@ Each content type follows this consistent pattern:
 🎯 FORMAT: content="<strong>Update 1/27/25:</strong> Additional information..."
 🚫 EXCLUDE: Bylines, publication info, copyright notices
 📝 METADATA: {"note_type": "update|correction|editor_note", "timestamp": "text"}
+
+### 🖼️ IFRAME
+✅ INCLUDE: Generic iframe embeds that don't fit other categories (maps, interactive content, widgets)
+🎯 FORMAT: content="Description of iframe content"
+🚫 EXCLUDE: Video embeds (use video_embed), social media embeds (use twitter_embed)
+📝 METADATA: {"src": "iframe_url", "width": "number", "height": "number", "embed_type": "map|widget|interactive"}
+
+### 🔗 EMBED
+✅ INCLUDE: Generic embeds and interactive content not covered by specific types
+🎯 FORMAT: content="Description of embedded content"
+🚫 EXCLUDE: Well-defined embed types (use video_embed, twitter_embed, iframe)
+📝 METADATA: {"src": "embed_url", "embed_code": "html", "embed_type": "interactive|widget|other"}
+
+### 📊 TABLE
+✅ INCLUDE: Data tables with structured information relevant to the article
+🎯 FORMAT: content="Table caption or description", with rows in metadata
+🚫 EXCLUDE: Layout tables, navigation elements
+📝 METADATA: {"rows": [["cell1", "cell2"], ["cell1", "cell2"]], "headers": ["Header1", "Header2"], "caption": "text"}
+
+### 💻 CODE
+✅ INCLUDE: Code blocks, terminal commands, configuration snippets
+🎯 FORMAT: content="code content", preserve formatting
+🚫 EXCLUDE: Inline code elements (use <code> in content instead)
+📝 METADATA: {"language": "javascript|python|html|css|other", "syntax_highlight": boolean}
+
+### ➖ DIVIDER
+✅ INCLUDE: Visual section breaks, horizontal rules, content separators
+🎯 FORMAT: content="" (usually empty), represents visual break
+🚫 EXCLUDE: Decorative elements, navigation separators
+📝 METADATA: {"divider_type": "horizontal_rule|section_break|visual_separator"}
+
+### 🔧 RAW_HTML
+✅ INCLUDE: Complex HTML structures that don't fit other categories
+🎯 FORMAT: content="raw HTML content", preserve structure
+🚫 EXCLUDE: Simple content that fits other types, dangerous scripts
+📝 METADATA: {"html_type": "complex_structure|special_formatting", "sanitized": boolean}
 <<<END CONTENT TYPES>>>"""
     
     def _get_recommended_content_exclusions(self) -> str:
