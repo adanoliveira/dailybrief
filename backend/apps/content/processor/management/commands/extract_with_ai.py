@@ -127,6 +127,7 @@ class Command(BaseCommand):
             ai_result = ai_processor.process_content(
                 raw_html=article.raw_html,
                 article_metadata=article_metadata,
+                base_url=article.url,
                 model_override=options['model'],
                 use_html_preprocessing=not options['no_preprocessing'],
                 capture_raw_response=options['show_raw_response'] or options['save_result']

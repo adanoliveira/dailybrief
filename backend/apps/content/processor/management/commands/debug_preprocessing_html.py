@@ -174,7 +174,8 @@ class Command(BaseCommand):
             preprocessed_data = ai_processor._prepare_html_for_extraction(
                 article.raw_html,
                 use_preprocessing=True,
-                max_tokens=75000
+                max_tokens=75000,
+                base_url=article.url
             )
             
             preprocessed_html = preprocessed_data["html_sample"]
@@ -238,7 +239,8 @@ class Command(BaseCommand):
                 no_preprocess_data = ai_processor._prepare_html_for_extraction(
                     article.raw_html,
                     use_preprocessing=False,
-                    max_tokens=75000
+                    max_tokens=75000,
+                    base_url=article.url
                 )
                 
                 no_preprocess_prompt = ai_processor.template.format(

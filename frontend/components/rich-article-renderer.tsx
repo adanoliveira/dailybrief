@@ -94,11 +94,38 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
   }
 }
 
-// Generic line break handler for all content types - always returns JSX
+// Enhanced content rendering with better HTML formatting support
 const renderContentWithLineBreaks = (content: string) => {
   // Always use HTML parsing to ensure consistent JSX return type
   // This handles both line breaks and existing HTML tags properly
   return parse(content)
+}
+
+// Enhanced content wrapper with formatting support
+export const withFormattingSupport = (className: string = "") => cn(
+  className,
+  // Basic typography
+  "prose prose-gray max-w-none dark:prose-invert",
+  // Enhanced formatting element styling
+  "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
+  "[&_strong]:font-semibold [&_strong]:text-inherit",
+  "[&_u]:underline [&_u]:underline-offset-2 [&_u]:decoration-current",
+  "[&_mark]:bg-yellow-200 [&_mark]:dark:bg-yellow-900/30 [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded",
+  "[&_code]:bg-muted [&_code]:text-foreground [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono",
+  "[&_sub]:text-xs [&_sub]:align-sub",
+  "[&_sup]:text-xs [&_sup]:align-super",
+  "[&_small]:text-sm [&_small]:text-muted-foreground",
+  // Link styling
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-primary/60",
+  "[&_a:hover]:text-primary/80 [&_a:hover]:decoration-primary/80 [&_a]:transition-colors"
+)
+
+// Helper function to render content with HTML formatting support
+export const renderWithFormatting = (content: string) => {
+  if (typeof content === 'string' && content.includes('<')) {
+    return parse(content)
+  }
+  return content
 }
 
 // Individual block components
@@ -109,7 +136,7 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
   return (
     <HeadingTag 
       id={block.id}
-      className={cn(
+      className={withFormattingSupport(cn(
         "font-bold tracking-tight scroll-m-20",
         level === 1 && "text-4xl lg:text-5xl",
         level === 2 && "text-3xl lg:text-4xl",
@@ -118,7 +145,7 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
         level === 5 && "text-lg lg:text-xl",
         level === 6 && "text-base lg:text-lg",
         block.classes?.join(' ')
-      )}
+      ))}
     >
       {parse(block.content || block.text || '')}
     </HeadingTag>
@@ -172,14 +199,10 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
 
   return (
     <div 
-      className={cn(
+      className={withFormattingSupport(cn(
         "text-lg leading-8 text-muted-foreground font-medium [&:not(:first-child)]:mt-4 mb-6",
-        "prose prose-gray max-w-none dark:prose-invert",
-        // Enhanced link styling to ensure visibility
-        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-primary/60",
-        "[&_a:hover]:text-primary/80 [&_a:hover]:decoration-primary/80 [&_a]:transition-colors",
         block.classes?.join(' ')
-      )}
+      ))}
     >
       {renderContentWithLinks()}
     </div>
@@ -233,14 +256,10 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
 
   return (
     <div 
-      className={cn(
+      className={withFormattingSupport(cn(
         "text-base leading-7 [&:not(:first-child)]:mt-6",
-        "prose prose-gray max-w-none dark:prose-invert",
-        // Enhanced link styling to ensure visibility
-        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a]:decoration-primary/60",
-        "[&_a:hover]:text-primary/80 [&_a:hover]:decoration-primary/80 [&_a]:transition-colors",
         block.classes?.join(' ')
-      )}
+      ))}
     >
       {renderContentWithLinks()}
     </div>
@@ -299,7 +318,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         <figure className="my-8">
           <div className="border border-dashed border-muted-foreground/20 rounded-lg p-4 bg-muted/20 text-center">
             <p className="text-sm text-muted-foreground mb-2">📷 Image unavailable</p>
-            <figcaption className="text-sm text-muted-foreground italic">
+            <figcaption className={withFormattingSupport("text-sm text-muted-foreground italic")}>
               {parse(caption)}
             </figcaption>
           </div>
@@ -342,7 +361,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         />
       </div>
       {shouldShowCaption && (
-        <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
+        <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
           {parse(caption)}
         </figcaption>
       )}
@@ -381,7 +400,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           />
         </div>
         {caption && (
-          <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
+          <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
             {parse(caption)}
           </figcaption>
         )}
@@ -403,7 +422,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         </video>
       </div>
       {caption && (
-        <figcaption className="mt-3 text-sm text-muted-foreground text-center italic">
+        <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
           {parse(caption)}
         </figcaption>
       )}
@@ -460,7 +479,7 @@ function AudioBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
             </div>
           </div>
           {caption && (
-            <p className="mt-3 text-sm text-muted-foreground italic">
+            <p className={withFormattingSupport("mt-3 text-sm text-muted-foreground italic")}>
               {parse(caption)}
             </p>
           )}
@@ -475,15 +494,15 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
   const content = block.content || block.text || ''
 
   return (
-    <blockquote className={cn(
+    <blockquote className={withFormattingSupport(cn(
       "my-6 border-l-4 border-primary pl-6 italic text-lg leading-relaxed",
       block.classes?.join(' ')
-    )}>
+    ))}>
       <div className="space-y-2">
         {renderContentWithLineBreaks(content)}
       </div>
       {block.cite && (
-        <cite className="mt-4 block text-sm text-muted-foreground not-italic">
+        <cite className={withFormattingSupport("mt-4 block text-sm text-muted-foreground not-italic")}>
           — {parse(block.cite)}
         </cite>
       )}
@@ -499,13 +518,13 @@ function ListBlock({ block }: { block: ContentBlock }) {
   const ListTag = listType === 'ol' ? 'ol' : 'ul'
   
   return (
-    <ListTag className={cn(
+    <ListTag className={withFormattingSupport(cn(
       "my-6 ml-6 list-disc [&>li]:mt-2",
       listType === 'ol' && "list-decimal",
       block.classes?.join(' ')
-    )}>
+    ))}>
       {items.map((item: string, index: number) => (
-        <li key={index} dangerouslySetInnerHTML={{ __html: item }} />
+        <li key={index}>{parse(item)}</li>
       ))}
     </ListTag>
   )
@@ -704,7 +723,7 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
   return (
     <div className="my-8">
       <blockquote 
-        className={cn(
+        className={withFormattingSupport(cn(
           // Layout and spacing - minimal margins
           "mx-auto max-w-2xl px-8",
           
@@ -717,16 +736,16 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
           
           // Custom classes
           block.classes?.join(' ')
-        )}
+        ))}
       >
         {/* Clean content without extra decorations */}
-        <div className="prose prose-lg max-w-none dark:prose-invert [&>*]:my-0">
+        <div className="[&>*]:my-0">
           {renderContentWithLinks()}
         </div>
         
         {/* Citation if available - clean and minimal */}
         {block.cite && (
-          <cite className="mt-3 block text-sm text-muted-foreground not-italic">
+          <cite className={withFormattingSupport("mt-3 block text-sm text-muted-foreground not-italic")}>
             — {parse(block.cite)}
           </cite>
         )}

@@ -15,6 +15,7 @@ from html import unescape
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import json
+from urllib.parse import urlparse, urljoin
 
 # Conditional lxml import with graceful fallback
 try:
@@ -110,7 +111,8 @@ class HTMLPreprocessor:
         self,
         raw_html: str,
         max_tokens: int = 12000,
-        preserve_html_structure: bool = True
+        preserve_html_structure: bool = True,
+        base_url: Optional[str] = None
     ) -> PreprocessedHTML:
         """
         Preprocess raw HTML using "just enough" approach.
@@ -125,6 +127,9 @@ class HTMLPreprocessor:
         """
         if not raw_html:
             return self._empty_result()
+        
+        # Store base_url for URL conversion
+        self.base_url = base_url
         
         original_size = len(raw_html)
         
@@ -210,6 +215,14 @@ class HTMLPreprocessor:
                     removed_elements.append("extracted_main_content")
             except Exception as e:
                 logger.debug(f"Main content extraction failed: {e}")
+            
+            # Step 2.8: Convert relative URLs to absolute URLs
+            try:
+                converted_urls = self._convert_relative_urls_to_absolute(doc, is_lxml=True)
+                if converted_urls > 0:
+                    removed_elements.append(f"converted_relative_urls({converted_urls})")
+            except Exception as e:
+                logger.debug(f"URL conversion failed: {e}")
             
             # Step 3: Scrub attributes (safely)
             self._scrub_attributes_lxml_safe(doc)
@@ -442,9 +455,12 @@ class HTMLPreprocessor:
                                 # Don't truncate critical URL attributes - they're needed for content extraction
                                 if attr in ["href", "src", "data-src", "poster", "srcset", "srcSet", "data-srcset"]:
                                     attrs.append(f'{attr}=\"{value}\"')
-                                # Truncate very long non-URL values but keep them readable
-                                elif len(value) > 100:
-                                    value = value[:100] + "..."
+                                # Don't truncate alt text and title - they're crucial for accessibility and content understanding
+                                elif attr in ["alt", "title"]:
+                                    attrs.append(f'{attr}="{value}"')
+                                # Truncate very long non-critical values but keep them readable
+                                elif len(value) > 200:
+                                    value = value[:200] + "..."
                                     attrs.append(f'{attr}="{value}"')
                                 else:
                                     attrs.append(f'{attr}="{value}"')
@@ -671,6 +687,14 @@ class HTMLPreprocessor:
         main_content = soup
         if preserve_html_structure:
             main_content = self._extract_main_content_beautifulsoup(soup)
+        
+        # Convert relative URLs to absolute URLs
+        try:
+            converted_urls = self._convert_relative_urls_to_absolute(main_content, is_lxml=False)
+            if converted_urls > 0:
+                removed_elements.append(f"converted_relative_urls({converted_urls})")
+        except Exception as e:
+            logger.debug(f"URL conversion failed: {e}")
         
         # Format and clean the HTML
         cleaned_html = self._format_html_beautifulsoup(main_content)
@@ -1525,4 +1549,73 @@ class HTMLPreprocessor:
         except Exception as e:
             # Don't fail processing if deduplication has issues
             pass
+    
+    def _convert_relative_urls_to_absolute(self, doc, is_lxml: bool = True) -> int:
+        """
+        Convert relative URLs to absolute URLs for better AI processing.
+        
+        Args:
+            doc: lxml or BeautifulSoup document
+            is_lxml: Whether this is an lxml document (vs BeautifulSoup)
+            
+        Returns:
+            int: Number of URLs converted
+        """
+        if not self.base_url:
+            return 0
+            
+        converted_count = 0
+        
+        # Parse base URL to ensure it's valid
+        try:
+            parsed_base = urlparse(self.base_url)
+            if not parsed_base.scheme or not parsed_base.netloc:
+                logger.debug(f"Invalid base URL: {self.base_url}")
+                return 0
+                
+            base_domain = f"{parsed_base.scheme}://{parsed_base.netloc}"
+            
+        except Exception as e:
+            logger.debug(f"Failed to parse base URL {self.base_url}: {e}")
+            return 0
+        
+        # URL attributes to convert
+        url_attributes = ['src', 'href', 'data-src', 'poster', 'srcset', 'data-srcset']
+        
+        try:
+            if is_lxml:
+                # lxml processing
+                for attr in url_attributes:
+                    elements = doc.xpath(f'//*[@{attr}]')
+                    for element in elements:
+                        try:
+                            current_value = element.get(attr, '').strip()
+                            if current_value and current_value.startswith('/') and not current_value.startswith('//'):
+                                # This is a relative URL starting with /
+                                absolute_url = urljoin(base_domain, current_value)
+                                element.set(attr, absolute_url)
+                                converted_count += 1
+                        except Exception as e:
+                            logger.debug(f"Failed to convert URL in {attr}: {e}")
+                            continue
+            else:
+                # BeautifulSoup processing
+                for attr in url_attributes:
+                    elements = doc.find_all(attrs={attr: True})
+                    for element in elements:
+                        try:
+                            current_value = element.get(attr, '').strip()
+                            if current_value and current_value.startswith('/') and not current_value.startswith('//'):
+                                # This is a relative URL starting with /
+                                absolute_url = urljoin(base_domain, current_value)
+                                element[attr] = absolute_url
+                                converted_count += 1
+                        except Exception as e:
+                            logger.debug(f"Failed to convert URL in {attr}: {e}")
+                            continue
+                            
+        except Exception as e:
+            logger.debug(f"URL conversion failed: {e}")
+            
+        return converted_count
     

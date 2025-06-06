@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { getTopicIcon } from "@/lib/topic-icons"
+import parse from 'html-react-parser'
 
 interface ArticlePreviewWithTopics {
   id: string;
@@ -109,8 +110,11 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
                 </div>
               )}
               
-              <CardTitle className="line-clamp-2 text-lg hover:underline">
-                {article.title}
+              <CardTitle className="line-clamp-2 text-lg hover:underline prose prose-gray max-w-none dark:prose-invert [&_em]:italic [&_em]:text-inherit [&_em]:font-medium [&_strong]:font-semibold [&_strong]:text-inherit [&_u]:underline [&_u]:underline-offset-2 [&_mark]:bg-yellow-200 [&_mark]:dark:bg-yellow-900/30 [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded [&_code]:bg-muted [&_code]:text-foreground [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono">
+                {typeof article.title === 'string' && article.title.includes('<') 
+                  ? parse(article.title) 
+                  : article.title
+                }
               </CardTitle>
               <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
                 {article.source.logoUrl ? (

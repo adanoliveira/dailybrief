@@ -520,6 +520,7 @@ class Command(BaseCommand):
                         'url': article.url,
                         'source': article.source_name
                     },
+                    base_url=article.url,
                     capture_raw_response=True  # Capture raw AI response for debugging
                 )
                 

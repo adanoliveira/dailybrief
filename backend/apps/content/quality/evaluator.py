@@ -217,7 +217,8 @@ class ContentQualityEvaluator:
             preprocessed = self.html_preprocessor.preprocess_for_evaluation(
                 raw_html, 
                 max_tokens=max_tokens,
-                preserve_html_structure=True  # NEW: Preserve HTML for quality evaluation
+                preserve_html_structure=True,  # NEW: Preserve HTML for quality evaluation
+                base_url=article.url  # NEW: Convert relative URLs to absolute
             )
             
             preprocessing_summary = self.html_preprocessor.get_preprocessing_summary(preprocessed)
@@ -376,7 +377,8 @@ class ContentQualityEvaluator:
                 preprocessed = self.html_preprocessor.preprocess_for_evaluation(
                     example.article.raw_html,
                     max_tokens=12000,  # Smaller for reference examples
-                    preserve_html_structure=True  # Use HTML structure preservation
+                    preserve_html_structure=True,  # Use HTML structure preservation
+                    base_url=example.article.url  # Convert relative URLs to absolute
                 )
                 html_sample = preprocessed.cleaned_html
                 html_length = preprocessed.cleaned_size

@@ -76,6 +76,7 @@ class AIContentProcessor:
         self, 
         raw_html: str, 
         article_metadata: Dict[str, Any],
+        base_url: Optional[str] = None,
         model_override: Optional[str] = None,
         use_html_preprocessing: bool = True,
         capture_raw_response: bool = False
@@ -86,6 +87,7 @@ class AIContentProcessor:
         Args:
             raw_html: Raw HTML content from article
             article_metadata: Article metadata (title, url, source, etc.)
+            base_url: Base URL for resolving relative URLs in content
             model_override: Override the configured model
             use_html_preprocessing: Whether to use intelligent HTML preprocessing
             capture_raw_response: Whether to capture and return the raw AI response
@@ -96,11 +98,16 @@ class AIContentProcessor:
         start_time = time.time()
         
         try:
+            # Extract base_url from article_metadata if not provided
+            if base_url is None and article_metadata:
+                base_url = article_metadata.get('url')
+            
             # 1. Preprocess HTML using proven patterns from quality evaluation
             preprocessed_data = self._prepare_html_for_extraction(
                 raw_html,
                 use_preprocessing=use_html_preprocessing,
-                max_tokens=75000  # Optimal for content extraction
+                max_tokens=75000,  # Optimal for content extraction
+                base_url=base_url  # Now properly passed for URL resolution
             )
             
             if not preprocessed_data["html_sample"]:
@@ -175,7 +182,8 @@ class AIContentProcessor:
         self, 
         raw_html: str,
         use_preprocessing: bool = True, 
-        max_tokens: int = 75000
+        max_tokens: int = 75000,
+        base_url: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Prepare HTML for AI extraction using proven preprocessing patterns.
@@ -204,7 +212,8 @@ class AIContentProcessor:
             preprocessed = self.html_preprocessor.preprocess_for_evaluation(
                 raw_html,
                 max_tokens=max_tokens,
-                preserve_html_structure=True  # Critical for content extraction
+                preserve_html_structure=True,  # Critical for content extraction
+                base_url=base_url  # Convert relative URLs to absolute
             )
             
             return {

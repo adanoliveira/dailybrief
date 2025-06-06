@@ -100,7 +100,7 @@ class ContentProcessor:
         }
         
         # Process with algorithmic processor
-        result = self.algorithmic_processor.process_content(article.raw_html, article_metadata)
+        result = self.algorithmic_processor.process_content(article.raw_html, article_metadata, base_url=article.url)
         
         if result.success:
             logger.info(f"Algorithmic processing successful for article {article.id}, "
@@ -128,7 +128,7 @@ class ContentProcessor:
         }
         
         # Process with LLM enhancement
-        result = self.llm_processor.process_content(article.raw_html, article_metadata)
+        result = self.llm_processor.process_content(article.raw_html, article_metadata, base_url=article.url)
         
         if result.success:
             logger.info(f"LLM processing successful for article {article.id}, "
@@ -195,7 +195,7 @@ class ContentProcessor:
             }
             
             # Process with LLM for enhancement
-            llm_result = self.llm_processor.process_content(article.raw_html, enhanced_metadata)
+            llm_result = self.llm_processor.process_content(article.raw_html, enhanced_metadata, base_url=article.url)
             
             if llm_result.success:
                 # Merge the best parts of both results

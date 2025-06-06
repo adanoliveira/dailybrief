@@ -72,7 +72,8 @@ VALIDATION CHECKLIST:
 ✓ ALL HEADINGS: Every structural h1, h2, h3, h4, h5, h6 in article body (NOT article subtitles)
 ✓ ALL SUBTITLES: Lead paragraphs/subtitles that provide context to main title (positions 0-2)
 ✓ ALL PARAGRAPHS: Body text paragraphs with 4+ meaningful words (positions 3+)
-✓ ALL IMAGES: Every article image with complete URL
+✓ ALL IMAGES: Every article image with complete URL (ONLY from article content, NOT JSON-LD)
+✓ IMAGE POSITIONS: Primary images appear early (positions 2-5), not at the end (position 30+)
 ✓ ALL LISTS: Every ul, ol with content items
 ✓ ALL EMBEDS: Every video, twitter / x, iframe, blockquote
 ✓ ALL LINKS: Every <a href="..."> kept in content AND stored in metadata.links
@@ -131,20 +132,23 @@ STEP 1.5: EMBED POSITION MAPPING (CRITICAL FOR CORRECT ORDERING)
 • Example mapping: "Twitter embed appears after 'Nintendo didn't respond' paragraph, before 'similar leak happened' paragraph"
 • This position context will be used in Step 2 for precise placement
 • DO NOT extract content yet - just map positions
+• 🚨 CRITICAL: IGNORE images in JSON-LD, schema markup, or metadata sections - only consider images in the article content flow
 
 STEP 2: EXHAUSTIVE EXTRACTION (STRICT VISUAL ORDER)
 • Process content LINEARLY from top to bottom - NO exceptions
 • CRITICAL: Extract each element WHEN you encounter it in the HTML flow
+• 🚨 ONLY EXTRACT FROM ARTICLE CONTENT - ignore footer metadata, JSON-LD, schema markup
 • DO NOT skip complex elements to process later - handle them immediately
 • Extract ALL structural headings (h1-h6) that organize content sections
 • Extract ALL subtitles/lead paragraphs (early positions 0-2, provide context to title)
 • Extract ALL body paragraphs (later positions 3+, main article content)
-• Extract ALL images with captions - miss none
+• Extract ALL images with captions - miss none (BUT only from article body, not metadata)
 • Extract ALL lists - even small 2-item lists
 • Extract ALL quotes and blockquotes
 • Extract ALL video/iframe/twitter embeds using the position mapping from Step 1.5
 • ASSIGN EMBED POSITIONS: Use the context noted in Step 1.5 to place embeds correctly
 • FORBIDDEN: Moving embeds, videos, or tweets to different positions
+• FORBIDDEN: Extracting images from JSON-LD, schema markup, or structured data
 • Assign sequential positions: 0, 1, 2, 3, ... based on the position mapping
 • Convert ALL formatting to HTML: <strong>bold</strong>, <em>italic</em>
 
@@ -156,6 +160,7 @@ STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 • VALIDATE ALL URLs: Complete with file extensions
 • CONFIRM HTML FORMATTING: No markdown syntax anywhere
 • IDENTIFY UNMAPPED CONTENT: Note any content that couldn't be mapped to blocks
+• VALIDATE CONTENT EXCLUSIONS: Ensure no content blocks containing promotional ("sign up", "newsletter") or "recommended articles" are extracted
 • ASSESS STRUCTURAL PATTERNS: Observe layout and organization patterns
 • DOCUMENT CHALLENGES: Record any extraction difficulties encountered
 • SUGGEST IMPROVEMENTS: Recommend template or system enhancements
@@ -176,6 +181,8 @@ STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 ❌ Incomplete URL extraction
 ❌ Non-sequential position numbers
 ❌ Embeds/tweets appearing at end instead of their original position
+❌ Images appearing at position 30+ when they should be early in article (positions 2-5)
+❌ Extracting images from JSON-LD or metadata instead of article content
 ❌ Processing content "out of order" for any reason
 
 🧠 CONTENT TYPE DECISION GUIDE:
@@ -187,7 +194,7 @@ STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 📍 POSITION 3+ (Article body):
    • Structural section headings (h1-h6) → "heading" type with level
    • Body text paragraphs → "paragraph" type
-   • Images with captions → "image" type
+   • Images and their captions (if any) → "image" type
    • Lists → "list" type
    • Quotes → "quote" type
 
@@ -348,6 +355,7 @@ Each content type follows this consistent pattern:
     • Empty paragraphs or those containing only whitespace/special characters
     • Article subtitles and lead paragraphs (use subtitle type)
     • Inline article recommendations and cross-promotional content
+    • Promotional content such as "Subscribe to our newsletter" or "Sign up for updates"
 ⚠️ CRITICAL: Do NOT use for article subtitles/lead content - those should be "subtitle" type
 📝 METADATA: {"has_formatting": boolean, "formatting_types": []}
 
@@ -356,11 +364,13 @@ Each content type follows this consistent pattern:
     • Larger than 200x200 pixels
     • Have complete, valid image URLs
     • Are positioned within the main article content flow (especially near heading/subtitle for primary images)
+    • Found in actual HTML <img> tags within article body (NOT in JSON-LD or metadata)
     • Have ANY of the following indicators:
       - Descriptive alt text or captions relating to article content
       - Attribution credits (e.g., "Photo by...", "Credit:...")
       - Large size (>800px width) suggesting primary article imagery
       - Positioned early in article structure (first 3-5 content blocks)
+    • With their respective caption (if any). **If there is no caption, but meaningful alt text**, use that as the caption. If there is no caption or meaningful alt text, include the image without caption.
 🎯 FORMAT: content="Caption with <em>formatting</em>", metadata with full src
 🚫 EXCLUDE: 
     • Advertisements and promotional images (often in sidebars or clearly marked as ads)
@@ -370,6 +380,9 @@ Each content type follows this consistent pattern:
     • Newsletter signup illustrations and subscription graphics
     • Clearly decorative images (patterns, dividers, background graphics)
     • Images in recommended/related article sections
+    • 🚨 CRITICAL: Images in JSON-LD structured data, schema markup, or metadata sections
+    • 🚨 CRITICAL: Images referenced only in footer metadata or structured data
+    • 🚨 CRITICAL: Images that appear only as URLs in JSON without actual HTML tags in content
     ⚠️ NOTE: When in doubt for large images (>500px) positioned within article flow, INCLUDE rather than exclude
 📝 METADATA: {"src": "COMPLETE_URL.jpg", "alt": "text", "caption": "HTML"}
 
@@ -433,7 +446,15 @@ Each content type follows this consistent pattern:
     • "From Around the Web"
 ❌ INLINE RECOMMENDATIONS: Sudden topic shifts to unrelated articles within paragraphs
 ❌ CONTENT BREAKS: Sections that interrupt article flow with different topics/stories
-❌ PROMOTIONAL BLOCKS: "Subscribe to newsletter", "Follow us", "Download our app", "Sign up", "Newsletter"
+❌ PROMOTIONAL CONTENT: Skip any blocks containing promotional text or calls-to-action like:
+    • "Subscribe"
+    • "Newsletter"
+    • "Follow us"
+    • "Download our app"
+    • "Sign up for"
+    • "Read more"
+    • "Check out"
+    • "Don't miss"
 
 ### 🎯 IDENTIFICATION SIGNALS:
 • Content appears in separate divs/sections from main article

@@ -9,7 +9,7 @@ import Link from "next/link"
 import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
-import { RichArticleRenderer } from "@/components/rich-article-renderer"
+import { RichArticleRenderer, withFormattingSupport, renderWithFormatting } from "@/components/rich-article-renderer"
 
 export default function Article({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
@@ -114,6 +114,49 @@ export default function Article({ params }: { params: { id: string } }) {
     )
   }
 
+  // Get the best title from heading content block or fallback to article title
+  const getBestTitle = () => {
+    // Check if there's a heading content block (AI-generated titles are often better)
+    if (article.richContent?.blocks) {
+      const headingBlock = article.richContent.blocks.find(
+        block => block.type === 'heading' && (block.level === 1 || block.level === undefined) && block.content
+      )
+      if (headingBlock?.content) {
+        // Prefer heading content block as it's usually more detailed/formatted
+        return headingBlock.content
+      }
+    }
+    // Fallback to visual title or regular title
+    return article.visualTitle || article.title
+  }
+
+  // Filter content blocks to remove duplicate titles
+  const getFilteredContentBlocks = () => {
+    if (!article.richContent?.blocks) return []
+    
+    const primaryTitle = getBestTitle()
+    
+    return article.richContent.blocks.filter(block => {
+      // Remove heading blocks that duplicate the main title
+      if (block.type === 'heading' && (block.level === 1 || block.level === undefined)) {
+        // Check if this heading is the same as our primary title (with or without HTML)
+        const blockText = block.content?.replace(/<[^>]*>/g, '').trim() || ''
+        const titleText = primaryTitle?.replace(/<[^>]*>/g, '').trim() || ''
+        
+        // Remove if they're very similar (allow for minor differences)
+        if (blockText && titleText) {
+          const similarity = blockText.length > titleText.length ? 
+            titleText.length / blockText.length : 
+            blockText.length / titleText.length
+          
+          // If 80%+ similar, consider it a duplicate
+          return similarity < 0.8
+        }
+      }
+      return true
+    })
+  }
+
   return (
     <div className="container py-6 max-w-3xl">
       <div className="space-y-6">
@@ -144,8 +187,8 @@ export default function Article({ params }: { params: { id: string } }) {
               </>
             )}
           </div>
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-            {article.visualTitle || article.title}
+          <h1 className={withFormattingSupport("text-3xl font-bold tracking-tight md:text-4xl")}>
+            {renderWithFormatting(getBestTitle())}
           </h1>
         </div>
 
@@ -167,7 +210,7 @@ export default function Article({ params }: { params: { id: string } }) {
         <div className="article-content">
           {article.richContent && article.richContent.blocks && article.richContent.blocks.length > 0 ? (
             <RichArticleRenderer
-              blocks={article.richContent.blocks}
+              blocks={getFilteredContentBlocks()}
               mediaAssets={article.richContent.mediaAssets}
               formattingData={article.richContent.formattingData}
               fallbackContent={article.content}
