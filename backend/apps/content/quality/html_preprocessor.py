@@ -12,8 +12,9 @@ Key principle: Optimize for LLM analysis while preserving quality assessment sig
 import re
 import logging
 from html import unescape
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+import json
 
 # Conditional lxml import with graceful fallback
 try:
@@ -22,7 +23,7 @@ try:
 except ImportError:
     LXML_AVAILABLE = False
     
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,8 @@ class HTMLPreprocessor:
     
     # Attributes to keep for specific tags (minimal allow-list)
     KEEP_ATTRIBUTES = {
-        "img": ["src", "alt", "data-src", "title", "width", "height"],
+        "img": ["src", "alt", "data-src", "title", "width", "height", "srcset", "srcSet", "sizes", "data-image-container"],
+        "source": ["srcset", "srcSet", "data-srcset", "media", "type", "sizes"],
         "iframe": ["src", "title", "data-src"],
         "video": ["src", "poster", "data-src"],
         "audio": ["src", "data-src"],
@@ -171,9 +173,43 @@ class HTMLPreprocessor:
             if doc is None:
                 logger.warning(f"lxml parsing failed: {parsing_errors}. Falling back to BeautifulSoup.")
                 return self._preprocess_with_beautifulsoup(decoded_html, max_tokens, preserve_html_structure)
+
+            # Step 1.5: Extract Next.js images BEFORE removing scripts (Washington Post style)
+            nextjs_images = []
+            try:
+                nextjs_images = self._extract_nextjs_images_lxml(doc)
+            except Exception as e:
+                logger.debug(f"Next.js image extraction failed: {e}")
             
             # Step 2: Remove boilerplate (safely)
             removed_elements = self._remove_boilerplate_lxml_safe(doc)
+            
+            # Step 2.1: Inject Next.js images after boilerplate removal (Washington Post style)
+            injected_count = 0
+            try:
+                if nextjs_images:
+                    injected_count = self._inject_missing_images_lxml(doc, nextjs_images)
+                    if injected_count > 0:
+                        removed_elements.append(f"injected_nextjs_images({injected_count})")
+            except Exception as e:
+                logger.debug(f"Next.js image injection failed: {e}")
+            
+            # Step 2.5: Enhance responsive images (ESPN-style) - but avoid overwriting Next.js injected images
+            try:
+                enhanced_count = self._enhance_responsive_images_lxml(doc, skip_nextjs_injected=injected_count > 0)
+                if enhanced_count > 0:
+                    removed_elements.append(f"enhanced_responsive_images({enhanced_count})")
+            except Exception as e:
+                logger.debug(f"Responsive image enhancement failed: {e}")
+            
+            # Step 2.7: Extract main content area (same logic as BeautifulSoup fix)
+            try:
+                main_content_doc = self._extract_main_content_lxml(doc)
+                if main_content_doc is not None:
+                    doc = main_content_doc
+                    removed_elements.append("extracted_main_content")
+            except Exception as e:
+                logger.debug(f"Main content extraction failed: {e}")
             
             # Step 3: Scrub attributes (safely)
             self._scrub_attributes_lxml_safe(doc)
@@ -247,10 +283,91 @@ class HTMLPreprocessor:
             except Exception as e:
                 logger.debug(f"Failed to remove links: {e}")
                 
+            # Remove small images (author profiles, newsletter imgs, icons)
+            try:
+                small_images_removed = 0
+                for img in doc.xpath('//img'):
+                    try:
+                        if self._is_small_image(img):
+                            img.drop_tree()
+                            small_images_removed += 1
+                    except:
+                        pass
+                if small_images_removed > 0:
+                    removed_elements.append(f"small_images({small_images_removed})")
+            except Exception as e:
+                logger.debug(f"Failed to remove small images: {e}")
+                
         except Exception as e:
-            logger.warning(f"Boilerplate removal failed: {e}")
+            logger.debug(f"Boilerplate removal failed: {e}")
         
         return removed_elements
+    
+    def _is_small_image(self, img_element) -> bool:
+        """
+        Check if an image is small (likely a profile pic, icon, or newsletter image).
+        Returns True if the image should be filtered out.
+        """
+        try:
+            # Get width and height attributes
+            width_str = img_element.get('width', '').strip()
+            height_str = img_element.get('height', '').strip()
+            
+            # Parse dimensions
+            width = height = None
+            try:
+                if width_str:
+                    width = int(float(width_str))  # Handle both "200" and "200.0"
+                if height_str:
+                    height = int(float(height_str))
+            except (ValueError, TypeError):
+                pass
+            
+            # Filter by dimensions if available
+            if width is not None and height is not None:
+                # Remove images smaller than 100px in either dimension (likely separators/thin elements)
+                if width < 100 or height < 100:
+                    return True
+                # Remove all small images smaller than 200x200 (rarely relevant content)
+                if width < 200 and height < 200:
+                    return True
+            
+            # Filter by common small image indicators in attributes
+            alt_text = (img_element.get('alt', '') or '').lower()
+            class_attr = (img_element.get('class', '') or '').lower()
+            
+            # Only check alt text and class attributes for semantic indicators
+            # Avoid checking URLs which can have false positives
+            all_text = f"{alt_text} {class_attr}"
+            
+            # Common patterns for small/unwanted images (more specific)
+            small_image_indicators = [
+                'profile pic', 'profile image', 'avatar', 'author photo', 'headshot', 'byline photo',
+                'newsletter', 'signup', 'subscribe',
+                'icon-', 'logo-', 'badge-', 'btn-', 'button-',  # With separators to be more specific
+                'social icon', 'facebook icon', 'twitter icon', 'linkedin icon', 'instagram icon',
+                'advertisement', 'sponsor logo',  # More specific than just 'ad'
+                'menu icon', 'navigation icon', 'nav-',
+                'thumbnail small', 'thumb-'  # More specific
+            ]
+            
+            # Check if any indicators are present (whole word matches for better precision)
+            for indicator in small_image_indicators:
+                if indicator in all_text:
+                    return True
+            
+            # Additional check: very generic alt text often indicates UI elements
+            if alt_text in ['', 'no alt', 'image', 'photo', 'picture']:
+                # Only filter if we also have small dimensions (same threshold as main filter)
+                if width is not None and height is not None and (width < 50 or height < 50):
+                    return True
+            
+            # If no clear indicators and not small dimensions, keep the image
+            return False
+            
+        except Exception:
+            # If we can't determine, err on the side of keeping the image
+            return False
     
     def _scrub_attributes_lxml_safe(self, doc):
         """Safely scrub attributes."""
@@ -323,8 +440,8 @@ class HTMLPreprocessor:
                             if attr in element.attrib:
                                 value = str(element.attrib[attr])
                                 # Don't truncate critical URL attributes - they're needed for content extraction
-                                if attr in ["href", "src", "data-src", "poster"]:
-                                    attrs.append(f'{attr}="{value}"')
+                                if attr in ["href", "src", "data-src", "poster", "srcset", "srcSet", "data-srcset"]:
+                                    attrs.append(f'{attr}=\"{value}\"')
                                 # Truncate very long non-URL values but keep them readable
                                 elif len(value) > 100:
                                     value = value[:100] + "..."
@@ -529,26 +646,47 @@ class HTMLPreprocessor:
             
         soup = BeautifulSoup(decoded_html, 'html.parser')
         
-        # Simple boilerplate removal
-        removed_elements = []
-        for tag_name in self.BOILERPLATE_ELEMENTS:
-            elements = soup.find_all(tag_name)
-            if elements:
-                removed_elements.append(f"{tag_name}({len(elements)})")
-                for element in elements:
-                    element.decompose()
+        # Extract Next.js images before any processing
+        nextjs_images = self._extract_nextjs_images(soup)
         
-        # Simple outline creation
-        outline_str = self._create_simple_outline(soup)
+        # Remove boilerplate elements
+        removed_elements = self._remove_boilerplate_beautifulsoup(soup)
         
-        # Basic truncation
-        if len(outline_str) > max_tokens * 4:  # Rough token estimation
-            outline_str = outline_str[:max_tokens * 4] + "\n... [truncated] ..."
+        # Inject missing images from Next.js data first (before responsive enhancement)
+        injected_count = 0
+        if nextjs_images:
+            injected_count = self._inject_missing_images(soup, nextjs_images)
+            if injected_count > 0:
+                removed_elements.append(f"injected_nextjs_images({injected_count})")
+        
+        # Enhance responsive images (ESPN-style) - but avoid overwriting Next.js injected images
+        enhanced_count = self._enhance_responsive_images(soup, skip_nextjs_injected=injected_count > 0)
+        if enhanced_count > 0:
+            removed_elements.append(f"enhanced_responsive_images({enhanced_count})")
+        
+        # Remove small images (like profile pics)
+        removed_elements.extend(self._remove_small_images_beautifulsoup(soup))
+        
+        # Get main content if preserving structure
+        main_content = soup
+        if preserve_html_structure:
+            main_content = self._extract_main_content_beautifulsoup(soup)
+        
+        # Format and clean the HTML
+        cleaned_html = self._format_html_beautifulsoup(main_content)
+        
+        # Ensure we're within token limits
+        if max_tokens > 0:
+            cleaned_html = self._truncate_to_tokens(cleaned_html, max_tokens)
+        
+        removed_summary = f"Removed: {', '.join(removed_elements[:3])}{'...' if len(removed_elements) > 3 else ''}"
+        if injected_count > 0:
+            removed_summary += f", Injected {injected_count} Next.js images"
         
         return PreprocessedHTML(
-            cleaned_html=outline_str,
+            cleaned_html=cleaned_html,
             original_size=0,
-            cleaned_size=len(outline_str),
+            cleaned_size=len(cleaned_html),
             compression_ratio=0.0,
             processing_method="beautifulsoup_fallback",
             removed_elements=removed_elements,
@@ -556,16 +694,315 @@ class HTMLPreprocessor:
             content_density_info={}
         )
     
-    def _create_simple_outline(self, soup) -> str:
-        """Simple outline creation for BeautifulSoup fallback."""
-        # Extract text with basic structure preservation
-        text_parts = []
-        for element in soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'article', 'main']):
-            text = element.get_text(strip=True)
-            if text and len(text) > 10:
-                text_parts.append(text)
+    def _extract_nextjs_images(self, soup: BeautifulSoup) -> List[Dict]:
+        """Extract image data from Next.js __NEXT_DATA__ script blocks."""
+        images = []
         
-        return '\n\n'.join(text_parts)
+        try:
+            # Find the __NEXT_DATA__ script
+            next_data_script = soup.find('script', {'id': '__NEXT_DATA__'})
+            if not next_data_script or not next_data_script.string:
+                return images
+            
+            # Parse the JSON data
+            data = json.loads(next_data_script.string)
+            
+            # Navigate to content_elements in the nested structure
+            props = data.get('props', {})
+            page_props = props.get('pageProps', {})
+            global_content = page_props.get('globalContent', {})
+            content_elements = global_content.get('content_elements', [])
+            
+            # Extract image elements
+            for element in content_elements:
+                if element.get('type') == 'image':
+                    image_data = {
+                        'id': element.get('_id', ''),
+                        'url': element.get('url', ''),
+                        'alt_text': element.get('alt_text', ''),
+                        'width': element.get('width', 0),
+                        'height': element.get('height', 0),
+                        'caption': element.get('credits_caption_display', ''),
+                        'subtype': element.get('subtype', '')
+                    }
+                    if image_data['url']:  # Only include if we have a URL
+                        images.append(image_data)
+                        
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            # Log but don't fail - just continue without enhanced images
+            pass
+            
+        return images
+
+    def _inject_missing_images(self, soup: BeautifulSoup, images: List[Dict]) -> int:
+        """Inject missing images into placeholder divs and figure elements with intelligent matching."""
+        injected_count = 0
+        
+        try:
+            if not images:
+                return 0
+                
+            # Find all image containers that need images, in DOM order
+            image_containers = []
+            
+            # Add figure elements that have img tags without src (these come first in article layout)
+            figures = soup.find_all('figure')
+            for figure in figures:
+                img_in_figure = figure.find('img')
+                if img_in_figure and not img_in_figure.get('src'):
+                    image_containers.append(('figure', figure, img_in_figure))
+            
+            # Add type-image div containers (these come after in article body)
+            type_image_divs = soup.find_all('div', class_=lambda x: x and 'type-image' in x)
+            for div in type_image_divs:
+                existing_img = div.find('img')
+                if not (existing_img and existing_img.get('src')):
+                    image_containers.append(('type-image', div, existing_img))
+            
+            # Smart matching: assign images to containers in the order they appear in content
+            # The first image (Hero) goes to the first figure
+            # Subsequent images go to type-image containers in order
+            
+            image_assignments = []
+            available_images = images.copy()
+            
+            for i, (container_type, container, existing_img) in enumerate(image_containers):
+                if not available_images:
+                    break
+                    
+                if container_type == 'figure' and i == 0:
+                    # First figure gets the first/hero image
+                    image_data = available_images.pop(0)
+                    image_assignments.append((container_type, container, existing_img, image_data))
+                elif container_type == 'type-image':
+                    # type-image containers get remaining images in order
+                    if available_images:
+                        image_data = available_images.pop(0)
+                        image_assignments.append((container_type, container, existing_img, image_data))
+            
+            # Execute the assignments
+            for container_type, container, existing_img, image_data in image_assignments:
+                if container_type == 'figure':
+                    # Handle figure elements - inject src into existing img
+                    if existing_img:
+                        existing_img['src'] = image_data['url']
+                        existing_img['alt'] = image_data['alt_text']
+                        
+                        if image_data['width'] > 0:
+                            existing_img['width'] = str(image_data['width'])
+                        if image_data['height'] > 0:
+                            existing_img['height'] = str(image_data['height'])
+                        
+                        injected_count += 1
+                        
+                else:  # type-image
+                    # Handle type-image div containers - create new img element
+                    img_tag = soup.new_tag('img')
+                    img_tag['src'] = image_data['url']
+                    img_tag['alt'] = image_data['alt_text']
+                    
+                    if image_data['width'] > 0:
+                        img_tag['width'] = str(image_data['width'])
+                    if image_data['height'] > 0:
+                        img_tag['height'] = str(image_data['height'])
+                    
+                    # Insert into the container
+                    inner_div = container.find('div', class_=lambda x: x and any(cls in x for cls in ['PJLV', 'hide-for-print']))
+                    if inner_div:
+                        # Clear existing content and add our image
+                        inner_div.clear()
+                        inner_div.append(img_tag)
+                        
+                        # Add caption if available
+                        if image_data['caption']:
+                            caption_tag = soup.new_tag('figcaption')
+                            caption_tag.string = image_data['caption']
+                            inner_div.append(caption_tag)
+                        
+                        injected_count += 1
+                    
+        except Exception as e:
+            # Log but don't fail
+            pass
+            
+        return injected_count
+    
+    def _remove_boilerplate_beautifulsoup(self, soup) -> List[str]:
+        """Remove boilerplate elements using BeautifulSoup."""
+        removed_elements = []
+        
+        for tag_name in self.BOILERPLATE_ELEMENTS:
+            elements = soup.find_all(tag_name)
+            if elements:
+                removed_elements.append(f"{tag_name}({len(elements)})")
+                for element in elements:
+                    element.decompose()
+        
+        return removed_elements
+    
+    def _remove_small_images_beautifulsoup(self, soup) -> List[str]:
+        """Remove small images using BeautifulSoup."""
+        removed_small_images = []
+        
+        for img in soup.find_all('img'):
+            if self._is_small_image(img):
+                # Get src before decomposing the element
+                src = img.get('src', 'unknown')
+                img.decompose()
+                removed_small_images.append(f"small_image({src})")
+        
+        return removed_small_images
+    
+    def _format_html_beautifulsoup(self, soup) -> str:
+        """Format HTML using BeautifulSoup."""
+        return soup.prettify()
+    
+    def _truncate_to_tokens(self, html_content: str, max_tokens: int) -> str:
+        """Truncate HTML content to a specified number of tokens."""
+        # This method needs to be implemented based on your tokenization logic
+        # For now, we'll use a placeholder implementation
+        return html_content[:max_tokens * 4]  # Placeholder implementation
+    
+    def _empty_result(self) -> PreprocessedHTML:
+        """Return empty result for null input."""
+        return PreprocessedHTML(
+            cleaned_html="",
+            original_size=0,
+            cleaned_size=0,
+            compression_ratio=0.0,
+            processing_method="empty",
+            removed_elements=[],
+            preserved_structure=[],
+            content_density_info={}
+        )
+    
+    def _fallback_result(self, raw_html: str, max_tokens: int, original_size: int) -> PreprocessedHTML:
+        """Fallback result for error cases."""
+        # Ultra-simple fallback: just truncate
+        max_chars = max_tokens * 4
+        fallback_html = raw_html[:max_chars] + "..." if len(raw_html) > max_chars else raw_html
+        
+        return PreprocessedHTML(
+            cleaned_html=fallback_html,
+            original_size=original_size,
+            cleaned_size=len(fallback_html),
+            compression_ratio=0.0,
+            processing_method="fallback_truncation",
+            removed_elements=["preprocessing_error"],
+            preserved_structure=[],
+            content_density_info={}
+        )
+    
+    def get_preprocessing_summary(self, result: PreprocessedHTML) -> str:
+        """Generate human-readable summary of preprocessing results."""
+        if result.compression_ratio > 0:
+            method_info = f"[{result.processing_method}]"
+            
+            return (
+                f"HTML optimized {method_info}: {result.compression_ratio:.1f}% reduction "
+                f"({result.original_size:,} → {result.cleaned_size:,} chars). "
+                f"Removed: {', '.join(result.removed_elements[:3])}{'...' if len(result.removed_elements) > 3 else ''}. "
+                f"Preserved structure + noise samples for quality assessment."
+            )
+        else:
+            return f"HTML preprocessing failed - using {result.processing_method}" 
+    
+    def _extract_main_content_beautifulsoup(self, soup) -> BeautifulSoup:
+        """Extract main content using BeautifulSoup, preserving article body while removing navigation."""
+        
+        # Strategy: Keep main article content areas while removing navigation/sidebar boilerplate
+        main_content_selectors = [
+            # Content-specific selectors for common news sites (prioritize these)
+            '.RichTextStoryBody',  # AP News main content
+            '.RichTextBody',       # AP News article body
+            '.article-body',       # Generic article body
+            '.post-content',       # Blog posts
+            '.entry-content',      # WordPress
+            '.story-body',         # News sites
+            '.content-body',       # Generic content
+            # Standard semantic tags (fallback)
+            'main', 'article', '[role="main"]',
+        ]
+        
+        # Try to find main content area
+        main_content = None
+        for selector in main_content_selectors:
+            if '.' in selector:  # Class selector
+                class_name = selector[1:]  # Remove the '.' prefix
+                # Search for any element (not just div) with this class
+                element = soup.find(class_=lambda x: x and class_name in (x if isinstance(x, list) else x.split()))
+            elif '[' in selector:  # Attribute selector
+                if 'role="main"' in selector:
+                    element = soup.find(attrs={'role': 'main'})
+                else:
+                    element = None
+            else:  # Tag selector
+                element = soup.find(selector)
+            
+            if element:
+                main_content = element
+                break
+        
+        # Fallback: if no specific content area found, clean up the full soup
+        if not main_content:
+            main_content = soup
+            
+            # Remove navigation and other boilerplate from full document
+            for selector in ['nav', 'header', 'footer', '.navigation', '.nav-menu', 
+                           '.sidebar', '.menu', '.topbar', '.subheader']:
+                if '.' in selector:  # Class selector
+                    elements = soup.find_all('div', class_=lambda x: x and selector[1:] in x)
+                else:  # Tag selector
+                    elements = soup.find_all(selector)
+                
+                for elem in elements:
+                    elem.decompose()
+        
+        # Post-processing: Handle carousel and media container duplication
+        self._deduplicate_media_containers(main_content)
+        
+        return main_content
+
+    def _deduplicate_media_containers(self, soup):
+        """Remove duplicate carousel and media containers to prevent content duplication."""
+        try:
+            # Remove duplicate carousel slides that contain identical content
+            carousel_containers = soup.find_all('div', class_=lambda x: x and any(
+                cls in x for cls in ['Carousel', 'carousel', 'slide', 'media-container']
+            ))
+            
+            seen_images = set()
+            seen_captions = set()
+            
+            for container in carousel_containers:
+                # Check for duplicate images by src
+                images = container.find_all('img')
+                container_has_duplicate = False
+                
+                for img in images:
+                    src = img.get('src', '')
+                    if src and src in seen_images:
+                        container_has_duplicate = True
+                        break
+                    elif src:
+                        seen_images.add(src)
+                
+                # Check for duplicate captions
+                if not container_has_duplicate:
+                    caption_text = container.get_text(strip=True)
+                    if caption_text and len(caption_text) > 20:  # Only check substantial captions
+                        if caption_text in seen_captions:
+                            container_has_duplicate = True
+                        else:
+                            seen_captions.add(caption_text)
+                
+                # Remove duplicate container
+                if container_has_duplicate:
+                    container.decompose()
+                    
+        except Exception as e:
+            # Don't fail processing if deduplication has issues
+            pass
     
     def _analyze_content_density(self, text: str) -> Dict:
         """Analyze content density for smart truncation."""
@@ -706,47 +1143,386 @@ class HTMLPreprocessor:
         
         return final_result
     
-    def _empty_result(self) -> PreprocessedHTML:
-        """Return empty result for null input."""
-        return PreprocessedHTML(
-            cleaned_html="",
-            original_size=0,
-            cleaned_size=0,
-            compression_ratio=0.0,
-            processing_method="empty",
-            removed_elements=[],
-            preserved_structure=[],
-            content_density_info={}
-        )
-    
-    def _fallback_result(self, raw_html: str, max_tokens: int, original_size: int) -> PreprocessedHTML:
-        """Fallback result for error cases."""
-        # Ultra-simple fallback: just truncate
-        max_chars = max_tokens * 4
-        fallback_html = raw_html[:max_chars] + "..." if len(raw_html) > max_chars else raw_html
+    def _enhance_responsive_images(self, soup: BeautifulSoup, skip_nextjs_injected: bool = False) -> int:
+        """
+        Extract primary image URLs from responsive image sources and populate missing img src attributes.
+        Handles ESPN-style and other responsive image patterns.
         
-        return PreprocessedHTML(
-            cleaned_html=fallback_html,
-            original_size=original_size,
-            cleaned_size=len(fallback_html),
-            compression_ratio=0.0,
-            processing_method="fallback_truncation",
-            removed_elements=["preprocessing_error"],
-            preserved_structure=[],
-            content_density_info={}
-        )
-    
-    def get_preprocessing_summary(self, result: PreprocessedHTML) -> str:
-        """Generate human-readable summary of preprocessing results."""
-        if result.compression_ratio > 0:
-            method_info = f"[{result.processing_method}]"
+        Args:
+            soup: BeautifulSoup document
+            skip_nextjs_injected: If True, be extra cautious to avoid overwriting Next.js injected images
+        """
+        enhanced_count = 0
+        
+        try:
+            # Find picture elements with missing img src
+            pictures = soup.find_all('picture')
             
-            return (
-                f"HTML optimized {method_info}: {result.compression_ratio:.1f}% reduction "
-                f"({result.original_size:,} → {result.cleaned_size:,} chars). "
-                f"Removed: {', '.join(result.removed_elements[:3])}{'...' if len(result.removed_elements) > 3 else ''}. "
-                f"Preserved structure + noise samples for quality assessment."
-            )
-        else:
-            return f"HTML preprocessing failed - using {result.processing_method}" 
+            for picture in pictures:
+                img = picture.find('img')
+                if not img or img.get('src'):
+                    continue  # Skip if no img or already has src
+                
+                # Extra safety: if Next.js injection happened, be more selective  
+                if skip_nextjs_injected:
+                    # Check if this img is in a type-image container (Next.js territory)
+                    parent_container = img.find_parent('div', class_=lambda x: x and 'type-image' in x)
+                    if parent_container:
+                        # This is likely a Next.js injected area, skip to avoid conflicts
+                        continue
+                
+                # Look for sources with image URLs
+                sources = picture.find_all('source')
+                primary_url = None
+                
+                for source in sources:
+                    # Check different srcset attribute variations
+                    srcset_value = (source.get('srcset') or 
+                                  source.get('srcSet') or 
+                                  source.get('data-srcset'))
+                    
+                    if srcset_value:
+                        # Extract the first (usually highest quality) URL from srcset
+                        # Format: "url1 1x, url2 2x" or "url1 500w, url2 1000w"
+                        urls = [url.strip().split()[0] for url in srcset_value.split(',')]
+                        if urls and urls[0]:
+                            primary_url = urls[0]
+                            break
+                
+                # Set the primary URL as img src
+                if primary_url:
+                    img['src'] = primary_url
+                    enhanced_count += 1
+                    
+        except Exception as e:
+            # Log but don't fail
+            pass
+            
+        return enhanced_count
+    
+    def _enhance_responsive_images_lxml(self, doc, skip_nextjs_injected: bool = False) -> int:
+        """
+        Extract primary image URLs from responsive image sources and populate missing img src attributes.
+        Handles ESPN-style and other responsive image patterns. (lxml version)
+        
+        Args:
+            doc: The lxml document
+            skip_nextjs_injected: If True, be extra cautious to avoid overwriting Next.js injected images
+        """
+        enhanced_count = 0
+        
+        try:
+            # Find picture elements with missing img src
+            pictures = doc.xpath('//picture')
+            
+            for picture in pictures:
+                # Find img within this picture
+                imgs = picture.xpath('.//img')
+                if not imgs:
+                    continue
+                    
+                img = imgs[0]  # Take the first img
+                
+                # Enhanced check: skip if already has src or if we're being cautious about Next.js images
+                if img.get('src'):
+                    continue  # Skip if already has src
+                
+                # Extra safety: if Next.js injection happened, be more selective
+                if skip_nextjs_injected:
+                    # Check if this img is in a type-image container (Next.js territory)
+                    parent_containers = img.xpath('./ancestor::div[contains(@class, "type-image")]')
+                    if parent_containers:
+                        # This is likely a Next.js injected area, skip to avoid conflicts
+                        continue
+                
+                # Look for sources with image URLs
+                sources = picture.xpath('.//source')
+                primary_url = None
+                
+                for source in sources:
+                    # Check different srcset attribute variations
+                    srcset_value = (source.get('srcset') or 
+                                  source.get('srcSet') or 
+                                  source.get('data-srcset'))
+                    
+                    if srcset_value:
+                        # Extract the first (usually highest quality) URL from srcset
+                        # Format: "url1 1x, url2 2x" or "url1 500w, url2 1000w"
+                        try:
+                            urls = [url.strip().split()[0] for url in srcset_value.split(',')]
+                            if urls and urls[0]:
+                                primary_url = urls[0]
+                                break
+                        except (IndexError, AttributeError):
+                            continue
+                
+                # Set the primary URL as img src
+                if primary_url:
+                    img.set('src', primary_url)
+                    enhanced_count += 1
+                    
+        except Exception as e:
+            # Log but don't fail
+            pass
+            
+        return enhanced_count
+    
+    def _extract_nextjs_images_lxml(self, doc) -> List[Dict]:
+        """Extract image data from Next.js __NEXT_DATA__ script blocks. (lxml version)"""
+        images = []
+        
+        try:
+            # Find the __NEXT_DATA__ script using xpath
+            scripts = doc.xpath('//script[@id="__NEXT_DATA__"]')
+            if not scripts:
+                return images
+            
+            next_data_script = scripts[0]
+            script_text = next_data_script.text
+            if not script_text:
+                return images
+            
+            # Parse the JSON data
+            data = json.loads(script_text)
+            
+            # Navigate to content_elements in the Next.js data structure
+            props = data.get('props', {})
+            page_props = props.get('pageProps', {})
+            global_content = page_props.get('globalContent', {})
+            content_elements = global_content.get('content_elements', [])
+            
+            # Extract image information
+            for element in content_elements:
+                if element.get('type') == 'image':
+                    # Extract image data
+                    image_data = {
+                        'url': element.get('url', ''),
+                        'alt_text': element.get('alt_text', ''),
+                        'width': element.get('width', 0),
+                        'height': element.get('height', 0),
+                        'caption': element.get('credits_caption_display', ''),
+                        'subtype': element.get('subtype', '')
+                    }
+                    if image_data['url']:  # Only include if we have a URL
+                        images.append(image_data)
+                        
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            # Log but don't fail - just continue without enhanced images
+            pass
+            
+        return images
+
+    def _inject_missing_images_lxml(self, doc, images: List[Dict]) -> int:
+        """Inject missing images into placeholder divs and figure elements with intelligent matching. (lxml version)"""
+        injected_count = 0
+        
+        try:
+            if not images:
+                return 0
+                
+            # Find all image containers that need images, in DOM order
+            image_containers = []
+            
+            # Add figure elements that have img tags without src (these come first in article layout)
+            figures = doc.xpath('//figure')
+            for figure in figures:
+                imgs_in_figure = figure.xpath('.//img[not(@src)]')
+                if imgs_in_figure:
+                    image_containers.append(('figure', figure, imgs_in_figure[0]))
+            
+            # Add type-image div containers (these come after in article body)
+            type_image_divs = doc.xpath('//div[contains(@class, "type-image")]')
+            for div in type_image_divs:
+                existing_imgs = div.xpath('.//img[@src]')
+                if not existing_imgs:
+                    # No img with src, so it needs one
+                    existing_img_no_src = div.xpath('.//img[not(@src)]')
+                    existing_img = existing_img_no_src[0] if existing_img_no_src else None
+                    image_containers.append(('type-image', div, existing_img))
+            
+            # Smart matching: assign images to containers in the order they appear in content
+            # The first image (Hero) goes to the first figure
+            # Subsequent images go to type-image containers in order
+            
+            image_assignments = []
+            available_images = images.copy()
+            
+            for i, (container_type, container, existing_img) in enumerate(image_containers):
+                if not available_images:
+                    break
+                    
+                if container_type == 'figure' and i == 0:
+                    # First figure gets the first/hero image
+                    image_data = available_images.pop(0)
+                    image_assignments.append((container_type, container, existing_img, image_data))
+                elif container_type == 'type-image':
+                    # type-image containers get remaining images in order
+                    if available_images:
+                        image_data = available_images.pop(0)
+                        image_assignments.append((container_type, container, existing_img, image_data))
+            
+            # Execute the assignments
+            for container_type, container, existing_img, image_data in image_assignments:
+                if container_type == 'figure':
+                    # Handle figure elements - inject src into existing img
+                    if existing_img is not None:
+                        existing_img.set('src', image_data['url'])
+                        existing_img.set('alt', image_data['alt_text'])
+                        
+                        if image_data['width'] > 0:
+                            existing_img.set('width', str(image_data['width']))
+                        if image_data['height'] > 0:
+                            existing_img.set('height', str(image_data['height']))
+                        
+                        injected_count += 1
+                        
+                else:  # type-image
+                    # Handle type-image div containers - create new img element
+                    # Find the inner div to inject into
+                    inner_divs = container.xpath('.//div[contains(@class, "PJLV") or contains(@class, "hide-for-print")]')
+                    if inner_divs:
+                        inner_div = inner_divs[0]
+                        
+                        # Clear existing content
+                        inner_div.clear()
+                        
+                        # Create new img element
+                        img_element = lxml_html.Element('img')
+                        img_element.set('src', image_data['url'])
+                        img_element.set('alt', image_data['alt_text'])
+                        
+                        if image_data['width'] > 0:
+                            img_element.set('width', str(image_data['width']))
+                        if image_data['height'] > 0:
+                            img_element.set('height', str(image_data['height']))
+                        
+                        # Insert into the container
+                        inner_div.append(img_element)
+                        
+                        # Add caption if available
+                        if image_data['caption']:
+                            caption_element = lxml_html.Element('figcaption')
+                            caption_element.text = image_data['caption']
+                            inner_div.append(caption_element)
+                        
+                        injected_count += 1
+                    
+        except Exception as e:
+            # Log but don't fail
+            pass
+            
+        return injected_count
+    
+    def _extract_main_content_lxml(self, doc):
+        """Extract main content using lxml, preserving article body while removing navigation."""
+        
+        # Strategy: Keep main article content areas while removing navigation/sidebar boilerplate
+        main_content_selectors = [
+            # Content-specific selectors for common news sites (prioritize these)
+            '.RichTextStoryBody',  # AP News main content
+            '.RichTextBody',       # AP News article body
+            '.article-body',       # Generic article body
+            '.post-content',       # Blog posts
+            '.entry-content',      # WordPress
+            '.story-body',         # News sites
+            '.content-body',       # Generic content
+            # Standard semantic tags (fallback)
+            'main', 'article', '[role="main"]',
+        ]
+        
+        # Try to find main content area
+        main_content = None
+        for selector in main_content_selectors:
+            if '.' in selector:  # Class selector
+                class_name = selector[1:]  # Remove the '.' prefix
+                # Use XPath to search for elements with this class
+                xpath_query = f"//*[contains(concat(' ', @class, ' '), ' {class_name} ')]"
+                elements = doc.xpath(xpath_query)
+                if elements:
+                    element = elements[0]  # Take the first match
+            elif '[' in selector:  # Attribute selector
+                if 'role="main"' in selector:
+                    elements = doc.xpath("//*[@role='main']")
+                    element = elements[0] if elements else None
+            else:  # Tag selector
+                elements = doc.xpath(f"//{selector}")
+                element = elements[0] if elements else None
+            
+            if element is not None:
+                main_content = element
+                break
+        
+        # Fallback: if no specific content area found, clean up the full document
+        if main_content is None:
+            main_content = doc
+            
+            # Remove navigation and other boilerplate from full document
+            for selector in ['nav', 'header', 'footer', '.navigation', '.nav-menu', 
+                           '.sidebar', '.menu', '.topbar', '.subheader']:
+                if '.' in selector:  # Class selector
+                    class_name = selector[1:]
+                    xpath_query = f"//*[contains(concat(' ', @class, ' '), ' {class_name} ')]"
+                    elements = doc.xpath(xpath_query)
+                else:  # Tag selector
+                    elements = doc.xpath(f"//{selector}")
+                
+                for elem in elements:
+                    try:
+                        elem.drop_tree()
+                    except:
+                        try:
+                            elem.getparent().remove(elem)
+                        except:
+                            pass
+        
+        # Post-processing: Handle carousel and media container duplication
+        self._deduplicate_media_containers_lxml(main_content)
+        
+        return main_content
+
+    def _deduplicate_media_containers_lxml(self, doc):
+        """Remove duplicate carousel and media containers to prevent content duplication (lxml version)."""
+        try:
+            # Remove duplicate carousel slides that contain identical content
+            carousel_xpath = "//*[contains(concat(' ', @class, ' '), ' Carousel ') or contains(concat(' ', @class, ' '), ' carousel ') or contains(concat(' ', @class, ' '), ' slide ') or contains(concat(' ', @class, ' '), ' media-container ')]"
+            carousel_containers = doc.xpath(carousel_xpath)
+            
+            seen_images = set()
+            seen_captions = set()
+            
+            for container in carousel_containers:
+                # Check for duplicate images by src
+                images = container.xpath(".//img")
+                container_has_duplicate = False
+                
+                for img in images:
+                    src = img.get('src', '')
+                    if src and src in seen_images:
+                        container_has_duplicate = True
+                        break
+                    elif src:
+                        seen_images.add(src)
+                
+                # Check for duplicate captions
+                if not container_has_duplicate:
+                    caption_text = container.text_content().strip()
+                    if caption_text and len(caption_text) > 20:  # Only check substantial captions
+                        if caption_text in seen_captions:
+                            container_has_duplicate = True
+                        else:
+                            seen_captions.add(caption_text)
+                
+                # Remove duplicate container
+                if container_has_duplicate:
+                    try:
+                        container.drop_tree()
+                    except:
+                        try:
+                            container.getparent().remove(container)
+                        except:
+                            pass
+                    
+        except Exception as e:
+            # Don't fail processing if deduplication has issues
+            pass
     

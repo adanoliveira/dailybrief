@@ -116,10 +116,17 @@ class AIContentProcessor:
             )
             
             # 3. Call AI service following quality evaluation patterns
+            # Calculate dynamic token limit based on content complexity
+            estimated_blocks = min(max(len(preprocessed_data["html_sample"]) // 1000, 10), 100)
+            # Base tokens (1000) + tokens per estimated block (150) + buffer (500)
+            dynamic_max_tokens = min(1000 + (estimated_blocks * 150) + 500, 16000)
+            
+            logger.info(f"Using dynamic max_tokens: {dynamic_max_tokens} (estimated {estimated_blocks} blocks)")
+            
             llm_response = self.ai_service.call_llm(
                 prompt=prompt,
                 operation="content_extraction",
-                max_tokens=8000,  # Increased for GPT-4.1-mini comprehensive extractions
+                max_tokens=dynamic_max_tokens,  # Dynamic based on content complexity
                 temperature=0.1,  # Low temperature for consistent extraction
                 model_override=model_override,
                 response_format="json"
@@ -249,7 +256,44 @@ class AIContentProcessor:
             if response_content.endswith("```"):
                 response_content = response_content[:-3]
             
-            response_data = json.loads(response_content)
+            # Enhanced JSON parsing with truncation recovery
+            try:
+                response_data = json.loads(response_content)
+            except json.JSONDecodeError as json_error:
+                logger.error(f"JSON parsing failed: {json_error}")
+                
+                # Attempt to recover from truncation by finding the last complete JSON structure
+                if "Unterminated string" in str(json_error) or "Expecting" in str(json_error):
+                    logger.warning("Attempting to recover from truncated JSON response")
+                    
+                    # Try to find the last complete content block
+                    lines = response_content.split('\n')
+                    for i in range(len(lines) - 1, 0, -1):
+                        test_content = '\n'.join(lines[:i])
+                        
+                        # Try to complete the JSON by adding closing braces
+                        for attempt in [test_content, test_content + '}', test_content + '}}', test_content + '}}}']:
+                            try:
+                                response_data = json.loads(attempt)
+                                logger.info(f"JSON recovery successful at line {i}")
+                                break
+                            except:
+                                continue
+                        else:
+                            continue
+                        break
+                    else:
+                        # If recovery fails, return fallback
+                        return self._create_fallback_result(
+                            f"JSON parsing failed: {json_error}",
+                            processing_time
+                        )
+                else:
+                    # For other JSON errors, fail immediately
+                    return self._create_fallback_result(
+                        f"JSON parsing failed: {json_error}",
+                        processing_time
+                    )
             
             # Validate response structure using proven patterns
             if not self._validate_extraction_response(response_data):
@@ -422,7 +466,7 @@ class AIContentProcessor:
             return False
         
         # Validate each block structure
-        valid_types = {"heading", "paragraph", "image", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"}
+        valid_types = {"heading", "subtitle", "paragraph", "image", "figure", "quote", "list", "twitter_embed", "video_embed", "editorial_note"}
         
         for i, block in enumerate(blocks):
             if not isinstance(block, dict):
@@ -467,6 +511,13 @@ class AIContentProcessor:
             return (
                 isinstance(block.get("level"), int) and
                 1 <= block.get("level", 0) <= 6 and
+                isinstance(block.get("content"), str) and
+                len(block.get("content", "")) > 0
+            )
+        
+        elif block_type == "subtitle":
+            # Subtitles should have content
+            return (
                 isinstance(block.get("content"), str) and
                 len(block.get("content", "")) > 0
             )

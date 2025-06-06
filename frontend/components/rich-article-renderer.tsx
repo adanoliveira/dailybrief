@@ -94,6 +94,13 @@ function ContentBlockRenderer({ block, mediaAssets }: ContentBlockRendererProps)
   }
 }
 
+// Generic line break handler for all content types - always returns JSX
+const renderContentWithLineBreaks = (content: string) => {
+  // Always use HTML parsing to ensure consistent JSX return type
+  // This handles both line breaks and existing HTML tags properly
+  return parse(content)
+}
+
 // Individual block components
 function HeadingBlock({ block }: { block: ContentBlock }) {
   const level = block.level || 2
@@ -119,24 +126,48 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
 }
 
 function SubtitleBlock({ block }: { block: ContentBlock }) {
-  // Enhanced subtitle rendering with link support
+  // Enhanced subtitle rendering with robust HTML link handling
   const renderContentWithLinks = () => {
     let content = block.content || block.text || ''
-    const links = block.metadata?.links || []
     
-    // If we have links metadata, convert [URL] format to clickable links
+    // Check if content already contains HTML anchor tags
+    if (content.includes('<a ')) {
+      // Content already has HTML links, apply additional processing for safety
+      // Ensure target="_blank" and rel="noopener noreferrer" are set for security
+      content = content.replace(
+        /<a\s+href="([^"]*)"(?![^>]*target=)/g, 
+        '<a href="$1" target="_blank" rel="noopener noreferrer"'
+      )
+      return renderContentWithLineBreaks(content)
+    }
+    
+    // Fallback: If no HTML links but we have metadata links, inject them
+    const links = block.metadata?.links || []
     if (links.length > 0) {
       links.forEach((link: { text: string; href: string }) => {
+        // Escape regex special characters in href for pattern matching
         const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
         content = content.replace(linkPattern, '')
         
-        // Replace the link text with a clickable link
+        // Replace the link text with a clickable link (only if not already a link)
         const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
-        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`)
+        content = content.replace(textPattern, (match, offset, string) => {
+          // Check if this text is already inside an HTML tag
+          const beforeMatch = string.substring(0, offset)
+          const lastOpenTag = beforeMatch.lastIndexOf('<')
+          const lastCloseTag = beforeMatch.lastIndexOf('>')
+          
+          // If we're inside an HTML tag, don't replace
+          if (lastOpenTag > lastCloseTag) {
+            return match
+          }
+          
+          return `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`
+        })
       })
     }
     
-    return content
+    return renderContentWithLineBreaks(content)
   }
 
   return (
@@ -150,30 +181,54 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
         block.classes?.join(' ')
       )}
     >
-      {parse(renderContentWithLinks())}
+      {renderContentWithLinks()}
     </div>
   )
 }
 
 function ParagraphBlock({ block }: { block: ContentBlock }) {
-  // Enhanced paragraph rendering with link support
+  // Enhanced paragraph rendering with robust HTML link handling
   const renderContentWithLinks = () => {
     let content = block.content || block.text || ''
-    const links = block.metadata?.links || []
     
-    // If we have links metadata, convert [URL] format to clickable links
+    // Check if content already contains HTML anchor tags
+    if (content.includes('<a ')) {
+      // Content already has HTML links, apply additional processing for safety
+      // Ensure target="_blank" and rel="noopener noreferrer" are set for security
+      content = content.replace(
+        /<a\s+href="([^"]*)"(?![^>]*target=)/g, 
+        '<a href="$1" target="_blank" rel="noopener noreferrer"'
+      )
+      return renderContentWithLineBreaks(content)
+    }
+    
+    // Fallback: If no HTML links but we have metadata links, inject them
+    const links = block.metadata?.links || []
     if (links.length > 0) {
       links.forEach((link: { text: string; href: string }) => {
+        // Escape regex special characters in href for pattern matching
         const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
         content = content.replace(linkPattern, '')
         
-        // Replace the link text with a clickable link
+        // Replace the link text with a clickable link (only if not already a link)
         const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
-        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`)
+        content = content.replace(textPattern, (match, offset, string) => {
+          // Check if this text is already inside an HTML tag
+          const beforeMatch = string.substring(0, offset)
+          const lastOpenTag = beforeMatch.lastIndexOf('<')
+          const lastCloseTag = beforeMatch.lastIndexOf('>')
+          
+          // If we're inside an HTML tag, don't replace
+          if (lastOpenTag > lastCloseTag) {
+            return match
+          }
+          
+          return `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors">${link.text}</a>`
+        })
       })
     }
     
-    return content
+    return renderContentWithLineBreaks(content)
   }
 
   return (
@@ -187,7 +242,7 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
         block.classes?.join(' ')
       )}
     >
-      {parse(renderContentWithLinks())}
+      {renderContentWithLinks()}
     </div>
   )
 }
@@ -416,14 +471,19 @@ function AudioBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
 }
 
 function QuoteBlock({ block }: { block: ContentBlock }) {
+  // Simplified quote rendering using universal line break handling
+  const content = block.content || block.text || ''
+
   return (
     <blockquote className={cn(
-      "my-6 border-l-4 border-primary pl-6 italic text-lg",
+      "my-6 border-l-4 border-primary pl-6 italic text-lg leading-relaxed",
       block.classes?.join(' ')
     )}>
-      <p>{block.content || block.text}</p>
+      <div className="space-y-2">
+        {renderContentWithLineBreaks(content)}
+      </div>
       {block.cite && (
-        <cite className="mt-2 block text-sm text-muted-foreground not-italic">
+        <cite className="mt-4 block text-sm text-muted-foreground not-italic">
           — {parse(block.cite)}
         </cite>
       )}
@@ -597,24 +657,48 @@ function TwitterEmbedBlock({ block }: { block: ContentBlock }) {
 }
 
 function PullquoteBlock({ block }: { block: ContentBlock }) {
-  // Enhanced pullquote rendering with link support
+  // Enhanced pullquote rendering with robust HTML link handling
   const renderContentWithLinks = () => {
     let content = block.content || block.text || ''
-    const links = block.metadata?.links || []
     
-    // If we have links metadata, convert them to clickable links
+    // Check if content already contains HTML anchor tags
+    if (content.includes('<a ')) {
+      // Content already has HTML links, apply additional processing for safety
+      // Ensure target="_blank" and rel="noopener noreferrer" are set for security
+      content = content.replace(
+        /<a\s+href="([^"]*)"(?![^>]*target=)/g, 
+        '<a href="$1" target="_blank" rel="noopener noreferrer"'
+      )
+      return renderContentWithLineBreaks(content)
+    }
+    
+    // Fallback: If no HTML links but we have metadata links, inject them
+    const links = block.metadata?.links || []
     if (links.length > 0) {
       links.forEach((link: { text: string; href: string }) => {
+        // Escape regex special characters in href for pattern matching
         const linkPattern = new RegExp(`\\[${link.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g')
         content = content.replace(linkPattern, '')
         
-        // Replace the link text with a clickable link
+        // Replace the link text with a clickable link (only if not already a link)
         const textPattern = new RegExp(`\\b${link.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')
-        content = content.replace(textPattern, `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors font-medium">${link.text}</a>`)
+        content = content.replace(textPattern, (match, offset, string) => {
+          // Check if this text is already inside an HTML tag
+          const beforeMatch = string.substring(0, offset)
+          const lastOpenTag = beforeMatch.lastIndexOf('<')
+          const lastCloseTag = beforeMatch.lastIndexOf('>')
+          
+          // If we're inside an HTML tag, don't replace
+          if (lastOpenTag > lastCloseTag) {
+            return match
+          }
+          
+          return `<a href="${link.href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors font-medium">${link.text}</a>`
+        })
       })
     }
     
-    return content
+    return renderContentWithLineBreaks(content)
   }
 
   return (
@@ -637,7 +721,7 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
       >
         {/* Clean content without extra decorations */}
         <div className="prose prose-lg max-w-none dark:prose-invert [&>*]:my-0">
-          {parse(renderContentWithLinks())}
+          {renderContentWithLinks()}
         </div>
         
         {/* Citation if available - clean and minimal */}

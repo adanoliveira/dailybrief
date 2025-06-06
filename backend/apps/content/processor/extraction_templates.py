@@ -43,6 +43,7 @@ class AlgorithmicExtractionTemplate:
         extraction_algorithm = self._get_extraction_algorithm()
         output_format = self._get_structured_output_format()
         content_types = self._get_content_type_definitions()
+        recommended_exclusions = self._get_recommended_content_exclusions()
         formatting_protocol = self._get_html_formatting_protocol()
         examples = self._get_structured_examples()
         
@@ -68,12 +69,13 @@ EXTRACTION REQUIREMENTS (MANDATORY):
 
 VALIDATION CHECKLIST:
 ✓ COMPLETENESS: 20-40+ blocks extracted
-✓ ALL HEADINGS: Every h1, h2, h3, h4, h5, h6 in article body
-✓ ALL PARAGRAPHS: Every paragraph with 4+ meaningful words
+✓ ALL HEADINGS: Every structural h1, h2, h3, h4, h5, h6 in article body (NOT article subtitles)
+✓ ALL SUBTITLES: Lead paragraphs/subtitles that provide context to main title (positions 0-2)
+✓ ALL PARAGRAPHS: Body text paragraphs with 4+ meaningful words (positions 3+)
 ✓ ALL IMAGES: Every article image with complete URL
 ✓ ALL LISTS: Every ul, ol with content items
 ✓ ALL EMBEDS: Every video, twitter / x, iframe, blockquote
-✓ ALL LINKS: Every <a href="..."> extracted to metadata.external_links
+✓ ALL LINKS: Every <a href="..."> kept in content AND stored in metadata.links
 ✓ SEQUENTIAL POSITIONS: 0, 1, 2, 3... (no gaps, no jumps, all blocks in correct position, no positions swapped)
 ✓ VISUAL ORDER: Content appears in same order as in original article (embeds not moved to end)
 ✓ HTML FORMATTING: <strong>, <em> throughout (no markdown)
@@ -83,7 +85,7 @@ VALIDATION CHECKLIST:
 
 Return only the JSON object following the examples above. No code blocks, no commentary."""
         
-        return f"{system_prompt}\n\n{extraction_algorithm}\n\n{output_format}\n\n{content_types}\n\n{formatting_protocol}\n\n{examples}\n\n{user_prompt}"
+        return f"{system_prompt}\n\n{extraction_algorithm}\n\n{output_format}\n\n{content_types}\n\n{recommended_exclusions}\n\n{formatting_protocol}\n\n{examples}\n\n{user_prompt}"
     
     def _get_system_prompt(self) -> str:
         """Get the system prompt with clear mission."""
@@ -107,7 +109,7 @@ CORE PRINCIPLES:
         return """🔥 AGGRESSIVE COMPREHENSIVE EXTRACTION PROCESS 🔥
 
 🚨 EXTRACTION MANDATE: You MUST extract ALL content blocks. NO SKIPPING. NO SELECTIVITY.
-🔗 CRITICAL: Extract ALL links and put them in metadata.external_links (this is currently broken - FIX IT!)
+🔗 CRITICAL: Extract ALL links as HTML <a> tags in content AND store them in metadata.links (this format is required for frontend rendering!)
 
 STEP 1: SYSTEMATIC CONTENT INVENTORY
 • Scan ENTIRE HTML document from top to bottom - MISS NOTHING
@@ -125,7 +127,7 @@ STEP 1: SYSTEMATIC CONTENT INVENTORY
 
 STEP 1.5: EMBED POSITION MAPPING (CRITICAL FOR CORRECT ORDERING)
 • Scan article from top to bottom and NOTE where each embed appears
-• Record EXACT CONTEXT for videos, tweets, iframes in reading flow
+• Record EXACT CONTEXT for images, videos, tweets, iframes in reading flow
 • Example mapping: "Twitter embed appears after 'Nintendo didn't respond' paragraph, before 'similar leak happened' paragraph"
 • This position context will be used in Step 2 for precise placement
 • DO NOT extract content yet - just map positions
@@ -134,8 +136,9 @@ STEP 2: EXHAUSTIVE EXTRACTION (STRICT VISUAL ORDER)
 • Process content LINEARLY from top to bottom - NO exceptions
 • CRITICAL: Extract each element WHEN you encounter it in the HTML flow
 • DO NOT skip complex elements to process later - handle them immediately
-• Extract ALL headings (h1-h6) - even if they seem similar
-• Extract ALL paragraphs - even short ones with 4+ meaningful words
+• Extract ALL structural headings (h1-h6) that organize content sections
+• Extract ALL subtitles/lead paragraphs (early positions 0-2, provide context to title)
+• Extract ALL body paragraphs (later positions 3+, main article content)
 • Extract ALL images with captions - miss none
 • Extract ALL lists - even small 2-item lists
 • Extract ALL quotes and blockquotes
@@ -174,6 +177,24 @@ STEP 3: COMPREHENSIVE VALIDATION & FEEDBACK
 ❌ Non-sequential position numbers
 ❌ Embeds/tweets appearing at end instead of their original position
 ❌ Processing content "out of order" for any reason
+
+🧠 CONTENT TYPE DECISION GUIDE:
+📍 POSITION 0-2 (Early in article):
+   • Main title → extracted_title (not a content block)
+   • Subtitle/lead that elaborates on title → "subtitle" type
+   • Author byline → author_information (not a content block)
+   
+📍 POSITION 3+ (Article body):
+   • Structural section headings (h1-h6) → "heading" type with level
+   • Body text paragraphs → "paragraph" type
+   • Images with captions → "image" type
+   • Lists → "list" type
+   • Quotes → "quote" type
+
+🎯 KEY DISTINCTION:
+   • SUBTITLE: "Scientists have discovered a new species that could change marine biology"
+   • PARAGRAPH: "The research team used advanced sonar equipment to map the ocean floor..."
+   • HEADING: "Research Methodology" or "Key Findings"
 
 🔥 REMEMBER: Be COMPREHENSIVE, not selective. Extract MORE, not less."""
     
@@ -283,24 +304,77 @@ REQUIRED JSON STRUCTURE:
 Each content type follows this consistent pattern:
 
 ### 📰 HEADING (h1-h6)
-✅ INCLUDE: Article headings and subheadings with HTML formatting
+✅ INCLUDE: Structural headings that organize article sections (h1, h2, h3, h4, h5, h6)
 🎯 FORMAT: content="<strong>Breaking</strong> News", level=1-6, position=sequential
-🚫 EXCLUDE: Navigation headings, "Related Articles", sidebar headings, newsletter and signup calls to action, recommended articles, suggested reading, etc.
+🚫 EXCLUDE: 
+    • Navigation menus and section headers
+    • "Related Articles" and "Recommended Reading" sections
+    • Sidebar widgets and supplementary content headers
+    • Newsletter signup prompts and subscription CTAs
+    • Article title (extract as title metadata)
+    • Article subtitles (use subtitle type)
+    • "Editor's Picks" and "Featured Stories" sections
+    • Social sharing headers and engagement prompts
+    • Footer navigation and site map headers
+⚠️ CRITICAL: Do NOT use for article subtitles/lead paragraphs - those should be "subtitle" type
 📝 METADATA: {"has_formatting": boolean, "formatting_types": []}
 
+### 📝 SUBTITLE (article subtitle/lead)
+✅ INCLUDE: Article subtitles, lead paragraphs, deck text that provides context to the main title
+🎯 FORMAT: content="Text that elaborates on the main title with <em>formatting</em>"
+🎯 POSITION: Usually appears early in article (positions 0-2), right after main title
+🎯 CHARACTERISTICS: Longer than headings, shorter than full paragraphs, descriptive, contextual
+✅ EXAMPLES: "Scientists discover new species in deep ocean that could change our understanding of marine life"
+✅ EXAMPLES: "The breakthrough comes after years of research and could lead to new treatments"
+🚫 EXCLUDE: Regular paragraphs, structural headings, body text, author bylines
+⚠️ CRITICAL: Use this instead of "paragraph" for lead/subtitle content that needs special formatting
+📝 METADATA: {"has_formatting": boolean, "formatting_types": [], "is_lead": true}
+
 ### 📄 PARAGRAPH  
-✅ INCLUDE: Main body text with complete sentences and HTML formatting
+✅ INCLUDE: Main body text paragraphs with complete sentences and HTML formatting (preserve all <br> tags)
 🎯 FORMAT: content="Text with <strong>bold</strong> and <em>italic</em>"
-🚫 EXCLUDE: Navigation text, ad copy, sidebar content, newsletter and signup calls to action, commission text, author byline (should be in author_information and metadata), article date and timestamp, suggested reading, empty paragraphs or with meaningless characters, etc.
+🎯 POSITION: Usually after subtitle/lead content (positions 3+)
+🎯 CHARACTERISTICS: Full sentences, substantial content, part of article body flow
+🚫 EXCLUDE: 
+    • Navigation elements and menu text
+    • Advertisement content and promotional copy
+    • Sidebar widgets and supplementary content
+    • Newsletter signup forms and subscription prompts
+    • Commission disclosure text and affiliate notices
+    • Author bylines and biographical information (extract as author_information)
+    • Author role descriptions and credentials
+    • Publication dates and timestamps (use metadata)
+    • "Suggested reading" and "Related articles" sections
+    • Empty paragraphs or those containing only whitespace/special characters
+    • Article subtitles and lead paragraphs (use subtitle type)
+    • Inline article recommendations and cross-promotional content
+⚠️ CRITICAL: Do NOT use for article subtitles/lead content - those should be "subtitle" type
+📝 METADATA: {"has_formatting": boolean, "formatting_types": []}
 
 ### 🖼️ IMAGE
-✅ INCLUDE: Article images with captions and complete URLs
+✅ INCLUDE: Article images that are:
+    • Larger than 200x200 pixels
+    • Have complete, valid image URLs
+    • Are positioned within the main article content flow (especially near heading/subtitle for primary images)
+    • Have ANY of the following indicators:
+      - Descriptive alt text or captions relating to article content
+      - Attribution credits (e.g., "Photo by...", "Credit:...")
+      - Large size (>800px width) suggesting primary article imagery
+      - Positioned early in article structure (first 3-5 content blocks)
 🎯 FORMAT: content="Caption with <em>formatting</em>", metadata with full src
-🚫 EXCLUDE: Ad images, profile photos, logos, navigation icons
+🚫 EXCLUDE: 
+    • Advertisements and promotional images (often in sidebars or clearly marked as ads)
+    • Profile pictures and author headshots (especially when <200x200px or near bylines)
+    • Brand logos and navigation icons (typically small and in headers/footers)
+    • UI elements and social media buttons (share icons, platform buttons)
+    • Newsletter signup illustrations and subscription graphics
+    • Clearly decorative images (patterns, dividers, background graphics)
+    • Images in recommended/related article sections
+    ⚠️ NOTE: When in doubt for large images (>500px) positioned within article flow, INCLUDE rather than exclude
 📝 METADATA: {"src": "COMPLETE_URL.jpg", "alt": "text", "caption": "HTML"}
 
 ### 💬 QUOTE (blockquotes, pullquotes)
-✅ INCLUDE: Direct quotes, blockquotes with HTML formatting  
+✅ INCLUDE: Direct quotes, blockquotes with HTML formatting (preserve all <br> tags)
 🎯 FORMAT: content="\"<em>Quote</em> text,\" said Author."
 🚫 EXCLUDE: Social media quotes (use twitter_embed instead)
 📝 METADATA: {"cite": "attribution", "type": "blockquote|pullquote"}
@@ -331,6 +405,51 @@ Each content type follows this consistent pattern:
 📝 METADATA: {"note_type": "update|correction|editor_note", "timestamp": "text"}
 <<<END CONTENT TYPES>>>"""
     
+    def _get_recommended_content_exclusions(self) -> str:
+        """Get specific guidance for excluding recommended/related content."""
+        return """<<<RECOMMENDED CONTENT EXCLUSIONS>>>
+🚨 CRITICAL: Do NOT extract recommended/related article content that breaks the main article flow.
+
+### 🚫 EXCLUDE THESE PATTERNS:
+❌ SECTION HEADERS:
+    • "Editor's Picks"
+    • "Recommended"
+    • "Suggested Reading"
+    • "See Also"
+    • "You May Also Like"
+    • "Related Stories"
+    • "More from [Publication]"
+    • "Don't Miss"
+    • "Trending Now"
+    • "Popular Stories"
+    • "Featured Content"
+    • "Must Read"
+    • "From Our Archives"
+    • "Recommended for You"
+    • "Similar Articles"
+    • "What to Read Next"
+    • "More Stories Like This"
+    • "You Might Also Enjoy"
+    • "From Around the Web"
+❌ INLINE RECOMMENDATIONS: Sudden topic shifts to unrelated articles within paragraphs
+❌ CONTENT BREAKS: Sections that interrupt article flow with different topics/stories
+❌ PROMOTIONAL BLOCKS: "Subscribe to newsletter", "Follow us", "Download our app", "Sign up", "Newsletter"
+
+### 🎯 IDENTIFICATION SIGNALS:
+• Content appears in separate divs/sections from main article
+• Topics suddenly shift from main article subject
+• Contains publication calls-to-action or subscription prompts
+• Includes phrases like "Read more:", "Check out:", "Don't miss:"
+• Lists multiple unrelated article titles
+
+### ✅ WHAT TO DO:
+• Skip these sections entirely - do not extract as any content type
+• Continue extraction with the next main article content
+• Maintain sequential position numbering (skip over excluded content)
+
+🎯 FOCUS: Extract only content that serves the main article's narrative and purpose.
+<<<END EXCLUSIONS>>>"""
+    
     def _get_html_formatting_protocol(self) -> str:
         """Get HTML formatting conversion protocol."""
         return """<<<HTML FORMATTING PROTOCOL>>>
@@ -339,7 +458,9 @@ Convert all text formatting to standard HTML tags. Follow these patterns exactly
 ### 🔤 TEXT FORMATTING RULES
 ✅ BOLD: <strong>text</strong> (convert from <b>, <strong>, **text**)
 ✅ ITALIC: <em>text</em> (convert from <i>, <em>, *text*)  
+✅ LINKS: <a href="url">text</a> (keep in content AND store in metadata.links)
 ✅ CODE: <code>text</code> (preserve <code> tags)
+✅ LINE BREAKS: <br> (preserve line breaks in quotes, paragraphs, lists, and structured content)
 ✅ NESTED: <strong><em>bold italic</em></strong>
 🚫 NEVER: **bold**, *italic*, [text](url) markdown syntax
 
@@ -358,9 +479,9 @@ For each <a href="URL">text</a> found in the source HTML:
 ✅ EXTERNAL: Different domain → "example.com"
 ✅ INTERNAL: Same domain or relative → "internal"
 
-🚨 STEP 4: Store REAL URL and remove link from content
-✅ CONTENT: "Scientists found evidence. Read the article here."
-✅ METADATA: external_links: [{"url": "https://example.com/real-article", "text": "Read the article", "domain": "example.com"}]
+🚨 STEP 4: Keep links as HTML AND store in metadata
+✅ CONTENT: "Scientists found evidence. <a href=\"https://example.com/real-article\">Read the article here</a>."
+✅ METADATA: links: [{"text": "Read the article here", "href": "https://example.com/real-article"}]
 
 🚨 ABSOLUTELY CRITICAL:
 - Only use href values that actually exist in the HTML source
@@ -420,20 +541,19 @@ OUTPUT JSON:
       }
     },
     {
-      "type": "paragraph",
-      "content": "Scientists have made a <strong>groundbreaking</strong> discovery that could change everything.",
+      "type": "subtitle",
+      "content": "New research reveals unprecedented insights into marine biodiversity",
       "level": null,
       "position": 1,
       "metadata": {
-        "has_formatting": true,
-        "formatting_types": ["bold", "links"],
-        "link_count": 1,
-        "external_links": [{"url": "https://example.com/research", "text": "change everything", "domain": "example.com"}]
+        "has_formatting": false,
+        "formatting_types": [],
+        "is_lead": true
       }
     },
     {
       "type": "image",
-      "content": "Scientists <em>working</em> in the lab. Photo by John Doe",
+      "content": "Scientists <em>working</em> in the lab. Photo by <a href=\"https://photographer.com/profile\">John Doe</a>",
       "level": null,
       "position": 2,
       "metadata": {
@@ -441,14 +561,26 @@ OUTPUT JSON:
         "alt": "Laboratory equipment",
         "caption": "Scientists <em>working</em> in the lab. Photo by John Doe",
         "has_formatting": true,
-        "external_links": [{"url": "https://photographer.com/profile", "text": "John Doe", "domain": "photographer.com"}]
+        "links": [{"text": "John Doe", "href": "https://photographer.com/profile"}]
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Scientists have made a <strong>groundbreaking</strong> discovery that could <a href=\"https://example.com/research\">change everything</a>.",
+      "level": null,
+      "position": 1,
+      "metadata": {
+        "has_formatting": true,
+        "formatting_types": ["bold", "links"],
+        "is_lead": true,
+        "links": [{"text": "change everything", "href": "https://example.com/research"}]
       }
     },
     {
       "type": "heading",
       "content": "Key Findings",
       "level": 2,
-      "position": 3,
+      "position": 4,
       "metadata": {
         "has_formatting": false,
         "formatting_types": []
@@ -458,24 +590,24 @@ OUTPUT JSON:
       "type": "list",
       "content": "",
       "level": null,
-      "position": 4,
+      "position": 5,
       "metadata": {
         "list_type": "ul",
-        "items": ["<strong>First</strong> major finding", "Second <em>important</em> result with more details"],
+        "items": ["<strong>First</strong> major finding", "Second <em>important</em> result with <a href=\"https://journal.com/details\">more details</a>"],
         "has_formatting": true,
         "formatted_items": true,
-        "external_links": [{"url": "https://journal.com/details", "text": "more details", "domain": "journal.com"}]
+        "links": [{"text": "more details", "href": "https://journal.com/details"}]
       }
     },
     {
       "type": "quote",
-      "content": "\"<em>This changes our understanding</em> <strong>completely</strong>,\" said Dr. Smith.",
+      "content": "\"<em>This changes our understanding</em> <strong>completely</strong>,\" said <a href=\"https://university.edu/expert\">Dr. Smith</a>.",
       "level": null,
-      "position": 5,
+      "position": 6,
       "metadata": {
         "has_formatting": true,
         "attribution_formatted": true,
-        "external_links": [{"url": "https://university.edu/expert", "text": "Dr. Smith", "domain": "university.edu"}]
+        "links": [{"text": "Dr. Smith", "href": "https://university.edu/expert"}]
       }
     }
   ],
@@ -501,15 +633,14 @@ OUTPUT JSON:
   "content_blocks": [
     {
       "type": "paragraph",
-      "content": "The <strong><em>revolutionary</em></strong> study found that <code>AI systems</code> can dramatically improve outcomes.",
+      "content": "The <strong><em>revolutionary</em></strong> study found that <code>AI systems</code> can <a href=\"https://research.com\">dramatically improve</a> outcomes.",
       "level": null,
       "position": 0,
-      "metadata": {
-        "has_formatting": true,
-        "formatting_types": ["bold", "italic", "links", "code"],
-        "link_count": 1,
-        "external_links": [{"url": "https://research.com", "text": "dramatically improve", "domain": "research.com"}]
-      }
+              "metadata": {
+          "has_formatting": true,
+          "formatting_types": ["bold", "italic", "links", "code"],
+          "links": [{"text": "dramatically improve", "href": "https://research.com"}]
+        }
     }
   ],
   "extraction_metadata": {
