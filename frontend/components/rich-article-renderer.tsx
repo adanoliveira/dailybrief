@@ -137,13 +137,13 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
     <HeadingTag 
       id={block.id}
       className={withFormattingSupport(cn(
-        "font-bold tracking-tight scroll-m-20",
-        level === 1 && "text-4xl lg:text-5xl",
-        level === 2 && "text-3xl lg:text-4xl",
-        level === 3 && "text-2xl lg:text-3xl",
-        level === 4 && "text-xl lg:text-2xl",
-        level === 5 && "text-lg lg:text-xl",
-        level === 6 && "text-base lg:text-lg",
+        "font-black tracking-tight scroll-m-20 text-foreground [&:not(:first-child)]:mt-12 mb-6",
+        level === 1 && "text-3xl md:text-4xl lg:text-5xl",
+        level === 2 && "text-2xl md:text-3xl lg:text-4xl",
+        level === 3 && "text-xl md:text-2xl lg:text-3xl",
+        level === 4 && "text-lg md:text-xl lg:text-2xl",
+        level === 5 && "text-lg md:text-xl lg:text-2xl",
+        level === 6 && "text-base md:text-lg lg:text-xl",
         block.classes?.join(' ')
       ))}
     >
@@ -200,7 +200,7 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-lg leading-8 text-muted-foreground font-medium [&:not(:first-child)]:mt-4 mb-6",
+        "text-xl leading-8 text-foreground/80 font-semibold tracking-tight [&:not(:first-child)]:mt-8 mb-4",
         block.classes?.join(' ')
       ))}
     >
@@ -329,8 +329,8 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
   }
 
   return (
-    <figure className="my-8">
-      <div className="relative overflow-hidden rounded-lg bg-muted">
+    <figure className="my-8 -mx-4 md:-mx-6 lg:-mx-8">
+      <div className="relative overflow-hidden bg-muted">
         {imageLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -361,7 +361,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         />
       </div>
       {shouldShowCaption && (
-        <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
+        <figcaption className={withFormattingSupport("mt-3 mx-4 md:mx-6 lg:mx-8 text-sm text-muted-foreground text-center italic")}>
           {parse(caption)}
         </figcaption>
       )}

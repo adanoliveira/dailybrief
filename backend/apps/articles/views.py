@@ -319,6 +319,10 @@ def article_detail(request, public_id):
     # Format topic data
     topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
     
+    # Get publication details
+    publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+    publication_logo = article.publication.logo_url if article.publication else None
+    
     # Format the article data
     article_data = {
         'id': str(article.public_id),
@@ -327,7 +331,8 @@ def article_detail(request, public_id):
         'description': article.description or '',
         'content': get_best_content(article),
         'source': {
-            'name': article.source_name or (article.publication.name if article.publication else 'Unknown')
+            'name': publication_name,
+            'logoUrl': publication_logo
         },
         'author': article.author,
         'publishedAt': article.published_at.isoformat(),

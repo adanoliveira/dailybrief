@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { PublicationBadge } from "@/components/ui/publication-badge"
 import Link from "next/link"
 import { getTopicIcon } from "@/lib/topic-icons"
 import parse from 'html-react-parser'
@@ -117,24 +118,7 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
                 }
               </CardTitle>
               <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
-                {article.source.logoUrl ? (
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-4 w-4 rounded-full overflow-hidden bg-muted flex items-center justify-center">
-                      <img 
-                        src={article.source.logoUrl} 
-                        alt={article.source.name}
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          // Hide the image on error and show just the name
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
-                    <span>{article.source.name}</span>
-                  </div>
-                ) : (
-                  <span>{article.source.name}</span>
-                )}
+                <PublicationBadge source={article.source} size="sm" />
                 <span>•</span>
                 <span>{formatDate(article.publishedAt)}</span>
                 {article.readTime && (

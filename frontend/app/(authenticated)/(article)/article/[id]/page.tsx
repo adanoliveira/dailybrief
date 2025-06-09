@@ -10,11 +10,17 @@ import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RichArticleRenderer, withFormattingSupport, renderWithFormatting } from "@/components/rich-article-renderer"
+import { ArticleHeader } from "@/components/article/article-header"
+import { ArticleActionBar } from "@/components/article/article-action-bar"
+import { getHeroImage } from "@/lib/article-utils"
+import { cn } from "@/lib/utils"
 
 export default function Article({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [heroImage, setHeroImage] = useState<string | null>(null)
+  const [filteredBlocks, setFilteredBlocks] = useState<any[]>([])
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -23,6 +29,11 @@ export default function Article({ params }: { params: { id: string } }) {
         const data = await getArticleDetail(params.id)
         setArticle(data)
         setError(null)
+        
+        // Extract hero image and filter content blocks
+        const { heroImage: extractedHeroImage, filteredBlocks: filtered } = getHeroImage(data)
+        setHeroImage(extractedHeroImage)
+        setFilteredBlocks(filtered)
       } catch (err) {
         console.error('Error fetching article:', err)
         setError(err instanceof Error ? err.message : 'Failed to load article')
@@ -114,29 +125,13 @@ export default function Article({ params }: { params: { id: string } }) {
     )
   }
 
-  // Get the best title from heading content block or fallback to article title
-  const getBestTitle = () => {
-    // Check if there's a heading content block (AI-generated titles are often better)
-    if (article.richContent?.blocks) {
-      const headingBlock = article.richContent.blocks.find(
-        block => block.type === 'heading' && (block.level === 1 || block.level === undefined) && block.content
-      )
-      if (headingBlock?.content) {
-        // Prefer heading content block as it's usually more detailed/formatted
-        return headingBlock.content
-      }
-    }
-    // Fallback to visual title or regular title
-    return article.visualTitle || article.title
-  }
-
-  // Filter content blocks to remove duplicate titles
+  // Filter content blocks to remove duplicate titles and hero image
   const getFilteredContentBlocks = () => {
-    if (!article.richContent?.blocks) return []
+    if (!filteredBlocks) return []
     
-    const primaryTitle = getBestTitle()
+    const primaryTitle = article?.visualTitle || article?.title
     
-    return article.richContent.blocks.filter(block => {
+    return filteredBlocks.filter(block => {
       // Remove heading blocks that duplicate the main title
       if (block.type === 'heading' && (block.level === 1 || block.level === undefined)) {
         // Check if this heading is the same as our primary title (with or without HTML)
@@ -158,39 +153,17 @@ export default function Article({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="container py-6 max-w-3xl">
-      <div className="space-y-6">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-            {article.topics && article.topics.length > 0 && (
-              <>
-                <span>{article.topics[0].name}</span>
-                <span>•</span>
-              </>
-            )}
-            <span>{formatDate(article.publishedAt)}</span>
-            <span>•</span>
-            <span>{article.source.name}</span>
-            {article.author && (
-              <>
-                <span>•</span>
-                <span>By {article.author}</span>
-              </>
-            )}
-            {article.readTime && (
-              <>
-            <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {article.readTime} min read
-                </span>
-              </>
-            )}
-          </div>
-          <h1 className={withFormattingSupport("text-3xl font-bold tracking-tight md:text-4xl")}>
-            {renderWithFormatting(getBestTitle())}
-          </h1>
-        </div>
+    <div className="min-h-screen">
+      {/* Full width header - no top padding */}
+      <div className={cn(
+        "container max-w-3xl px-4",
+        !heroImage && "pt-8" // Add top padding only when no hero image
+      )}>
+        <ArticleHeader article={article} heroImage={heroImage} />
+      </div>
+      
+      {/* Article content with full-width images */}
+      <div className="container max-w-3xl px-4 space-y-6 mt-6">
 
         {article.summary && article.summary.abstract && (
         <Card className="bg-primary/5 border-primary/20">
