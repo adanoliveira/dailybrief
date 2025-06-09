@@ -51,6 +51,11 @@ class Command(BaseCommand):
             help='Comma-separated region codes (e.g., us,ca,uk,br)'
         )
         parser.add_argument(
+            '--languages',
+            type=str,
+            help='Comma-separated language ISO codes (e.g., en,pt,es,fr)'
+        )
+        parser.add_argument(
             '--limit',
             type=int,
             default=50,
@@ -126,6 +131,7 @@ class Command(BaseCommand):
         processor_type = options['processor']
         template = options['template']
         region_codes = [r.strip() for r in options['regions'].split(',')] if options.get('regions') else None
+        language_codes = [l.strip() for l in options['languages'].split(',')] if options.get('languages') else None
         limit = options['limit']
         min_html_length = options['min_html_length']
         force = options['force']
@@ -154,6 +160,11 @@ class Command(BaseCommand):
             self.stdout.write(f"🌍 Regions: {', '.join(region_codes)}")
         else:
             self.stdout.write("🌍 Regions: All regions")
+        
+        if language_codes:
+            self.stdout.write(f"🗣️  Languages: {', '.join(language_codes)}")
+        else:
+            self.stdout.write("🗣️  Languages: All languages")
         
         self.stdout.write(f"🔧 Processor: {processor_type.upper()}")
         if processor_type == 'ai':
@@ -217,6 +228,12 @@ class Command(BaseCommand):
                         regions__code__in=region_codes
                     ).distinct()
                 
+                # Apply language filter
+                if language_codes:
+                    articles_query = articles_query.filter(
+                        language__iso_code__in=language_codes
+                    )
+                
                 # Filter out already processed articles (unless force)
                 if not force:
                     if processor_type == 'ai':
@@ -275,8 +292,9 @@ class Command(BaseCommand):
                     # Sample articles
                     self.stdout.write(f"\n📋 Sample articles:")
                     for i, article in enumerate(articles[:3], 1):
-                        regions = ', '.join([r.code for r in article.regions.all()]) if region_codes else 'N/A'
-                        self.stdout.write(f"   {i}. ID:{article.id} - {article.title[:50]}... ({len(article.raw_html):,} chars)")
+                        regions = ', '.join([r.code for r in article.regions.all()]) if article.regions.exists() else 'None'
+                        language = article.language.iso_code if article.language else 'Unknown'
+                        self.stdout.write(f"   {i}. ID:{article.id} - {article.title[:50]}... [{language}] {regions} ({len(article.raw_html):,} chars)")
                     if len(articles) > 3:
                         self.stdout.write(f"   ... and {len(articles) - 3} more articles")
                 
