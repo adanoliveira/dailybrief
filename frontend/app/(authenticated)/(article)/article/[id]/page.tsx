@@ -200,7 +200,7 @@ export default function Article({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <div className="flex justify-center pt-4">
+        <div className="flex justify-center pt-4 pb-20">
           <Link href={article.url} target="_blank" rel="noopener noreferrer">
             <Button className="gap-2">
               Read the full article
@@ -209,6 +209,9 @@ export default function Article({ params }: { params: { id: string } }) {
           </Link>
         </div>
       </div>
+
+      {/* Article Action Bar */}
+      <ArticleActionBar article={article} />
     </div>
   )
 }

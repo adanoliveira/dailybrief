@@ -62,18 +62,18 @@ export function ArticleHeader({ article, heroImage }: ArticleHeaderProps) {
             <div className="absolute top-4 right-4 z-20">
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 asChild
                 className="text-white hover:text-white/80 bg-transparent hover:bg-white/10 border border-white/30 hover:border-white/50"
               >
-                                <a 
+                <a 
                   href={article.url} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5"
+                  className="inline-flex items-center"
                 >
-                  <span>Visit Original</span>
-                  <ExternalLink className="h-4 w-4" />
+                  <span>Read Original</span>
+                  <ExternalLink />
                 </a>
               </Button>
             </div>
@@ -95,17 +95,17 @@ export function ArticleHeader({ article, heroImage }: ArticleHeaderProps) {
           {/* Visit Original Button */}
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             asChild
           >
             <a 
               href={article.url} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5"
+              className="inline-flex items-center"
             >
               <span>Visit Original</span>
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink />
             </a>
           </Button>
         </div>
