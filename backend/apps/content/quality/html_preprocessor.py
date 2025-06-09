@@ -309,7 +309,7 @@ class HTMLPreprocessor:
                 if small_images_removed > 0:
                     removed_elements.append(f"small_images({small_images_removed})")
             except Exception as e:
-                logger.debug(f"Failed to remove small images: {e}")
+                    logger.debug(f"Failed to remove small images: {e}")
         
         except Exception as e:
             logger.debug(f"Boilerplate removal failed: {e}")
