@@ -6,6 +6,7 @@ import { ArrowLeft, Heart, Share, ThumbsDown, ThumbsUp, ExternalLink } from "luc
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { shadowPatterns } from "@/lib/shadow-utils"
 
 interface ArticleActionBarProps {
   article: {
@@ -151,7 +152,11 @@ export function ArticleActionBar({ article }: ArticleActionBarProps) {
   return (
     <>
       {/* Fixed bottom action bar - mobile first */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border">
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border",
+        // Add shadow for better separation, especially in dark mode
+        "shadow-lg dark:shadow-white/10 dark:shadow-2xl"
+      )}>
         <div className="flex items-center justify-between px-4 py-2 max-w-screen-sm mx-auto">
           
           {/* Back Button */}

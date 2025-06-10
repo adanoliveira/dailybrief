@@ -102,25 +102,22 @@
   font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
 }
 
-/* Enhanced article body text styles - only for regular paragraphs and lists */
-.article-content-font p,
-.article-content-font li {
+/* Enhanced article body text styles - only for regular paragraphs */
+.article-content-font p {
   font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
   font-size: 1.125rem; /* 18px base */
   line-height: 1.75;
 }
 
-/* Responsive font sizing for article content - only for regular paragraphs and lists */
+/* Responsive font sizing for article content - only for regular paragraphs */
 @media (min-width: 640px) {
-  .article-content-font p,
-  .article-content-font li {
+  .article-content-font p {
     font-size: 1.25rem; /* 20px on sm+ */
   }
 }
 
 @media (min-width: 1024px) {
-  .article-content-font p,
-  .article-content-font li {
+  .article-content-font p {
     font-size: 1.375rem; /* 22px on lg+ */
   }
 }
@@ -144,5 +141,5 @@
 /* Strong/bold styles */
 .article-content-font strong,
 .article-content-font b {
-  font-weight: 600;
+  font-weight: 700;
 }

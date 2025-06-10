@@ -108,7 +108,7 @@ export const withFormattingSupport = (className: string = "") => cn(
   "prose prose-gray max-w-none dark:prose-invert",
   // Enhanced formatting element styling
   "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
-  "[&_strong]:font-semibold [&_strong]:text-inherit",
+  "[&_strong]:font-bold [&_strong]:text-inherit",
   "[&_u]:underline [&_u]:underline-offset-2 [&_u]:decoration-current",
   "[&_mark]:bg-yellow-200 [&_mark]:dark:bg-yellow-900/30 [&_mark]:px-1 [&_mark]:py-0.5 [&_mark]:rounded",
   "[&_code]:bg-muted [&_code]:text-foreground [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:font-mono",
@@ -267,7 +267,7 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-lg md:text-lg lg:text-xl leading-7 [&:not(:first-child)]:mt-6 font-serif",
+        "text-lg md:text-lg lg:text-xl leading-7 [&:not(:first-child)]:mt-6 font-serif text-foreground",
         block.classes?.join(' ')
       ))}
       style={{
@@ -396,7 +396,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
             "mt-4 mx-4 sm:mx-0 !text-sm text-muted-foreground text-center italic font-serif leading-relaxed",
             // Apply formatting styles directly without prose
             "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
-            "[&_strong]:font-semibold [&_strong]:text-inherit",
+            "[&_strong]:font-bold [&_strong]:text-inherit",
             "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80"
           )}
           style={{
@@ -552,10 +552,10 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
   return (
     <blockquote 
       className={cn(
-        "my-6 border-l-4 border-primary pl-6 italic text-xl md:text-xl lg:text-2xl leading-relaxed font-serif",
+        "my-6 border-l-4 border-primary pl-6 italic text-xl md:text-xl lg:text-2xl leading-relaxed font-serif text-foreground",
         // Apply formatting styles directly without prose
         "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
-        "[&_strong]:font-semibold [&_strong]:text-inherit",
+        "[&_strong]:font-bold [&_strong]:text-inherit",
         "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80",
         block.classes?.join(' ')
       )}
@@ -586,7 +586,7 @@ function ListBlock({ block }: { block: ContentBlock }) {
   return (
     <ListTag 
       className={withFormattingSupport(cn(
-        "my-6 ml-6 list-disc [&>li]:mt-2 text-lg md:text-lg lg:text-xl font-serif",
+        "my-6 ml-6 list-disc [&>li]:mt-2 text-lg md:text-lg lg:text-xl font-serif text-foreground",
         listType === 'ol' && "list-decimal",
         block.classes?.join(' ')
       ))}
@@ -677,7 +677,7 @@ function EmbedBlock({ block }: { block: ContentBlock }) {
               "prose prose-gray max-w-none dark:prose-invert",
               "prose-base md:prose-lg",
               "[&_p]:font-serif [&_p]:text-lg [&_p]:md:text-xl [&_p]:leading-relaxed",
-              "[&_p]:text-foreground/90"
+              "[&_p]:text-foreground"
             )}
             style={{
               fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
@@ -828,14 +828,14 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
           
           // Enhanced typography - same as quote blocks
           "text-xl md:text-xl lg:text-2xl leading-relaxed",
-          "font-medium text-foreground/90 font-serif",
+          "font-medium text-foreground font-serif",
           
           // Modern visual treatment - subtle background with elegant border
           "bg-muted/20 rounded-lg border-l-4 border-primary/60",
           
           // Apply formatting styles directly without prose
           "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
-          "[&_strong]:font-semibold [&_strong]:text-inherit",
+          "[&_strong]:font-bold [&_strong]:text-inherit",
           "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80",
           
           // Custom classes

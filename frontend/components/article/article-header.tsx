@@ -31,6 +31,77 @@ interface ArticleHeaderProps {
   isOverlay?: boolean;
 }
 
+interface BackButtonProps {
+  variant: "overlay" | "default";
+  onClick: () => void;
+  label: string;
+}
+
+function BackButton({ variant, onClick, label }: BackButtonProps) {
+  const isOverlay = variant === "overlay";
+  
+  return (
+    <Button
+      variant="ghost"
+      size="default"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 transition-colors h-10 px-3",
+        isOverlay 
+          ? "text-white hover:text-white/80 bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <ArrowLeft className="h-5 w-5" />
+      <span className="text-sm font-medium">{label}</span>
+    </Button>
+  );
+}
+
+interface ReadOriginalButtonProps {
+  variant: "overlay" | "default";
+  size: "xs" | "sm";
+  onClick: () => void;
+  className?: string;
+}
+
+function ReadOriginalButton({ variant, size, onClick, className }: ReadOriginalButtonProps) {
+  const isOverlay = variant === "overlay";
+  
+  const baseClassName = cn(
+    isOverlay 
+      ? "text-white hover:text-white/80 bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40"
+      : "",
+    className
+  );
+  
+  if (isOverlay) {
+    return (
+      <Button
+        variant="ghost"
+        size={size}
+        onClick={onClick}
+        className={baseClassName}
+      >
+        Read Original
+        <ExternalLink />
+      </Button>
+    );
+  }
+  
+  return (
+    <Button
+      variant="outline"
+      size={size}
+      onClick={onClick}
+      className={baseClassName}
+    >
+      Read Original
+      <ExternalLink />
+    </Button>
+  );
+}
+
 export function ArticleHeader({ article, heroImage, isOverlay = false }: ArticleHeaderProps) {
   const title = getBestTitle(article);
   const hasHeroImage = Boolean(heroImage);
@@ -138,86 +209,84 @@ export function ArticleHeader({ article, heroImage, isOverlay = false }: Article
   if (isOverlay) {
     return (
       <>
-        {/* Back button for tablet/desktop in top left */}
-        <div className="hidden md:block absolute top-4 left-0">
-          <Button
-            variant="ghost"
-            size="default"
-            onClick={() => router.push(backNav.path)}
-            className="flex items-center gap-2 text-white hover:text-white/80 bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 transition-colors h-10 px-3"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="text-sm font-medium">{backNav.label}</span>
-          </Button>
+        {/* Desktop/Tablet overlay header */}
+        <div className="hidden md:block">
+          {/* Back button bar (separate at top) */}
+          <div className="absolute top-4 left-0 right-0">
+            <BackButton
+              variant="overlay"
+              onClick={() => router.push(backNav.path)}
+              label={backNav.label}
+            />
+          </div>
+
+          {/* Metadata left + Actions right (same horizontal line at bottom) */}
+          <div className="absolute bottom-4 left-0 right-0">
+            <div className="flex justify-between items-end">
+              <div className="flex-1">
+                <ArticleMetadata 
+                  article={article}
+                  variant="overlay"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2 ml-6">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLike}
+                  className={cn(
+                    "h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 transition-colors",
+                    liked ? "text-white" : "text-white/80 hover:text-white"
+                  )}
+                >
+                  <ThumbsUp className={cn("h-5 w-5", liked && "fill-current")} />
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDislike}
+                  className={cn(
+                    "h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 transition-colors",
+                    disliked ? "text-white" : "text-white/80 hover:text-white"
+                  )}
+                >
+                  <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
+                </Button>
+                
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleShare}
+                  className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 text-white/80 hover:text-white transition-colors"
+                >
+                  <Share className="h-5 w-5" />
+                </Button>
+                
+                <ReadOriginalButton
+                  variant="overlay"
+                  size="sm"
+                  onClick={handleReadOriginal}
+                  className="px-4 h-10"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Action buttons for tablet/desktop in top right */}
-        <div className="hidden md:flex absolute top-4 right-0 gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLike}
-            className={cn(
-              "h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 transition-colors",
-              liked ? "text-white" : "text-white/80 hover:text-white"
-            )}
-          >
-            <ThumbsUp className={cn("h-5 w-5", liked && "fill-current")} />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDislike}
-            className={cn(
-              "h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 transition-colors",
-              disliked ? "text-white" : "text-white/80 hover:text-white"
-            )}
-          >
-            <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleShare}
-            className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 text-white/80 hover:text-white transition-colors"
-          >
-            <Share className="h-5 w-5" />
-          </Button>
-          
-          <Button
-            variant="ghost"
+        {/* Mobile overlay header - Only "Read Original" at top right */}
+        <div className="absolute top-4 right-0 md:hidden">
+          <ReadOriginalButton
+            variant="overlay"
             size="sm"
             onClick={handleReadOriginal}
-            className="h-10 w-10 rounded-full bg-black/20 hover:bg-black/40 border border-white/20 hover:border-white/40 text-white/80 hover:text-white transition-colors"
-          >
-            <ExternalLink className="h-5 w-5" />
-          </Button>
+            className="bg-transparent hover:bg-white/10 border border-white/30 hover:border-white/50"
+          />
         </div>
 
-        {/* Mobile visit original button */}
-        <div className="absolute top-4 right-0 md:hidden">
-          <Button
-            variant="ghost"
-            size="xs"
-            asChild
-            className="text-white hover:text-white/80 bg-transparent hover:bg-white/10 border border-white/30 hover:border-white/50"
-          >
-            <a 
-              href={article.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center"
-            >
-              <span>Read Original</span>
-              <ExternalLink />
-            </a>
-          </Button>
-        </div>
-        
-        {/* Metadata overlay */}
-        <div className="absolute bottom-4 left-0 right-0">
+        {/* Mobile overlay metadata - Only metadata at bottom, actions handled by mobile footer */}
+        <div className="absolute bottom-4 left-0 right-0 md:hidden">
           <ArticleMetadata 
             article={article}
             variant="overlay"
@@ -230,98 +299,82 @@ export function ArticleHeader({ article, heroImage, isOverlay = false }: Article
   // Regular non-overlay content
   return (
     <div className="relative">
-      {/* Header content */}
-      <>
-          {/* Desktop/Tablet header with actions */}
-          <div className="hidden md:flex justify-between items-start mb-6">
-            <div className="flex items-start gap-4">
-              {/* Back Button */}
-              <Button
-                variant="ghost"
-                size="default"
-                onClick={() => router.push(backNav.path)}
-                className="flex items-center gap-2 text-muted-foreground hover:text-foreground h-10 px-3"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                <span className="text-sm font-medium">{backNav.label}</span>
-              </Button>
-              
-              <div className="flex-1">
-                <ArticleMetadata article={article} variant="default" />
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 ml-6">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLike}
-                className={cn(
-                  "h-10 w-10 rounded-full transition-colors",
-                  liked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <ThumbsUp className={cn("h-5 w-5", liked && "fill-current")} />
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDislike}
-                className={cn(
-                  "h-10 w-10 rounded-full transition-colors",
-                  disliked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
-              </Button>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleShare}
-                className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Share className="h-5 w-5" />
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReadOriginal}
-                className="px-4"
-              >
-                <span>Read Original</span>
-                <ExternalLink className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </div>
+      {/* Desktop/Tablet header */}
+      <div className="hidden md:block">
+        {/* Back button bar (always separate at top) */}
+        <div className="mb-6">
+          <BackButton
+            variant="default"
+            onClick={() => router.push(backNav.path)}
+            label={backNav.label}
+          />
+        </div>
 
-          {/* Mobile header */}
-          <div className="md:hidden">
-            <div className="flex justify-end mb-4">
-              <Button
-                variant="outline"
-                size="xs"
-                asChild
-              >
-                <a 
-                  href={article.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center"
-                >
-                  <span>Visit Original</span>
-                  <ExternalLink />
-                </a>
-              </Button>
-            </div>
+        {/* Metadata left + Actions right (same horizontal line) */}
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <ArticleMetadata article={article} variant="default" />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLike}
+              className={cn(
+                "h-10 w-10 rounded-full transition-colors",
+                liked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ThumbsUp className={cn("h-5 w-5", liked && "fill-current")} />
+            </Button>
             
-            <div className="mb-4">
-              <ArticleMetadata article={article} variant="default" />
-            </div>
-                  </div>
-      </>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDislike}
+              className={cn(
+                "h-10 w-10 rounded-full transition-colors",
+                disliked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Share className="h-5 w-5" />
+            </Button>
+            
+            <ReadOriginalButton
+              variant="default"
+              size="sm"
+              onClick={handleReadOriginal}
+              className="px-4 h-10"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile header (unchanged) */}
+      <div className="md:hidden">
+        <div className="flex justify-end mb-4">
+          <ReadOriginalButton
+            variant="default"
+            size="sm"
+            onClick={handleReadOriginal}
+            className="bg-transparent hover:bg-accent/50 border border-border"
+          />
+        </div>
+        
+        <div className="mb-4">
+          <ArticleMetadata article={article} variant="default" />
+        </div>
+      </div>
     </div>
   );
 }

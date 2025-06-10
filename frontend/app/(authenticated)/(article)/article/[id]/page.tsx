@@ -15,6 +15,7 @@ import { ArticleHeader } from "@/components/article/article-header"
 import { ArticleActionBar } from "@/components/article/article-action-bar"
 import { getHeroImage } from "@/lib/article-utils"
 import { cn } from "@/lib/utils"
+import { BackToTop } from "@/components/ui/back-to-top"
 
 export default function Article({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
@@ -203,7 +204,7 @@ export default function Article({ params }: { params: { id: string } }) {
       <div className={cn(
         "container px-4 md:px-6 lg:px-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
-        heroImage ? "mt-6" : "mt-0" // Add margin when there's a hero image
+        heroImage ? "mt-6" : "mt-8" // More spacing between header and title when no hero image
       )}>
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
           {renderWithFormatting(getBestTitle(article))}
@@ -266,6 +267,9 @@ export default function Article({ params }: { params: { id: string } }) {
       <div className="md:hidden">
         <ArticleActionBar article={article} />
       </div>
+
+      {/* Back to Top Button */}
+      <BackToTop showAfter={300} />
     </div>
   )
 }

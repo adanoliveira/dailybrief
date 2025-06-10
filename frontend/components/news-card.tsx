@@ -6,6 +6,7 @@ import { PublicationBadge } from "@/components/ui/publication-badge"
 import Link from "next/link"
 import { getTopicIcon } from "@/lib/topic-icons"
 import parse from 'html-react-parser'
+import { cn } from "@/lib/utils"
 
 interface ArticlePreviewWithTopics {
   id: string;
@@ -72,7 +73,7 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
 
   return (
     <Link href={`/article/${article.id}`} className="block">
-      <Card className="overflow-hidden transition-all hover:shadow-lg cursor-pointer">
+      <Card className={cn("overflow-hidden transition-all cursor-pointer hover:shadow-lg dark:hover:shadow-white/15 dark:hover:shadow-2xl")}>
         <div className="flex flex-col md:flex-row">
           {/* Image section - conditional rendering based on image availability */}
           {hasImage && (
