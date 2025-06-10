@@ -137,15 +137,21 @@ function HeadingBlock({ block }: { block: ContentBlock }) {
     <HeadingTag 
       id={block.id}
       className={withFormattingSupport(cn(
-        "font-black tracking-tight scroll-m-20 text-foreground [&:not(:first-child)]:mt-12 mb-6",
-        level === 1 && "text-3xl md:text-4xl lg:text-5xl",
-        level === 2 && "text-2xl md:text-3xl lg:text-4xl",
-        level === 3 && "text-xl md:text-2xl lg:text-3xl",
-        level === 4 && "text-lg md:text-xl lg:text-2xl",
+        "font-black tracking-tight scroll-m-20 text-foreground leading-tight font-sans",
+        // Enhanced spacing - more generous for better hierarchy
+        "[&:not(:first-child)]:mt-14 mb-8",
+        // Responsive typography with better progression
+        level === 1 && "text-3xl md:text-4xl lg:text-5xl xl:text-6xl",
+        level === 2 && "text-2xl md:text-3xl lg:text-4xl xl:text-5xl",
+        level === 3 && "text-xl md:text-2xl lg:text-3xl xl:text-4xl",
+        level === 4 && "text-lg md:text-xl lg:text-2xl xl:text-3xl",
         level === 5 && "text-lg md:text-xl lg:text-2xl",
         level === 6 && "text-base md:text-lg lg:text-xl",
         block.classes?.join(' ')
       ))}
+      style={{
+        fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'
+      }}
     >
       {parse(block.content || block.text || '')}
     </HeadingTag>
@@ -200,9 +206,13 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-xl leading-8 text-foreground/80 font-semibold tracking-tight [&:not(:first-child)]:mt-8 mb-4",
+        "text-xl md:text-2xl lg:text-2xl leading-8 text-foreground/80 font-semibold tracking-tight [&:not(:first-child)]:mt-10 mb-6 font-serif",
         block.classes?.join(' ')
       ))}
+      style={{
+        fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif',
+        lineHeight: '1.6'
+      }}
     >
       {renderContentWithLinks()}
     </div>
@@ -257,9 +267,13 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-base leading-7 [&:not(:first-child)]:mt-6",
+        "text-lg md:text-lg lg:text-xl leading-7 [&:not(:first-child)]:mt-6 font-serif",
         block.classes?.join(' ')
       ))}
+      style={{
+        fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif',
+        lineHeight: '1.75'
+      }}
     >
       {renderContentWithLinks()}
     </div>
@@ -316,9 +330,14 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
     if (shouldShowCaption) {
       return (
         <figure className="my-8">
-          <div className="border border-dashed border-muted-foreground/20 rounded-lg p-4 bg-muted/20 text-center">
-            <p className="text-sm text-muted-foreground mb-2">📷 Image unavailable</p>
-            <figcaption className={withFormattingSupport("text-sm text-muted-foreground italic")}>
+          <div className="border border-dashed border-muted-foreground/20 rounded-xl p-6 bg-muted/20 text-center">
+            <p className="text-base text-muted-foreground mb-3">📷 Image unavailable</p>
+            <figcaption 
+              className={withFormattingSupport("text-sm text-muted-foreground italic font-serif leading-relaxed")}
+              style={{
+                fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+              }}
+            >
               {parse(caption)}
             </figcaption>
           </div>
@@ -329,8 +348,17 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
   }
 
   return (
-    <figure className="my-8 -mx-4 md:-mx-6 lg:-mx-8">
-      <div className="relative overflow-hidden bg-muted">
+    <figure className="my-8 -mx-4 sm:mx-0">
+      <div className={cn(
+        "relative overflow-hidden bg-muted",
+        // Mobile: no rounded corners, full width
+        // Tablet/Desktop: rounded corners, content width
+        "sm:rounded-lg lg:rounded-xl",
+        // Enhanced styling for tablet/desktop
+        "sm:shadow-sm sm:border sm:border-border/20",
+        // Override prose image styling
+        "!rounded-none sm:!rounded-lg lg:!rounded-xl"
+      )}>
         {imageLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -342,6 +370,8 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           title={title}
           className={cn(
             "w-full h-auto transition-opacity duration-300",
+            // Override any prose image styling
+            "!rounded-none !m-0",
             imageLoading ? "opacity-0" : "opacity-100"
           )}
           onLoad={() => {
@@ -361,7 +391,18 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         />
       </div>
       {shouldShowCaption && (
-        <figcaption className={withFormattingSupport("mt-3 mx-4 md:mx-6 lg:mx-8 text-sm text-muted-foreground text-center italic")}>
+        <figcaption 
+          className={cn(
+            "mt-4 mx-4 sm:mx-0 !text-sm text-muted-foreground text-center italic font-serif leading-relaxed",
+            // Apply formatting styles directly without prose
+            "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
+            "[&_strong]:font-semibold [&_strong]:text-inherit",
+            "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80"
+          )}
+          style={{
+            fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+          }}
+        >
           {parse(caption)}
         </figcaption>
       )}
@@ -400,7 +441,12 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           />
         </div>
         {caption && (
-          <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
+          <figcaption 
+            className={withFormattingSupport("mt-4 text-sm text-muted-foreground text-center italic font-serif leading-relaxed")}
+            style={{
+              fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+            }}
+          >
             {parse(caption)}
           </figcaption>
         )}
@@ -421,11 +467,16 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           Your browser does not support the video tag.
         </video>
       </div>
-      {caption && (
-        <figcaption className={withFormattingSupport("mt-3 text-sm text-muted-foreground text-center italic")}>
-          {parse(caption)}
-        </figcaption>
-      )}
+              {caption && (
+          <figcaption 
+            className={withFormattingSupport("mt-4 text-sm text-muted-foreground text-center italic font-serif leading-relaxed")}
+            style={{
+              fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+            }}
+          >
+            {parse(caption)}
+          </figcaption>
+        )}
     </figure>
   )
 }
@@ -479,7 +530,12 @@ function AudioBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
             </div>
           </div>
           {caption && (
-            <p className={withFormattingSupport("mt-3 text-sm text-muted-foreground italic")}>
+            <p 
+              className={withFormattingSupport("mt-4 text-sm text-muted-foreground italic font-serif leading-relaxed")}
+              style={{
+                fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+              }}
+            >
               {parse(caption)}
             </p>
           )}
@@ -494,15 +550,25 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
   const content = block.content || block.text || ''
 
   return (
-    <blockquote className={withFormattingSupport(cn(
-      "my-6 border-l-4 border-primary pl-6 italic text-lg leading-relaxed",
-      block.classes?.join(' ')
-    ))}>
+    <blockquote 
+      className={cn(
+        "my-6 border-l-4 border-primary pl-6 italic text-xl md:text-xl lg:text-2xl leading-relaxed font-serif",
+        // Apply formatting styles directly without prose
+        "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
+        "[&_strong]:font-semibold [&_strong]:text-inherit",
+        "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80",
+        block.classes?.join(' ')
+      )}
+      style={{
+        fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif',
+        lineHeight: '1.75'
+      }}
+    >
       <div className="space-y-2">
         {renderContentWithLineBreaks(content)}
       </div>
       {block.cite && (
-        <cite className={withFormattingSupport("mt-4 block text-sm text-muted-foreground not-italic")}>
+        <cite className="mt-4 block text-sm text-muted-foreground not-italic">
           — {parse(block.cite)}
         </cite>
       )}
@@ -518,11 +584,17 @@ function ListBlock({ block }: { block: ContentBlock }) {
   const ListTag = listType === 'ol' ? 'ol' : 'ul'
   
   return (
-    <ListTag className={withFormattingSupport(cn(
-      "my-6 ml-6 list-disc [&>li]:mt-2",
-      listType === 'ol' && "list-decimal",
-      block.classes?.join(' ')
-    ))}>
+    <ListTag 
+      className={withFormattingSupport(cn(
+        "my-6 ml-6 list-disc [&>li]:mt-2 text-lg md:text-lg lg:text-xl font-serif",
+        listType === 'ol' && "list-decimal",
+        block.classes?.join(' ')
+      ))}
+      style={{
+        fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif',
+        lineHeight: '1.75'
+      }}
+    >
       {items.map((item: string, index: number) => (
         <li key={index}>{parse(item)}</li>
       ))}
@@ -542,20 +614,29 @@ function CodeBlock({ block }: { block: ContentBlock }) {
   }
   
   return (
-    <div className="my-6">
-      <div className="relative">
+    <div className="my-8">
+      <div className="relative group">
         <pre className={cn(
-          "overflow-x-auto rounded-lg bg-muted p-4 text-sm",
+          "overflow-x-auto rounded-xl bg-muted/80 border border-border/40 p-6 text-sm md:text-base leading-relaxed",
+          "shadow-sm backdrop-blur-sm",
           block.classes?.join(' ')
         )}>
-          <code className={block.language ? `language-${block.language}` : ''}>
+          <code 
+            className={cn(
+              "font-mono text-foreground/90",
+              block.language ? `language-${block.language}` : ''
+            )}
+          >
             {block.content}
           </code>
         </pre>
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2"
+          className={cn(
+            "absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity",
+            "bg-background/80 backdrop-blur-sm border border-border/40 hover:bg-background/90"
+          )}
           onClick={handleCopy}
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -567,9 +648,19 @@ function CodeBlock({ block }: { block: ContentBlock }) {
 
 function TableBlock({ block }: { block: ContentBlock }) {
   return (
-    <div className="my-6 overflow-x-auto">
+    <div className="my-10 overflow-x-auto">
       <div 
-        className="min-w-full"
+        className={cn(
+          "min-w-full rounded-lg border border-border/40 bg-card/50 shadow-sm",
+          "[&_table]:w-full [&_table]:border-collapse",
+          "[&_th]:border-b [&_th]:border-border/40 [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-semibold [&_th]:bg-muted/50",
+          "[&_td]:border-b [&_td]:border-border/20 [&_td]:px-4 [&_td]:py-3",
+          "[&_th]:text-sm [&_th]:md:text-base [&_td]:text-sm [&_td]:md:text-base",
+          "[&_td]:font-serif [&_td]:leading-relaxed"
+        )}
+        style={{
+          fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+        }}
         dangerouslySetInnerHTML={{ __html: block.content || '' }}
       />
     </div>
@@ -578,18 +669,26 @@ function TableBlock({ block }: { block: ContentBlock }) {
 
 function EmbedBlock({ block }: { block: ContentBlock }) {
   return (
-    <div className="my-8">
-      <Card>
-        <CardContent className="p-4">
+    <div className="my-10">
+      <Card className="border border-border/40 shadow-sm">
+        <CardContent className="p-6 md:p-8">
           <div 
-            className="prose prose-sm max-w-none"
+            className={cn(
+              "prose prose-gray max-w-none dark:prose-invert",
+              "prose-base md:prose-lg",
+              "[&_p]:font-serif [&_p]:text-lg [&_p]:md:text-xl [&_p]:leading-relaxed",
+              "[&_p]:text-foreground/90"
+            )}
+            style={{
+              fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
+            }}
             dangerouslySetInnerHTML={{ __html: block.content || '' }}
           />
           {block.src && (
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline" size="sm" asChild>
+            <div className="mt-6 flex justify-center">
+              <Button variant="outline" size="sm" asChild className="gap-2">
                 <a href={block.src} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
+                  <ExternalLink className="h-4 w-4" />
                   View Original
                 </a>
               </Button>
@@ -721,31 +820,40 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="my-8">
+    <div className="my-12">
       <blockquote 
-        className={withFormattingSupport(cn(
-          // Layout and spacing - minimal margins
-          "mx-auto max-w-2xl px-8",
+        className={cn(
+          // Modern pullquote layout - centered with generous spacing
+          "mx-auto max-w-3xl px-6 md:px-12 py-8",
           
-          // Typography - slightly larger and emphasis without being too bold
-          "text-lg lg:text-xl leading-relaxed",
-          "font-normal text-foreground/95",
+          // Enhanced typography - same as quote blocks
+          "text-xl md:text-xl lg:text-2xl leading-relaxed",
+          "font-medium text-foreground/90 font-serif",
           
-          // Minimal visual accent - just a subtle left border
-          "border-l-2 border-muted-foreground/20 pl-6",
+          // Modern visual treatment - subtle background with elegant border
+          "bg-muted/20 rounded-lg border-l-4 border-primary/60",
+          
+          // Apply formatting styles directly without prose
+          "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
+          "[&_strong]:font-semibold [&_strong]:text-inherit",
+          "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:text-primary/80",
           
           // Custom classes
           block.classes?.join(' ')
-        ))}
+        )}
+        style={{
+          fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif',
+          lineHeight: '1.6'
+        }}
       >
         {/* Clean content without extra decorations */}
-        <div className="[&>*]:my-0">
+        <div className="[&>*]:my-0 text-center">
           {renderContentWithLinks()}
         </div>
         
-        {/* Citation if available - clean and minimal */}
+        {/* Citation if available - modern and elegant */}
         {block.cite && (
-          <cite className={withFormattingSupport("mt-3 block text-sm text-muted-foreground not-italic")}>
+          <cite className="mt-6 block text-base text-muted-foreground not-italic text-center">
             — {parse(block.cite)}
           </cite>
         )}

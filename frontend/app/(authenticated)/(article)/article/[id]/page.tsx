@@ -10,6 +10,7 @@ import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RichArticleRenderer, withFormattingSupport, renderWithFormatting } from "@/components/rich-article-renderer"
+import { getBestTitle } from "@/lib/article-utils"
 import { ArticleHeader } from "@/components/article/article-header"
 import { ArticleActionBar } from "@/components/article/article-action-bar"
 import { getHeroImage } from "@/lib/article-utils"
@@ -154,25 +155,76 @@ export default function Article({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen">
-      {/* Full width header - no top padding */}
+      {/* Hero Image - Full width, outside container constraints */}
+      {heroImage && (
+        <div className="relative w-full">
+          <div className="relative w-full aspect-[6/4] md:aspect-[8/5] lg:aspect-[12/7] xl:aspect-[16/9] overflow-hidden lg:rounded-lg lg:max-w-5xl lg:mx-auto xl:rounded-xl">
+            <img
+              src={heroImage}
+              alt={article.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Hide the image container if loading fails
+                const container = (e.target as HTMLElement).closest('.relative') as HTMLElement;
+                if (container) {
+                  container.style.display = 'none';
+                }
+              }}
+            />
+            
+            {/* Gradient overlay */}
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+            
+            {/* Content container aligned with article body */}
+            <div className="absolute inset-0 z-10">
+              <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl h-full">
+                <div className="relative h-full">
+                  <ArticleHeader article={article} heroImage={null} isOverlay={true} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header content - aligned with body container (only when no hero image) */}
+      {!heroImage && (
+        <div className={cn(
+          "container px-4 md:px-6 lg:px-8",
+          // Same max widths as body content for perfect alignment
+          "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
+          "pt-8" // Add top padding when no hero image
+        )}>
+          <ArticleHeader article={article} heroImage={null} isOverlay={false} />
+        </div>
+      )}
+
+      {/* Article Title - positioned between hero and content */}
       <div className={cn(
-        "container max-w-3xl px-4",
-        !heroImage && "pt-8" // Add top padding only when no hero image
+        "container px-4 md:px-6 lg:px-8",
+        "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
+        heroImage ? "mt-6" : "mt-0" // Add margin when there's a hero image
       )}>
-        <ArticleHeader article={article} heroImage={heroImage} />
+        <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
+          {renderWithFormatting(getBestTitle(article))}
+        </h1>
       </div>
       
-      {/* Article content with full-width images */}
-      <div className="container max-w-3xl px-4 space-y-6 mt-6">
+      {/* Article content - matching container constraints */}
+      <div className={cn(
+        "container px-4 md:px-6 lg:px-8 space-y-6 mt-6 pb-20 md:pb-8",
+        // Same max widths as header for perfect alignment
+        "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
+      )}>
 
         {article.summary && article.summary.abstract && (
         <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4">
-            <h2 className="font-semibold mb-2 flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
+          <CardContent className="p-4 md:p-6">
+            <h2 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-base md:text-lg">
+              <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
               AI-Generated Abstract
             </h2>
-            <p className="text-sm">
+            <p className="text-sm md:text-base leading-relaxed">
                 {article.summary.abstract}
             </p>
           </CardContent>
@@ -187,10 +239,10 @@ export default function Article({ params }: { params: { id: string } }) {
               mediaAssets={article.richContent.mediaAssets}
               formattingData={article.richContent.formattingData}
               fallbackContent={article.content}
-              className="prose prose-gray max-w-none dark:prose-invert"
+              className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl article-content-font"
             />
           ) : (
-            <div className="prose prose-gray max-w-none dark:prose-invert">
+            <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl article-content-font">
           {article.content ? (
             <div dangerouslySetInnerHTML={{ __html: article.content }} />
           ) : (
@@ -200,18 +252,20 @@ export default function Article({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <div className="flex justify-center pt-4 pb-20">
+        <div className="flex justify-center pt-4 md:pt-8">
           <Link href={article.url} target="_blank" rel="noopener noreferrer">
-            <Button className="gap-2">
+            <Button className="gap-2 h-10 md:h-11 px-4 md:px-6 text-sm md:text-base">
               Read the full article
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-4 w-4 md:h-5 md:w-5" />
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* Article Action Bar */}
-      <ArticleActionBar article={article} />
+      {/* Article Action Bar - Only show on mobile */}
+      <div className="md:hidden">
+        <ArticleActionBar article={article} />
+      </div>
     </div>
   )
 }
