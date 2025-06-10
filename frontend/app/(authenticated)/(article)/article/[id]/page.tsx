@@ -159,7 +159,7 @@ export default function Article({ params }: { params: { id: string } }) {
       {/* Hero Image - Full width, outside container constraints */}
       {heroImage && (
         <div className="relative w-full">
-          <div className="relative w-full aspect-[6/4] md:aspect-[8/5] lg:aspect-[12/7] xl:aspect-[16/9] overflow-hidden lg:rounded-lg lg:max-w-5xl lg:mx-auto xl:rounded-xl">
+          <div className="relative w-full aspect-[6/4] md:aspect-[8/5] lg:aspect-[12/7] xl:aspect-[16/9] overflow-hidden lg:rounded-b-lg lg:max-w-5xl lg:mx-auto xl:rounded-b-xl">
             <img
               src={heroImage}
               alt={article.title}

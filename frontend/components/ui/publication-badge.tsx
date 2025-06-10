@@ -16,13 +16,13 @@ const sizeVariants = {
   sm: {
     container: "w-[1.3em] h-[1.3em]", 
     image: "w-[1.3em] h-[1.3em]", 
-    text: "text-xl md:text-2xl lg:text-2xl font-semibold",
+    text: "font-semibold",
     gap: "gap-[0.5em]" // 0.5x the text size
   },
   md: {
     container: "w-[1.5em] h-[1.5em]", 
     image: "w-[1.5em] h-[1.5em]",
-    text: "text-xl md:text-2xl lg:text-2xl font-semibold",
+    text: "font-semibold",
     gap: "gap-[0.5em]"
   },
   lg: {
