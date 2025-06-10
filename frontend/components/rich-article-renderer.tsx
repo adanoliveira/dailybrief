@@ -206,7 +206,7 @@ function SubtitleBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-xl md:text-2xl lg:text-2xl leading-8 text-foreground/80 font-semibold tracking-tight [&:not(:first-child)]:mt-10 mb-6 font-serif",
+        "text-xl md:text-2xl lg:text-2xl leading-8 text-foreground/90 font-semibold tracking-tight [&:not(:first-child)]:mt-10 mb-6 font-serif",
         block.classes?.join(' ')
       ))}
       style={{
@@ -267,7 +267,7 @@ function ParagraphBlock({ block }: { block: ContentBlock }) {
   return (
     <div 
       className={withFormattingSupport(cn(
-        "text-lg md:text-lg lg:text-xl leading-7 [&:not(:first-child)]:mt-6 font-serif text-foreground",
+        "text-lg md:text-xl lg:text-xl leading-7 [&:not(:first-child)]:mt-6 font-serif text-foreground",
         block.classes?.join(' ')
       ))}
       style={{
@@ -333,7 +333,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           <div className="border border-dashed border-muted-foreground/20 rounded-xl p-6 bg-muted/20 text-center">
             <p className="text-base text-muted-foreground mb-3">📷 Image unavailable</p>
             <figcaption 
-              className={withFormattingSupport("text-sm text-muted-foreground italic font-serif leading-relaxed")}
+              className={withFormattingSupport("text-sm md:text-sm lg:text-base text-muted-foreground italic font-serif leading-relaxed")}
               style={{
                 fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
               }}
@@ -393,7 +393,7 @@ function ImageBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
       {shouldShowCaption && (
         <figcaption 
           className={cn(
-            "mt-4 mx-4 sm:mx-0 !text-sm text-muted-foreground text-center italic font-serif leading-relaxed",
+            "mt-4 mx-4 sm:mx-0 !text-sm md:!text-sm lg:!text-base text-muted-foreground text-center italic font-serif leading-relaxed",
             // Apply formatting styles directly without prose
             "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
             "[&_strong]:font-bold [&_strong]:text-inherit",
@@ -442,7 +442,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
         </div>
         {caption && (
           <figcaption 
-            className={withFormattingSupport("mt-4 text-sm text-muted-foreground text-center italic font-serif leading-relaxed")}
+            className={withFormattingSupport("mt-4 text-sm md:text-sm lg:text-base text-muted-foreground text-center italic font-serif leading-relaxed")}
             style={{
               fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
             }}
@@ -469,7 +469,7 @@ function VideoBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
       </div>
               {caption && (
           <figcaption 
-            className={withFormattingSupport("mt-4 text-sm text-muted-foreground text-center italic font-serif leading-relaxed")}
+            className={withFormattingSupport("mt-4 text-sm md:text-sm lg:text-base text-muted-foreground text-center italic font-serif leading-relaxed")}
             style={{
               fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
             }}
@@ -531,7 +531,7 @@ function AudioBlock({ block, mediaAssets }: { block: ContentBlock; mediaAssets: 
           </div>
           {caption && (
             <p 
-              className={withFormattingSupport("mt-4 text-sm text-muted-foreground italic font-serif leading-relaxed")}
+              className={withFormattingSupport("mt-4 text-sm md:text-sm lg:text-base text-muted-foreground italic font-serif leading-relaxed")}
               style={{
                 fontFamily: '"Source Serif Pro", Georgia, "Times New Roman", serif'
               }}
@@ -552,7 +552,7 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
   return (
     <blockquote 
       className={cn(
-        "my-6 border-l-4 border-primary pl-6 italic text-xl md:text-xl lg:text-2xl leading-relaxed font-serif text-foreground",
+        "my-6 border-l-4 border-primary pl-6 italic text-xl md:text-2xl lg:text-2xl leading-relaxed font-serif text-foreground",
         // Apply formatting styles directly without prose
         "[&_em]:italic [&_em]:text-inherit [&_em]:font-medium",
         "[&_strong]:font-bold [&_strong]:text-inherit",
@@ -568,7 +568,7 @@ function QuoteBlock({ block }: { block: ContentBlock }) {
         {renderContentWithLineBreaks(content)}
       </div>
       {block.cite && (
-        <cite className="mt-4 block text-sm text-muted-foreground not-italic">
+        <cite className="mt-4 block text-xl md:text-2xl lg:text-2xl text-muted-foreground not-italic">
           — {parse(block.cite)}
         </cite>
       )}
@@ -586,7 +586,7 @@ function ListBlock({ block }: { block: ContentBlock }) {
   return (
     <ListTag 
       className={withFormattingSupport(cn(
-        "my-6 ml-6 list-disc [&>li]:mt-2 text-lg md:text-lg lg:text-xl font-serif text-foreground",
+        "my-6 ml-6 list-disc [&>li]:mt-2 text-lg md:text-xl lg:text-xl font-serif text-foreground",
         listType === 'ol' && "list-decimal",
         block.classes?.join(' ')
       ))}
@@ -827,7 +827,7 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
           "mx-auto max-w-3xl px-6 md:px-12 py-8",
           
           // Enhanced typography - same as quote blocks
-          "text-xl md:text-xl lg:text-2xl leading-relaxed",
+          "text-xl md:text-2xl lg:text-2xl leading-relaxed",
           "font-medium text-foreground font-serif",
           
           // Modern visual treatment - subtle background with elegant border
@@ -853,7 +853,7 @@ function PullquoteBlock({ block }: { block: ContentBlock }) {
         
         {/* Citation if available - modern and elegant */}
         {block.cite && (
-          <cite className="mt-6 block text-base text-muted-foreground not-italic text-center">
+          <cite className="mt-6 block text-xl md:text-2xl lg:text-2xl text-muted-foreground not-italic text-center">
             — {parse(block.cite)}
           </cite>
         )}

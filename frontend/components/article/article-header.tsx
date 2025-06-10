@@ -387,6 +387,30 @@ interface ArticleMetadataProps {
 function ArticleMetadata({ article, variant }: ArticleMetadataProps) {
   const isOverlay = variant === "overlay";
   
+  // Dynamic author truncation based on viewport and overlay context
+  const getResponsiveAuthor = () => {
+    if (!article.author) return null;
+    
+    return (
+      <>
+        {/* Mobile: shorter truncation for overlay, longer for default */}
+        <span className="md:hidden">
+          {truncateText(article.author, 19)}
+        </span>
+        
+        {/* Tablet: moderate truncation */}
+        <span className="hidden md:block lg:hidden">
+          {truncateText(article.author, 19)}
+        </span>
+        
+        {/* Desktop: longer truncation */}
+        <span className="hidden lg:block">
+          {truncateText(article.author, 30)}
+        </span>
+      </>
+    );
+  };
+  
   return (
     <div className="space-y-2 md:space-y-3">
       {/* Publication Badge - responsive sizing */}
@@ -402,14 +426,12 @@ function ArticleMetadata({ article, variant }: ArticleMetadataProps) {
       
       {/* Author, Date, Read Time - responsive sizing */}
       <div className={cn(
-        "flex items-center gap-2 text-sm md:text-base flex-wrap",
+        "flex items-center gap-2 text-sm md:text-base lg:text-base flex-wrap",
         isOverlay ? "text-white/90 font-normal" : "text-muted-foreground/90 font-normal"
       )}>
         {article.author && (
           <>
-            <span>
-              {truncateText(article.author, 19)}
-            </span>
+            {getResponsiveAuthor()}
             <span>•</span>
           </>
         )}

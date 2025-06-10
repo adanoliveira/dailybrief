@@ -105,20 +105,20 @@
 /* Enhanced article body text styles - only for regular paragraphs */
 .article-content-font p {
   font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
-  font-size: 1.125rem; /* 18px base */
+  font-size: 1.125rem; /* 18px base - text-lg */
   line-height: 1.75;
 }
 
 /* Responsive font sizing for article content - only for regular paragraphs */
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .article-content-font p {
-    font-size: 1.25rem; /* 20px on sm+ */
+    font-size: 1.25rem; /* 20px on md+ - text-xl */
   }
 }
 
 @media (min-width: 1024px) {
   .article-content-font p {
-    font-size: 1.375rem; /* 22px on lg+ */
+    font-size: 1.25rem; /* 20px on lg+ - text-xl (same as tablet) */
   }
 }
 

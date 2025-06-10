@@ -14,22 +14,22 @@ interface PublicationBadgeProps {
 
 const sizeVariants = {
   sm: {
-    container: "h-5 w-5 md:h-6 md:w-6",
-    image: "h-3.5 w-3.5 md:h-4 md:w-4",
-    text: "text-sm md:text-base font-semibold",
-    gap: "gap-1.5 md:gap-2"
+    container: "w-[1.3em] h-[1.3em]", 
+    image: "w-[1.3em] h-[1.3em]", 
+    text: "text-xl md:text-2xl lg:text-2xl font-semibold",
+    gap: "gap-[0.5em]" // 0.5x the text size
   },
   md: {
-    container: "h-6 w-6 md:h-7 md:w-7",
-    image: "h-4.5 w-4.5 md:h-5 md:w-5", 
-    text: "text-base md:text-lg font-semibold",
-    gap: "gap-2 md:gap-2.5"
+    container: "w-[1.5em] h-[1.5em]", 
+    image: "w-[1.5em] h-[1.5em]",
+    text: "text-xl md:text-2xl lg:text-2xl font-semibold",
+    gap: "gap-[0.5em]"
   },
   lg: {
-    container: "h-7 w-7 md:h-8 md:w-8 lg:h-9 lg:w-9",
-    image: "h-5.5 w-5.5 md:h-6 md:w-6 lg:h-7 lg:w-7",
-    text: "text-lg md:text-xl lg:text-2xl font-semibold", 
-    gap: "gap-2 md:gap-2.5 lg:gap-3"
+    container: "w-[1.5em] h-[1.5em]", 
+    image: "w-[1.5em] h-[1.5em]",
+    text: "text-xl md:text-2xl lg:text-2xl font-semibold", 
+    gap: "gap-[0.5em]"
   }
 }
 
