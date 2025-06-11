@@ -118,8 +118,8 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
                   : article.title
                 }
               </CardTitle>
-              <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
-                <PublicationBadge source={article.source} size="sm" />
+              <CardDescription className="flex items-center gap-2 text-sm flex-wrap">
+                <PublicationBadge source={article.source} size="md" />
                 <span>•</span>
                 <span>{formatDate(article.publishedAt)}</span>
                 {article.readTime && (
