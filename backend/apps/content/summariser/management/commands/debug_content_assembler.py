@@ -100,6 +100,11 @@ class Command(BaseCommand):
                 assembled = assembler.assemble_content(article.content_blocks or [], title=article.title)
                 assembled_chars = len(assembled)
                 
+                # Print the full assembled content for inspection
+                print("\n==== FULL ASSEMBLED CONTENT ====")
+                print(assembled)
+                print("==== END OF ASSEMBLED CONTENT ====")
+                
                 # Count words and analyze
                 word_count = len(assembled.split())
                 truncated = assembled_chars < original_chars
