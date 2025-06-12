@@ -361,7 +361,7 @@ class Article(models.Model):
         try:
             from apps.content.summariser.content_assembler import get_markdown_assembler
             assembler = get_markdown_assembler(max_chars=25000)
-            return assembler.assemble_content(self.content_blocks)
+            return assembler.assemble_content(self.content_blocks, title=self.title)
         except Exception as e:
             # Fallback to clean_content if markdown assembly fails
             import logging
