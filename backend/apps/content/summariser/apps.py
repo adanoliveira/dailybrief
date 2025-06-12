@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 class SummariserConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.summariser'
+    name = 'apps.content.summariser'

@@ -102,8 +102,6 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.feeds',
     'apps.articles',
-    'apps.digest',
-    'apps.summariser',
     'apps.newsapi',
     'apps.aiproviders',
     'apps.notifications',
@@ -112,6 +110,7 @@ INSTALLED_APPS = [
     'apps.content.fetcher',
     'apps.content.processor',
     'apps.content.quality',
+    'apps.content.summariser',
 ]
 
 MIDDLEWARE = [

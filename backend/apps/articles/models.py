@@ -21,6 +21,14 @@ class ProcessingStatus(models.TextChoices):
     FAILED = 'failed', 'Processing Failed'
 
 
+class SummarizationStatus(models.TextChoices):
+    """Step 4 summarization status choices."""
+    PENDING = 'pending', 'Pending Summarization'
+    PROCESSING = 'processing', 'Processing Summary'
+    COMPLETED = 'completed', 'Summary Completed'
+    FAILED = 'failed', 'Summary Failed'
+
+
 class StoryGroup(models.Model):
     """
     A group of related articles that form a comprehensive story.
@@ -161,6 +169,34 @@ class Article(models.Model):
     has_audio = models.BooleanField(default=False)
     media_count = models.PositiveIntegerField(default=0)
     
+    # ===== STEP 4: SUMMARIZATION FIELDS =====
+    # Step 4 summarization status and results
+    summarization_status = models.CharField(
+        max_length=20,
+        choices=SummarizationStatus.choices,
+        default=SummarizationStatus.PENDING,
+        db_index=True
+    )
+    summarized_at = models.DateTimeField(null=True, blank=True)
+    
+    # Summarization performance tracking
+    summarization_duration_ms = models.IntegerField(null=True, blank=True)
+    summarization_cost_usd = models.DecimalField(max_digits=8, decimal_places=6, null=True, blank=True)
+    summarization_attempts = models.IntegerField(default=0)
+    last_summarization_attempt = models.DateTimeField(null=True, blank=True)
+    summarization_error_message = models.TextField(blank=True)
+    
+    # Summarization flags
+    summary_content_source = models.CharField(
+        max_length=20,
+        choices=[
+            ('imcomplete_text', 'Imcomplete Text'),
+            ('full_cleaned_text', 'Full Cleaned Text'),
+            ('rich_content_blocks', 'Rich Content Blocks')
+        ],
+        null=True, blank=True
+    )
+    
     class Meta:
         ordering = ['-published_at']
         indexes = [
@@ -178,6 +214,9 @@ class Article(models.Model):
             models.Index(fields=['has_images']),
             models.Index(fields=['has_videos']),
             models.Index(fields=['media_count']),
+            models.Index(fields=['summarization_status']),
+            models.Index(fields=['summarized_at']),
+            models.Index(fields=['summary_content_source']),
         ]
     
     def __str__(self):
@@ -282,6 +321,53 @@ class Article(models.Model):
         if not self.content_blocks:
             return []
         return [block for block in self.content_blocks if block.get('type') == block_type]
+    
+    # ===== STEP 4 PROPERTIES =====
+    @property
+    def needs_summarization(self):
+        """Check if article needs Step 4 summarization."""
+        return (
+            self.has_summarizable_content and
+            self.summarization_status == SummarizationStatus.PENDING and
+            self.summarization_attempts < 3  # Max attempts
+        )
+    
+    @property
+    def has_summarizable_content(self):
+        """Check if article has content suitable for summarization."""
+        # Prefer clean_content, fallback to basic_content
+        return (
+            (self.clean_content and len(self.clean_content) > 200) or
+            (self.basic_content and len(self.basic_content) > 200)
+        )
+    
+    @property
+    def best_content_for_summarization(self):
+        """Get the best available content for summarization."""
+        # Priority 1: Rich content blocks (structured, semantic content)
+        if self.content_blocks and len(self.content_blocks) > 3:
+            return self._get_markdown_content_from_blocks(), 'rich_content_blocks'
+        # Priority 2: Clean content (Safari-like processed content)
+        elif self.clean_content and len(self.clean_content) > 200:
+            return self.clean_content, 'full_cleaned_text'
+        # Priority 3: Basic content (simple extraction)
+        elif self.basic_content and len(self.basic_content) > 200:
+            return self.basic_content, 'imcomplete_text'
+        else:
+            return None, None
+    
+    def _get_markdown_content_from_blocks(self):
+        """Convert content blocks to markdown format for summarization."""
+        try:
+            from apps.content.summariser.content_assembler import get_markdown_assembler
+            assembler = get_markdown_assembler(max_chars=25000)
+            return assembler.assemble_content(self.content_blocks)
+        except Exception as e:
+            # Fallback to clean_content if markdown assembly fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to assemble markdown content for article {self.id}: {e}")
+            return self.clean_content or self.basic_content or ""
 
 
 class UserArticleInteraction(models.Model):

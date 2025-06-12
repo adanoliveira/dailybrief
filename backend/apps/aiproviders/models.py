@@ -18,6 +18,12 @@ class AIProviderUsage(models.Model):
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
         ('content_extraction', 'Content Extraction'),
+        # Summarization pipeline operations
+        ('rbc_compression', 'Rich Bullet Compression'),
+        ('skeleton_summary', 'Skeleton Summary Generation'),
+        ('summary_critique', 'Summary Critique Review'),
+        ('summary_repair', 'Summary Repair'),
+        ('embedding_generation', 'Embedding Generation'),
     )
     
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
@@ -69,6 +75,12 @@ class AIProviderConfig(models.Model):
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
         ('content_extraction', 'Content Extraction'),
+        # Summarization pipeline operations
+        ('rbc_compression', 'Rich Bullet Compression'),
+        ('skeleton_summary', 'Skeleton Summary Generation'),
+        ('summary_critique', 'Summary Critique Review'),
+        ('summary_repair', 'Summary Repair'),
+        ('embedding_generation', 'Embedding Generation'),
     )
     
     PROVIDER_CHOICES = (
