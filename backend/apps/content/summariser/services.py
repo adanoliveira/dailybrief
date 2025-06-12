@@ -51,7 +51,7 @@ class SummarizationService:
         self.max_content_chars = getattr(settings, 'SUMMARIZATION_MAX_CONTENT_CHARS', 15000)
         self.enable_critic = getattr(settings, 'SUMMARIZATION_ENABLE_CRITIC', True)
         self.enable_repair = getattr(settings, 'SUMMARIZATION_ENABLE_REPAIR', True)
-        self.enable_embeddings = getattr(settings, 'SUMMARIZATION_ENABLE_EMBEDDINGS', False)  # Disabled until implemented
+        self.enable_embeddings = getattr(settings, 'SUMMARIZATION_ENABLE_EMBEDDINGS', True)  # Enabled with full implementation
         
         logger.info("SummarizationService initialized")
     
@@ -474,7 +474,7 @@ class SummarizationService:
         """
         Generate embedding from headline and abstract.
         
-        Uses OpenAI's text-embedding-3-small model for semantic search.
+        Uses OpenAI's text-embedding-4-small model for semantic search.
         """
         # Prepare text for embedding
         embedding_text = EmbeddingPrompts.prepare_embedding_text(headline, abstract)
@@ -486,21 +486,28 @@ class SummarizationService:
             }
         
         # Call AI service for embedding
-        # Note: This would need to be implemented in aiproviders service
-        # For now, we'll create a placeholder that could be implemented
         try:
-            # This is a placeholder - actual implementation would call aiproviders
-            # ai_response = self.ai_service.generate_embedding(embedding_text, model='text-embedding-3-small')
+            ai_response = self.ai_service.generate_embedding(
+                texts=[embedding_text],
+                operation='embedding_generation'
+            )
             
-            # Placeholder return for now
-            return {
-                'success': True,
-                'data': [0.0] * 1536,  # Placeholder embedding
-                'cost_usd': Decimal('0.00002'),
-                'tokens_used': len(embedding_text.split()),
-                'processing_time_ms': 200,
-                'embedding_text': embedding_text
-            }
+            if ai_response.success and ai_response.embeddings:
+                return {
+                    'success': True,
+                    'data': ai_response.embeddings[0],  # Single embedding from single text
+                    'cost_usd': Decimal('0.00002'),  # Estimated cost, actual tracked in aiproviders
+                    'tokens_used': ai_response.usage.get('prompt_tokens', 0),
+                    'processing_time_ms': int(ai_response.response_time * 1000),
+                    'embedding_text': embedding_text
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': ai_response.error_message or "Unknown embedding generation error",
+                    'cost_usd': Decimal('0.0')
+                }
+                
         except Exception as e:
             return {
                 'success': False,

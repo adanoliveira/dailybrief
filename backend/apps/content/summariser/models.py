@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from django.db import models
 from django.utils import timezone
+from pgvector.django import VectorField, CosineDistance
 
 
 @dataclass
@@ -228,7 +229,7 @@ class ArticleEmbedding(models.Model):
     )
     
     # Vector data
-    embedding = models.JSONField(help_text="1536-dimensional vector as JSON array")
+    embedding = VectorField(dimensions=1536, help_text="1536-dimensional vector using pgvector")
     embedding_model = models.CharField(max_length=50, default='text-embedding-3-small')
     embedding_text = models.TextField(help_text="Text used for embedding generation")
     embedding_length = models.IntegerField(help_text="Vector dimension count")
@@ -252,33 +253,38 @@ class ArticleEmbedding(models.Model):
     def __str__(self):
         return f"Embedding for {self.article.title[:50]}"
     
-    def calculate_similarity(self, other_embedding: List[float]) -> float:
+    @classmethod
+    def find_similar(cls, article_id: int, threshold: float = 0.22, limit: int = 5) -> List[tuple]:
         """
-        Calculate cosine similarity with another embedding.
+        Find similar articles using pgvector cosine similarity.
         
-        Future: Move to database-level similarity search with pgvector.
+        Args:
+            article_id: ID of the article to find similar articles for
+            threshold: Minimum similarity score (0-1, higher is more similar)
+            limit: Maximum number of similar articles to return
+            
+        Returns:
+            List of (article_id, similarity_score) tuples, sorted by similarity
         """
-        if not self.embedding or not other_embedding:
-            return 0.0
+        # Get the target article's embedding
+        target = cls.objects.filter(article_id=article_id).first()
+        if not target:
+            return []
+            
+        # Use pgvector's cosine similarity for efficient database-level search
+        similar = cls.objects.annotate(
+            similarity=1 - CosineDistance('embedding', target.embedding)
+        ).filter(
+            similarity__gte=threshold
+        ).exclude(
+            article_id=article_id  # Exclude the target article
+        ).order_by(
+            '-similarity'
+        ).values_list(
+            'article_id', 'similarity'
+        )[:limit]
         
-        import math
-        
-        # Convert to lists if needed
-        vec1 = self.embedding if isinstance(self.embedding, list) else list(self.embedding)
-        vec2 = other_embedding if isinstance(other_embedding, list) else list(other_embedding)
-        
-        if len(vec1) != len(vec2):
-            return 0.0
-        
-        # Calculate cosine similarity
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
-        magnitude1 = math.sqrt(sum(a * a for a in vec1))
-        magnitude2 = math.sqrt(sum(a * a for a in vec2))
-        
-        if magnitude1 == 0 or magnitude2 == 0:
-            return 0.0
-        
-        return dot_product / (magnitude1 * magnitude2)
+        return list(similar)
 
 
 class SummarizationRequest(models.Model):

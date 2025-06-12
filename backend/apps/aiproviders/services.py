@@ -55,6 +55,24 @@ class LLMResponse:
     raw_response: Optional[Dict[str, Any]] = None
 
 
+@dataclass
+class EmbeddingResponse:
+    """
+    Standardized response structure for embedding operations.
+    
+    Provides consistent interface for vector embedding generation.
+    """
+    embeddings: List[List[float]]
+    success: bool
+    usage: Dict[str, int]
+    response_time: float
+    provider: str
+    model: str
+    input_texts: List[str]
+    error_message: Optional[str] = None
+    raw_response: Optional[Dict[str, Any]] = None
+
+
 class AIProviderService:
     """
     Pure AI provider service - handles only AI communication infrastructure.
@@ -411,6 +429,215 @@ class AIProviderService:
             
         except Exception as e:
             logger.error(f"Failed to log AI provider usage: {e}")
+
+    def generate_embedding(
+        self,
+        texts: List[str],
+        operation: str = 'embedding_generation',
+        model_override: Optional[str] = None,
+        dimensions: Optional[int] = None
+    ) -> EmbeddingResponse:
+        """
+        Generate embeddings for one or more texts.
+        
+        Args:
+            texts: List of texts to embed (max 96 per OpenAI batch)
+            operation: Operation type for provider selection
+            model_override: Override the configured model
+            dimensions: Specific dimension count (for supported models)
+            
+        Returns:
+            EmbeddingResponse with embeddings and metadata
+        """
+        start_time = time.time()
+        
+        # Validate input
+        if not texts or not any(text.strip() for text in texts):
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=0.0,
+                provider="none",
+                model="none",
+                input_texts=texts,
+                error_message="No valid texts provided for embedding"
+            )
+        
+        # OpenAI has a batch limit of 2048 inputs per request
+        if len(texts) > 2048:
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=time.time() - start_time,
+                provider="none",
+                model="none",
+                input_texts=texts,
+                error_message=f"Too many texts: {len(texts)}. Maximum is 2048 per batch."
+            )
+        
+        # Get provider configuration
+        config = self.get_provider_config(operation)
+        if not config:
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=0.0,
+                provider="none",
+                model="none",
+                input_texts=texts,
+                error_message=f"No active provider configuration found for operation: {operation}"
+            )
+        
+        provider = config.provider
+        model = model_override or config.model
+        
+        # Route to appropriate provider
+        if provider == 'openai':
+            return self._generate_openai_embedding(texts, model, operation, start_time, dimensions)
+        else:
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=time.time() - start_time,
+                provider=provider,
+                model=model,
+                input_texts=texts,
+                error_message=f"Embedding not supported for provider: {provider}"
+            )
+    
+    def _generate_openai_embedding(
+        self,
+        texts: List[str],
+        model: str,
+        operation: str,
+        start_time: float,
+        dimensions: Optional[int] = None
+    ) -> EmbeddingResponse:
+        """
+        Generate embeddings using OpenAI API.
+        
+        Pure infrastructure method - handles only the OpenAI API mechanics.
+        """
+        if not self._openai_client:
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=time.time() - start_time,
+                provider="openai",
+                model=model,
+                input_texts=texts,
+                error_message="OpenAI client not initialized"
+            )
+        
+        try:
+            # Prepare API parameters
+            api_params = {
+                "model": model,
+                "input": texts,
+                "encoding_format": "float"
+            }
+            
+            # Add dimensions parameter if specified and model supports it
+            if dimensions and model in ['text-embedding-3-small', 'text-embedding-3-large']:
+                api_params["dimensions"] = dimensions
+            
+            # Make API call
+            response = self._openai_client.embeddings.create(**api_params)
+            
+            response_time = time.time() - start_time
+            
+            # Extract embeddings from response
+            embeddings = [embedding.embedding for embedding in response.data]
+            
+            # Extract usage information
+            usage = {
+                'prompt_tokens': response.usage.prompt_tokens if response.usage else 0,
+                'total_tokens': response.usage.total_tokens if response.usage else 0,
+                'completion_tokens': 0  # Embeddings don't have completion tokens
+            }
+            
+            # Calculate cost estimate using official OpenAI embedding pricing
+            cost_estimate = Decimal('0.0')
+            model_lower = model.lower()
+            input_tokens = usage.get('prompt_tokens', 0)
+            
+            if 'text-embedding-3-small' in model_lower:
+                # text-embedding-3-small: $0.020/1M tokens
+                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.00000002')  # $0.020/1M
+            elif 'text-embedding-3-large' in model_lower:
+                # text-embedding-3-large: $0.130/1M tokens  
+                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.00000013')  # $0.130/1M
+            elif 'text-embedding-ada-002' in model_lower:
+                # text-embedding-ada-002: $0.100/1M tokens
+                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.0000001')  # $0.100/1M
+            
+            # Log usage to database
+            self._log_usage(
+                provider="openai",
+                model=model,
+                operation=operation,
+                usage=usage,
+                response_time=response_time,
+                success=True,
+                request_data={
+                    "input_count": len(texts),
+                    "total_input_chars": sum(len(text) for text in texts),
+                    "dimensions": dimensions
+                },
+                response_data={
+                    "embedding_count": len(embeddings),
+                    "embedding_dimensions": len(embeddings[0]) if embeddings else 0
+                }
+            )
+            
+            return EmbeddingResponse(
+                embeddings=embeddings,
+                success=True,
+                usage=usage,
+                response_time=response_time,
+                provider="openai",
+                model=model,
+                input_texts=texts,
+                raw_response=response.model_dump() if hasattr(response, 'model_dump') else None
+            )
+            
+        except Exception as e:
+            response_time = time.time() - start_time
+            error_message = str(e)
+            
+            # Log failed usage
+            self._log_usage(
+                provider="openai",
+                model=model,
+                operation=operation,
+                usage={},
+                response_time=response_time,
+                success=False,
+                error_message=error_message,
+                request_data={
+                    "input_count": len(texts),
+                    "total_input_chars": sum(len(text) for text in texts),
+                    "dimensions": dimensions
+                }
+            )
+            
+            logger.error(f"OpenAI embedding API call failed: {error_message}")
+            
+            return EmbeddingResponse(
+                embeddings=[],
+                success=False,
+                usage={},
+                response_time=response_time,
+                provider="openai",
+                model=model,
+                input_texts=texts,
+                error_message=error_message
+            )
 
 
 # Singleton service instance

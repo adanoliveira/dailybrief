@@ -408,7 +408,7 @@ class EmbeddingPrompts:
         Returns standardized configuration for embedding generation.
         """
         return {
-            'model': 'text-embedding-3-small',
+            'model': 'text-embedding-3-small',  # Note: will upgrade to text-embedding-4-small when available
             'dimensions': 1536,
             'batch_size': 50,  # Process up to 50 embeddings per API call
             'operation': 'text_embedding',

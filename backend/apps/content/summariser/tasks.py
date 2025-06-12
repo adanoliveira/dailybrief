@@ -9,10 +9,13 @@ from typing import List, Dict, Any
 from celery import shared_task, chain, group
 from django.db import transaction
 from django.utils import timezone
+from decimal import Decimal
 
 from apps.articles.models import Article, SummarizationStatus
 from .services import get_summarization_service
 from .models import SummarizationRequest
+from apps.content.summariser.models import ArticleEmbedding, ArticleSummary
+from apps.content.summariser.services import SummarizationService
 
 logger = logging.getLogger(__name__)
 
@@ -384,4 +387,255 @@ def queue_summarization_by_content_source(content_source: str, limit: int = 50):
     for article in articles:
         summarize_article_pipeline.delay(article.id)
     
-    logger.info(f"Queued {len(articles)} articles from {content_source} for summarization") 
+    logger.info(f"Queued {len(articles)} articles from {content_source} for summarization")
+
+
+@shared_task(bind=True, max_retries=3)
+def generate_embeddings_batch(self, article_ids: List[int], force_regenerate: bool = False):
+    """
+    Generate embeddings for a batch of articles.
+    
+    Processes up to 50 articles per batch for optimal OpenAI API efficiency.
+    Articles must have summaries before embeddings can be generated.
+    
+    Args:
+        article_ids: List of article IDs to process
+        force_regenerate: Whether to regenerate existing embeddings
+    """
+    from django.db import transaction
+    from apps.articles.models import Article
+    from apps.content.summariser.models import ArticleEmbedding, ArticleSummary
+    from apps.content.summariser.services import SummarizationService
+    
+    try:
+        logger.info(f"Starting embedding batch processing for {len(article_ids)} articles")
+        
+        # Initialize service
+        service = SummarizationService()
+        
+        # Batch size limit for optimal API performance
+        max_batch_size = 50
+        if len(article_ids) > max_batch_size:
+            # Split into smaller batches and process sequentially
+            for i in range(0, len(article_ids), max_batch_size):
+                batch = article_ids[i:i + max_batch_size]
+                generate_embeddings_batch.delay(batch, force_regenerate)
+            return {"status": "split_into_batches", "total_articles": len(article_ids)}
+        
+        # Get articles with summaries
+        articles_query = Article.objects.select_related('structured_summary').filter(
+            id__in=article_ids,
+            structured_summary__isnull=False
+        )
+        
+        if not force_regenerate:
+            # Exclude articles that already have embeddings
+            articles_query = articles_query.filter(embedding__isnull=True)
+        
+        articles_to_process = list(articles_query)
+        
+        if not articles_to_process:
+            logger.info("No articles need embedding generation")
+            return {"status": "no_articles_to_process", "processed": 0}
+        
+        # Prepare texts for batch embedding
+        embedding_texts = []
+        article_mapping = {}  # Maps index to article
+        
+        for idx, article in enumerate(articles_to_process):
+            summary = article.structured_summary
+            embedding_text = f"{summary.headline} - {summary.abstract}"
+            embedding_texts.append(embedding_text)
+            article_mapping[idx] = article
+        
+        # Generate embeddings in batch
+        ai_response = service.ai_service.generate_embedding(
+            texts=embedding_texts,
+            operation='embedding_generation'
+        )
+        
+        if not ai_response.success:
+            logger.error(f"Batch embedding generation failed: {ai_response.error_message}")
+            raise Exception(f"Batch embedding failed: {ai_response.error_message}")
+        
+        # Store embeddings for each article
+        created_count = 0
+        updated_count = 0
+        
+        with transaction.atomic():
+            for idx, embedding_vector in enumerate(ai_response.embeddings):
+                article = article_mapping[idx]
+                embedding_text = embedding_texts[idx]
+                
+                # Calculate per-article cost (approximate)
+                per_article_tokens = ai_response.usage.get('prompt_tokens', 0) // len(embedding_texts)
+                per_article_cost = Decimal('0.00002')  # Approximate cost per embedding
+                
+                embedding, created = ArticleEmbedding.objects.update_or_create(
+                    article=article,
+                    defaults={
+                        'embedding': embedding_vector,
+                        'embedding_text': embedding_text,
+                        'embedding_length': len(embedding_vector),
+                        'tokens_used': per_article_tokens,
+                        'processing_time_ms': int(ai_response.response_time * 1000),
+                        'cost_usd': per_article_cost
+                    }
+                )
+                
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+        
+        logger.info(f"Batch embedding completed: {created_count} created, {updated_count} updated")
+        
+        return {
+            "status": "success",
+            "processed": len(embedding_texts),
+            "created": created_count,
+            "updated": updated_count,
+            "total_cost_usd": float(ai_response.usage.get('prompt_tokens', 0) * Decimal('0.00000002')),
+            "processing_time_ms": int(ai_response.response_time * 1000)
+        }
+        
+    except Exception as e:
+        logger.error(f"Embedding batch processing failed: {str(e)}")
+        
+        # Retry logic
+        if self.request.retries < self.max_retries:
+            logger.info(f"Retrying embedding batch processing (attempt {self.request.retries + 1})")
+            raise self.retry(countdown=60 * (2 ** self.request.retries))
+        
+        return {
+            "status": "failed",
+            "error": str(e),
+            "processed": 0
+        }
+
+
+@shared_task
+def generate_embeddings_for_pending_summaries(limit: int = 100):
+    """
+    Generate embeddings for articles that have summaries but no embeddings.
+    
+    Automatically processes articles in batches for efficiency.
+    
+    Args:
+        limit: Maximum number of articles to process
+    """
+    from apps.articles.models import Article
+    
+    try:
+        # Find articles with summaries but no embeddings
+        pending_articles = Article.objects.filter(
+            structured_summary__isnull=False,
+            embedding__isnull=True
+        ).values_list('id', flat=True)[:limit]
+        
+        pending_ids = list(pending_articles)
+        
+        if not pending_ids:
+            logger.info("No pending articles found for embedding generation")
+            return {"status": "no_pending_articles", "processed": 0}
+        
+        logger.info(f"Found {len(pending_ids)} articles pending embedding generation")
+        
+        # Process in batches of 50
+        batch_size = 50
+        total_processed = 0
+        
+        for i in range(0, len(pending_ids), batch_size):
+            batch = pending_ids[i:i + batch_size]
+            generate_embeddings_batch.delay(batch, force_regenerate=False)
+            total_processed += len(batch)
+        
+        return {
+            "status": "batches_queued",
+            "total_articles": len(pending_ids),
+            "batches_created": (len(pending_ids) + batch_size - 1) // batch_size
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to queue pending embeddings: {str(e)}")
+        return {"status": "failed", "error": str(e)}
+
+
+@shared_task
+def cleanup_orphaned_embeddings():
+    """
+    Clean up embeddings for articles that no longer have summaries.
+    
+    Maintenance task to keep embedding data consistent.
+    """
+    from apps.content.summariser.models import ArticleEmbedding
+    
+    try:
+        # Find embeddings for articles without summaries
+        orphaned_embeddings = ArticleEmbedding.objects.filter(
+            article__structured_summary__isnull=True
+        )
+        
+        count = orphaned_embeddings.count()
+        
+        if count > 0:
+            orphaned_embeddings.delete()
+            logger.info(f"Cleaned up {count} orphaned embeddings")
+        
+        return {"status": "success", "cleaned_up": count}
+        
+    except Exception as e:
+        logger.error(f"Failed to cleanup orphaned embeddings: {str(e)}")
+        return {"status": "failed", "error": str(e)}
+
+
+@shared_task
+def find_similar_articles(article_id: int, similarity_threshold: float = 0.22, limit: int = 5):
+    """
+    Find articles similar to the given article using embeddings.
+    
+    Args:
+        article_id: ID of the target article
+        similarity_threshold: Minimum cosine similarity (default from plan: 0.22)
+        limit: Maximum number of similar articles to return
+    """
+    from apps.articles.models import Article
+    from apps.content.summariser.models import ArticleEmbedding
+    import math
+    
+    try:
+        # Get target article's embedding
+        target_embedding = ArticleEmbedding.objects.filter(
+            article_id=article_id
+        ).first()
+        
+        if not target_embedding:
+            return {"status": "no_embedding", "similar_articles": []}
+        
+        # Use pgvector for efficient similarity search
+        similar_embeddings = ArticleEmbedding.find_similar(
+            target_embedding=target_embedding,
+            similarity_threshold=similarity_threshold,
+            limit=limit
+        ).select_related('article', 'article__structured_summary')
+        
+        similar_articles = []
+        for embedding in similar_embeddings:
+            similar_articles.append({
+                'article_id': embedding.article.id,
+                'article_title': embedding.article.title,
+                'headline': embedding.article.structured_summary.headline if hasattr(embedding.article, 'structured_summary') else None,
+                'similarity_score': embedding.similarity,  # Annotated by pgvector
+                'published_at': embedding.article.published_at.isoformat()
+            })
+        
+        return {
+            "status": "success",
+            "target_article_id": article_id,
+            "similar_articles": similar_articles,
+            "total_found": len(similar_articles)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to find similar articles for {article_id}: {str(e)}")
+        return {"status": "failed", "error": str(e)} 
