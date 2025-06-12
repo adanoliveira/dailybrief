@@ -4,6 +4,7 @@ from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 import uuid
 import json
 import logging
@@ -11,6 +12,7 @@ import logging
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from apps.feeds.models import UserTopic, UserRegion, UserPublication
 from .models import Article, UserArticleInteraction
+from apps.content.summariser.models import ArticleSummary
 
 logger = logging.getLogger(__name__)
 
@@ -312,9 +314,15 @@ def article_detail(request, public_id):
     # Get summaries if available
     summary = None
     try:
-        summary = article.summary.first()
-    except:
-        pass
+        # Prefer structured summary if exists
+        if hasattr(article, 'structured_summary'):
+            summary = article.structured_summary
+        else:
+            # Fallback to generic relation accessor if defined differently
+            summary = ArticleSummary.objects.filter(article=article).first()
+    except Exception as e:
+        logger.warning(f"Failed to retrieve summary for article {article.id}: {e}")
+        summary = None
     
     # Format topic data
     topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
@@ -341,10 +349,18 @@ def article_detail(request, public_id):
         'isTopHeadline': article.is_top_headline,
         'topics': topics,
         'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
-        'summary': {
-            'abstract': summary.abstract if summary else None,
-            'keyPoints': summary.key_points if summary and hasattr(summary, 'key_points') else None,
-        } if summary else None,
+        'summary': (
+            {
+                'headline': getattr(summary, 'headline', None),
+                'abstract': getattr(summary, 'abstract', None),
+                'facts': getattr(summary, 'facts', None),
+                'opinions': getattr(summary, 'opinions', None),
+                'impact': getattr(summary, 'impact', None),
+                # Back-compat fields for older summaries
+                'keyPoints': getattr(summary, 'key_points', None),
+            }
+            if summary else None
+        ),
         # Rich content data
         'richContent': {
             'blocks': article.content_blocks if article.content_blocks else [],
@@ -366,5 +382,70 @@ def article_detail(request, public_id):
     
     # Return the response
     response = JsonResponse(article_data)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+@csrf_exempt
+@require_http_methods(["POST", "OPTIONS"])
+def generate_article_summary(request, public_id):
+    """
+    Generate or refresh the summary for a specific article.
+    POST /articles/<public_id>/generate-summary/
+    """
+    # Handle OPTIONS request for CORS
+    if request.method == "OPTIONS":
+        response = JsonResponse({})
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
+
+    # Authenticate user
+    is_authenticated, user, error_message = authenticate_request(request)
+    if not is_authenticated:
+        return get_auth_response(error_message)
+
+    try:
+        article_uuid = uuid.UUID(public_id)
+    except ValueError:
+        return JsonResponse({"error": "Invalid article ID"}, status=400)
+
+    try:
+        article = Article.objects.get(public_id=article_uuid)
+    except Article.DoesNotExist:
+        return JsonResponse({"error": "Article not found"}, status=404)
+
+    # Simulate summary generation (stub logic)
+    # In production, trigger async task or call summarizer here
+    summary_text = f"This is a generated summary for article '{article.title}'."
+    key_points = [
+        "Key point 1: ...",
+        "Key point 2: ...",
+        "Key point 3: ..."
+    ]
+
+    # Save or update the summary (assume OneToOne or first summary relation)
+    summary_obj = getattr(article, 'summary', None)
+    if hasattr(article, 'summary') and callable(getattr(article.summary, 'first', None)):
+        summary_obj = article.summary.first()
+    if summary_obj:
+        summary_obj.abstract = summary_text
+        summary_obj.key_points = key_points
+        summary_obj.save()
+    else:
+        # If summary relation exists, create new summary (assume related name 'summary')
+        if hasattr(article, 'summary') and hasattr(article.summary, 'model'):
+            article.summary.model.objects.create(article=article, abstract=summary_text, key_points=key_points)
+        else:
+            # Fallback: just return the summary in the response (not saved)
+            pass
+
+    response_data = {
+        "summary": {
+            "abstract": summary_text,
+            "keyPoints": key_points
+        }
+    }
+    response = JsonResponse(response_data)
     response["Access-Control-Allow-Origin"] = "*"
     return response

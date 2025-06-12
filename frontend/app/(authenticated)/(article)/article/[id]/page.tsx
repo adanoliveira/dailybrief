@@ -16,6 +16,7 @@ import { ArticleActionBar } from "@/components/article/article-action-bar"
 import { getHeroImage } from "@/lib/article-utils"
 import { cn } from "@/lib/utils"
 import { BackToTop } from "@/components/ui/back-to-top"
+import { SummaryBlock } from "@/components/article/summary-block"
 
 export default function Article({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
@@ -23,6 +24,27 @@ export default function Article({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null)
   const [heroImage, setHeroImage] = useState<string | null>(null)
   const [filteredBlocks, setFilteredBlocks] = useState<any[]>([])
+
+  // Only compute isArticleReady if article is loaded
+  const isArticleReady = !!article && (
+    (article.richContent?.blocks && article.richContent.blocks.length > 0) ||
+    !!article.content
+  );
+
+  // State for summary generation (stub for now)
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  // Handler to generate summary (stub)
+  const handleGenerateSummary = () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    // TODO: Implement summary generation API call
+    setTimeout(() => {
+      setSummaryLoading(false);
+      setSummaryError("Summary generation not implemented yet.");
+    }, 1500);
+  };
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -209,6 +231,17 @@ export default function Article({ params }: { params: { id: string } }) {
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
           {renderWithFormatting(getBestTitle(article))}
         </h1>
+        {/* Summary Block: show only if article is ready */}
+        {isArticleReady && article && (
+          <div className="mt-4 md:mt-6">
+            <SummaryBlock
+              summary={article.summary as any}
+              loading={summaryLoading}
+              error={summaryError}
+              onGenerate={handleGenerateSummary}
+            />
+          </div>
+        )}
       </div>
       
       {/* Article content - matching container constraints */}
@@ -217,20 +250,6 @@ export default function Article({ params }: { params: { id: string } }) {
         // Same max widths as header for perfect alignment
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
       )}>
-
-        {article.summary && article.summary.abstract && (
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4 md:p-6">
-            <h2 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-base md:text-lg">
-              <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
-              AI-Generated Abstract
-            </h2>
-            <p className="text-sm md:text-base leading-relaxed">
-                {article.summary.abstract}
-            </p>
-          </CardContent>
-        </Card>
-        )}
 
         {/* Article Content */}
         <div className="article-content">
