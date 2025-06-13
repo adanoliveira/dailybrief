@@ -10,7 +10,7 @@ import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RichArticleRenderer, withFormattingSupport, renderWithFormatting } from "@/components/rich-article-renderer"
-import { getBestTitle } from "@/lib/article-utils"
+import { getBestTitle, shouldShowSummaryBlock, getContentQualityLevel, getProcessingStatusDescription } from "@/lib/article-utils"
 import { ArticleHeader } from "@/components/article/article-header"
 import { ArticleActionBar } from "@/components/article/article-action-bar"
 import { getHeroImage } from "@/lib/article-utils"
@@ -24,12 +24,6 @@ export default function Article({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null)
   const [heroImage, setHeroImage] = useState<string | null>(null)
   const [filteredBlocks, setFilteredBlocks] = useState<any[]>([])
-
-  // Only compute isArticleReady if article is loaded
-  const isArticleReady = !!article && (
-    (article.richContent?.blocks && article.richContent.blocks.length > 0) ||
-    !!article.content
-  );
 
   // State for summary generation (stub for now)
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -231,8 +225,8 @@ export default function Article({ params }: { params: { id: string } }) {
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
           {renderWithFormatting(getBestTitle(article))}
         </h1>
-        {/* Summary Block: show only if article is ready */}
-        {isArticleReady && article && (
+        {/* Summary Block: show only if article can generate summaries */}
+        {shouldShowSummaryBlock(article) && (
           <div className="mt-4 md:mt-6">
             <SummaryBlock
               summary={article.summary as any}

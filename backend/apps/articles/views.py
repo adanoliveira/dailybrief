@@ -373,11 +373,20 @@ def article_detail(request, public_id):
             'hasAudio': article.has_audio,
             'formattingScore': article.content_quality_metrics.get('structure', 0.0) if article.content_quality_metrics else 0.0,
         },
+        # Processing pipeline status fields
+        'fetchStatus': article.fetch_status,
+        'processStatus': article.process_status,
+        'summarizationStatus': article.summarization_status,
+        'summaryReady': article.summary_ready,
+        # Legacy field for backward compatibility
         'contentStatus': article.process_status,
         'contentQuality': {
             'completeness': article.content_quality_metrics.get('completeness', 0.0) if article.content_quality_metrics else None,
             'qualityScore': article.content_quality_metrics.get('quality_score', 0.0) if article.content_quality_metrics else None,
-        } if article.content_quality_metrics else None
+        } if article.content_quality_metrics else None,
+        # Additional content fields for frontend logic
+        'cleanContent': article.clean_content or '',
+        'basicContent': article.basic_content or ''
     }
     
     # Return the response
