@@ -23,13 +23,15 @@ export default function Article({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [heroImage, setHeroImage] = useState<string | null>(null)
+  const [heroImageFallback, setHeroImageFallback] = useState<string | null>(null)
+  const [heroImageError, setHeroImageError] = useState(false)
   const [filteredBlocks, setFilteredBlocks] = useState<any[]>([])
 
   // State for summary generation (stub for now)
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  // Handler to generate summary
+  // Handler to generate summary - delegates to business logic
   const handleGenerateSummary = async () => {
     if (!article) return;
     
@@ -37,45 +39,22 @@ export default function Article({ params }: { params: { id: string } }) {
     setSummaryError(null);
     
     try {
-      // Import the API functions
-      const { generateArticleSummary, pollForSummaryCompletion } = await import('@/lib/api');
+      const { generateArticleSummaryLogic } = await import('@/lib/article-utils');
+      const result = await generateArticleSummaryLogic(article.id, { async: true });
       
-      // Start summary generation (async by default)
-      const response = await generateArticleSummary(article.id, { async: true });
-      
-      if (response.success && response.status === 'processing') {
-        // Poll for completion
-        const statusResponse = await pollForSummaryCompletion(article.id, 20, 2000);
-        
-        if (statusResponse.status === 'completed' && statusResponse.summary) {
-          // Update the article with the new summary
-          setArticle(prev => prev ? {
-            ...prev,
-            summary: statusResponse.summary
-          } : null);
-          
-          setSummaryLoading(false);
-        } else if (statusResponse.status === 'failed') {
-          setSummaryError(statusResponse.errorMessage || 'Summary generation failed');
-          setSummaryLoading(false);
-        } else {
-          setSummaryError('Summary generation timed out');
-          setSummaryLoading(false);
-        }
-      } else if (response.success && response.summary) {
-        // Synchronous completion
+      if (result.success && result.status === 'completed') {
+        // Update the article with the new summary
         setArticle(prev => prev ? {
           ...prev,
-          summary: response.summary
+          summary: result.summary
         } : null);
-        setSummaryLoading(false);
-      } else {
-        setSummaryError(response.error || 'Failed to start summary generation');
-        setSummaryLoading(false);
+      } else if (!result.success) {
+        setSummaryError(result.error);
       }
     } catch (error) {
       console.error('Summary generation error:', error);
       setSummaryError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
       setSummaryLoading(false);
     }
   };
@@ -91,6 +70,8 @@ export default function Article({ params }: { params: { id: string } }) {
         // Extract hero image and filter content blocks
         const { heroImage: extractedHeroImage, filteredBlocks: filtered } = getHeroImage(data)
         setHeroImage(extractedHeroImage)
+        setHeroImageFallback(data.imageUrl || null) // Keep original imageUrl as fallback
+        setHeroImageError(false) // Reset error state
         setFilteredBlocks(filtered)
       } catch (err) {
         console.error('Error fetching article:', err)
@@ -210,22 +191,34 @@ export default function Article({ params }: { params: { id: string } }) {
     })
   }
 
+  // Get the current hero image to display (with fallback logic)
+  const currentHeroImage = heroImageError && heroImageFallback ? heroImageFallback : heroImage;
+  const shouldShowHeroImage = currentHeroImage && (!heroImageError || heroImageFallback);
+
   return (
     <div className="min-h-screen">
       {/* Hero Image - Full width, outside container constraints */}
-      {heroImage && (
+      {shouldShowHeroImage && (
         <div className="relative w-full">
           <div className="relative w-full aspect-[6/4] md:aspect-[8/5] lg:aspect-[12/7] xl:aspect-[16/9] overflow-hidden lg:rounded-b-lg lg:max-w-5xl lg:mx-auto xl:rounded-b-xl">
             <img
-              src={heroImage}
+              src={currentHeroImage}
               alt={article.title}
               className="w-full h-full object-cover"
               onError={(e) => {
-                // Hide the image container if loading fails
-                const container = (e.target as HTMLElement).closest('.relative') as HTMLElement;
-                if (container) {
-                  container.style.display = 'none';
+                console.log('Hero image failed to load:', currentHeroImage);
+                // Try fallback if we haven't already
+                if (!heroImageError && heroImageFallback && currentHeroImage !== heroImageFallback) {
+                  console.log('Switching to fallback image:', heroImageFallback);
+                  setHeroImageError(true);
+                } else {
+                  // No fallback available, log and hide
+                  console.log('No fallback available, hiding hero image');
+                  setHeroImage(null);
                 }
+              }}
+              onLoad={() => {
+                console.log('Hero image loaded successfully:', currentHeroImage);
               }}
             />
             
@@ -245,7 +238,7 @@ export default function Article({ params }: { params: { id: string } }) {
       )}
 
       {/* Header content - aligned with body container (only when no hero image) */}
-      {!heroImage && (
+      {!shouldShowHeroImage && (
         <div className={cn(
           "container px-4 md:px-6 lg:px-8",
           // Same max widths as body content for perfect alignment
@@ -260,7 +253,7 @@ export default function Article({ params }: { params: { id: string } }) {
       <div className={cn(
         "container px-4 md:px-6 lg:px-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
-        heroImage ? "mt-6" : "mt-8" // More spacing between header and title when no hero image
+        shouldShowHeroImage ? "mt-6" : "mt-8" // More spacing between header and title when no hero image
       )}>
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
           {renderWithFormatting(getBestTitle(article))}
