@@ -39,7 +39,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--template',
             type=str,
-            default='content_extraction_v2',
+            default='algorithmic_extraction_v3',
             help='Template ID to use for extraction (default: content_extraction_v2)'
         )
         

@@ -15,9 +15,12 @@ from apps.articles.models import Article, FetchStatus
 from .extraction import (
     ExtractionResult, 
     ExtractionStrategy,
+    BrowserSimulationStrategy,
+    AdvancedBypassStrategy,
     PaywallBypassStrategy,
     BeautifulSoupStrategy
 )
+from .utils import normalize_url, validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +44,10 @@ class ContentFetcher:
     
     def __init__(self):
         self.strategies = [
-            PaywallBypassStrategy(),
-            BeautifulSoupStrategy()
+            BrowserSimulationStrategy(),  # Primary strategy - realistic browser simulation
+            AdvancedBypassStrategy(),     # Advanced techniques for restrictive sites
+            PaywallBypassStrategy(),      # Crawler bots for paywalls  
+            BeautifulSoupStrategy()       # Fallback - basic requests
         ]
         
         # Performance settings
@@ -67,12 +72,15 @@ class ContentFetcher:
                 error_message=f"Article doesn't need fetching. Status: {article.fetch_status}"
             )
         
+        # Normalize URL before fetching (handle Unicode escapes, remove tracking params)
+        normalized_url = self._normalize_article_url(article)
+        
         # Update fetch status to FETCHING
         self._update_fetch_status(article, FetchStatus.FETCHING)
         
         try:
-            # Attempt extraction with available strategies
-            extraction_result = self._extract_with_strategies(article.url)
+            # Attempt extraction with available strategies using normalized URL
+            extraction_result = self._extract_with_strategies(normalized_url)
             
             if extraction_result.success:
                 # Store extraction results
@@ -193,6 +201,36 @@ class ContentFetcher:
                 article.fetch_attempts += 1
             
             article.save()
+    
+    def _normalize_article_url(self, article: Article) -> str:
+        """
+        Normalize article URL and update the database if changed.
+        Handles Unicode escapes, removes tracking parameters, etc.
+        
+        Args:
+            article: Article instance
+            
+        Returns:
+            str: Normalized URL
+        """
+        original_url = article.url
+        normalized_url = normalize_url(original_url)
+        
+        # Update article URL in database if it changed
+        if original_url != normalized_url:
+            logger.info(f"Article {article.id}: Normalizing URL")
+            logger.debug(f"  Original:  {original_url}")
+            logger.debug(f"  Normalized: {normalized_url}")
+            
+            with transaction.atomic():
+                article.url = normalized_url
+                article.save(update_fields=['url'])
+        
+        # Validate the normalized URL
+        if not validate_url(normalized_url):
+            logger.warning(f"Article {article.id}: Normalized URL is still invalid: {normalized_url}")
+        
+        return normalized_url
     
     def _handle_fetch_error(self, article: Article, error_message: str, start_time: float) -> FetchResult:
         """
