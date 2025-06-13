@@ -417,44 +417,255 @@ def generate_article_summary(request, public_id):
     try:
         article_uuid = uuid.UUID(public_id)
     except ValueError:
-        return JsonResponse({"error": "Invalid article ID"}, status=400)
+        response = JsonResponse({"error": "Invalid article ID"}, status=400)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
 
     try:
         article = Article.objects.get(public_id=article_uuid)
     except Article.DoesNotExist:
-        return JsonResponse({"error": "Article not found"}, status=404)
+        response = JsonResponse({"error": "Article not found"}, status=404)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
 
-    # Simulate summary generation (stub logic)
-    # In production, trigger async task or call summarizer here
-    summary_text = f"This is a generated summary for article '{article.title}'."
-    key_points = [
-        "Key point 1: ...",
-        "Key point 2: ...",
-        "Key point 3: ..."
-    ]
+    # Parse request body for options
+    try:
+        body = json.loads(request.body) if request.body else {}
+        force_regenerate = body.get('forceRegenerate', False)
+    except json.JSONDecodeError:
+        response = JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
 
-    # Save or update the summary (assume OneToOne or first summary relation)
-    summary_obj = getattr(article, 'summary', None)
-    if hasattr(article, 'summary') and callable(getattr(article.summary, 'first', None)):
-        summary_obj = article.summary.first()
-    if summary_obj:
-        summary_obj.abstract = summary_text
-        summary_obj.key_points = key_points
-        summary_obj.save()
-    else:
-        # If summary relation exists, create new summary (assume related name 'summary')
-        if hasattr(article, 'summary') and hasattr(article.summary, 'model'):
-            article.summary.model.objects.create(article=article, abstract=summary_text, key_points=key_points)
-        else:
-            # Fallback: just return the summary in the response (not saved)
-            pass
+    # Validate article can be summarized
+    from apps.articles.models import SummarizationStatus
+    
+    # Check processing pipeline status
+    fetchStatus = article.fetch_status
+    processStatus = article.process_status
+    
+    # Article hasn't been processed yet - don't allow summary generation
+    isStillProcessing = (
+        fetchStatus in ['pending', 'fetching'] or 
+        processStatus in ['pending', 'processing']
+    )
+    
+    # Article processing explicitly failed - don't allow summary generation
+    isProcessingFailed = (
+        fetchStatus == 'failed' or 
+        processStatus == 'failed'
+    )
+    
+    # Check if we have adequate content for summarization
+    hasRichContent = article.content_blocks and len(article.content_blocks) > 0
+    hasCleanContent = article.clean_content and len(article.clean_content) > 300
+    hasBasicContent = article.content and len(article.content) > 200
+    
+    canGenerateSummary = not isStillProcessing and not isProcessingFailed and (hasRichContent or hasCleanContent or hasBasicContent)
+    
+    if not canGenerateSummary:
+        response = JsonResponse({
+            "error": "Article cannot be summarized",
+            "details": "Article is still being processed or has insufficient content",
+            "fetchStatus": article.fetch_status,
+            "processStatus": article.process_status,
+            "hasContent": bool(article.content and len(article.content) > 200)
+        }, status=422)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
 
-    response_data = {
-        "summary": {
-            "abstract": summary_text,
-            "keyPoints": key_points
+    # Check if already being processed
+    if article.summarization_status == SummarizationStatus.PROCESSING:
+        response = JsonResponse({
+            "error": "Summary generation already in progress",
+            "status": "processing",
+            "message": "Please wait for the current summarization to complete"
+        }, status=409)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    # Check if already completed and not forcing regeneration
+    if (article.summarization_status == SummarizationStatus.COMPLETED and 
+        hasattr(article, 'structured_summary') and 
+        not force_regenerate):
+        
+        summary = article.structured_summary
+        response_data = {
+            "success": True,
+            "message": "Summary already exists",
+            "summary": {
+                "headline": summary.headline,
+                "abstract": summary.abstract,
+                "facts": summary.facts,
+                "opinions": summary.opinions,
+                "impact": summary.impact,
+                # Legacy fields for compatibility
+                "keyPoints": summary.facts  # Map facts to keyPoints for backward compatibility
+            },
+            "metadata": {
+                "generatedAt": summary.created_at.isoformat(),
+                "costUsd": float(summary.cost_usd),
+                "processingTimeMs": summary.processing_time_ms,
+                "aiModel": summary.ai_model_used,
+                "contentSource": summary.content_source,
+                "wasRepaired": summary.was_repaired
+            }
         }
+        response = JsonResponse(response_data)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    # Import and use the summarization service
+    try:
+        from apps.content.summariser.services import get_summarization_service
+        from apps.content.summariser.tasks import summarize_article_pipeline
+        
+        # Check if we should process synchronously or asynchronously
+        process_async = body.get('async', True)  # Default to async
+        
+        if process_async:
+            # Queue the summarization task
+            task = summarize_article_pipeline.delay(article.id, force_regenerate=force_regenerate)
+            
+            response_data = {
+                "success": True,
+                "message": "Summary generation started",
+                "status": "processing",
+                "taskId": task.id,
+                "estimatedTimeSeconds": 30,  # Rough estimate
+                "pollUrl": f"/api/articles/{public_id}/summary-status/"
+            }
+        else:
+            # Process synchronously (for immediate feedback)
+            service = get_summarization_service()
+            result = service.summarize_article(article, force_regenerate=force_regenerate)
+            
+            if result.success:
+                response_data = {
+                    "success": True,
+                    "message": "Summary generated successfully",
+                    "summary": {
+                        "headline": result.headline,
+                        "abstract": result.abstract,
+                        "facts": result.facts,
+                        "opinions": result.opinions,
+                        "impact": result.impact,
+                        # Legacy fields for compatibility
+                        "keyPoints": result.facts
+                    },
+                    "metadata": {
+                        "generatedAt": timezone.now().isoformat(),
+                        "costUsd": float(result.total_cost_usd),
+                        "processingTimeMs": getattr(result, 'total_duration_ms', 0),
+                        "contentSource": result.content_source,
+                        "stagesCompleted": result.stages_completed,
+                        "requiredCritic": result.required_critic,
+                        "wasRepaired": result.was_repaired
+                    }
+                }
+            else:
+                response_data = {
+                    "success": False,
+                    "error": "Summary generation failed",
+                    "details": result.error_message,
+                    "failedStage": result.failed_stage,
+                    "canRetry": result.failed_stage in ['rbc_compression', 'skeleton_summary']
+                }
+                
+    except ImportError as e:
+        logger.error(f"Summarization service not available: {e}")
+        response_data = {
+            "success": False,
+            "error": "Summarization service unavailable",
+            "details": "The summarization service is not properly configured"
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error during summarization: {e}")
+        response_data = {
+            "success": False,
+            "error": "Internal server error",
+            "details": "An unexpected error occurred during summary generation"
+        }
+
+    response = JsonResponse(response_data)
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+@require_http_methods(["GET", "OPTIONS"])
+def article_summary_status(request, public_id):
+    """
+    Check the status of summary generation for an article.
+    GET /articles/<public_id>/summary-status/
+    """
+    # Handle OPTIONS request for CORS
+    if request.method == "OPTIONS":
+        response = JsonResponse({})
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return response
+
+    try:
+        article_uuid = uuid.UUID(public_id)
+    except ValueError:
+        response = JsonResponse({"error": "Invalid article ID"}, status=400)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    try:
+        article = Article.objects.get(public_id=article_uuid)
+    except Article.DoesNotExist:
+        response = JsonResponse({"error": "Article not found"}, status=404)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    # Get current summarization status
+    status_map = {
+        'pending': 'pending',
+        'processing': 'processing', 
+        'completed': 'completed',
+        'failed': 'failed'
     }
+    
+    current_status = status_map.get(article.summarization_status, 'unknown')
+    
+    response_data = {
+        "status": current_status,
+        "summarizationStatus": article.summarization_status,
+        "lastAttempt": article.last_summarization_attempt.isoformat() if article.last_summarization_attempt else None,
+        "attempts": article.summarization_attempts,
+        "errorMessage": article.summarization_error_message if article.summarization_error_message else None
+    }
+    
+    # If completed, include the summary data
+    if current_status == 'completed' and hasattr(article, 'structured_summary'):
+        summary = article.structured_summary
+        response_data["summary"] = {
+            "headline": summary.headline,
+            "abstract": summary.abstract,
+            "facts": summary.facts,
+            "opinions": summary.opinions,
+            "impact": summary.impact,
+            # Legacy fields for compatibility
+            "keyPoints": summary.facts
+        }
+        response_data["metadata"] = {
+            "generatedAt": summary.created_at.isoformat(),
+            "costUsd": float(summary.cost_usd),
+            "processingTimeMs": summary.processing_time_ms,
+            "aiModel": summary.ai_model_used,
+            "contentSource": summary.content_source,
+            "wasRepaired": summary.was_repaired
+        }
+    
+    # If processing, provide estimated completion time
+    elif current_status == 'processing':
+        # Rough estimate based on when processing started
+        if article.last_summarization_attempt:
+            elapsed_seconds = (timezone.now() - article.last_summarization_attempt).total_seconds()
+            estimated_remaining = max(0, 30 - elapsed_seconds)  # Assume 30 seconds total
+            response_data["estimatedRemainingSeconds"] = int(estimated_remaining)
+    
     response = JsonResponse(response_data)
     response["Access-Control-Allow-Origin"] = "*"
     return response

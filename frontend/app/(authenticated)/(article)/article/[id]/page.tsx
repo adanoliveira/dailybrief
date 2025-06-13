@@ -29,15 +29,55 @@ export default function Article({ params }: { params: { id: string } }) {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  // Handler to generate summary (stub)
-  const handleGenerateSummary = () => {
+  // Handler to generate summary
+  const handleGenerateSummary = async () => {
+    if (!article) return;
+    
     setSummaryLoading(true);
     setSummaryError(null);
-    // TODO: Implement summary generation API call
-    setTimeout(() => {
+    
+    try {
+      // Import the API functions
+      const { generateArticleSummary, pollForSummaryCompletion } = await import('@/lib/api');
+      
+      // Start summary generation (async by default)
+      const response = await generateArticleSummary(article.id, { async: true });
+      
+      if (response.success && response.status === 'processing') {
+        // Poll for completion
+        const statusResponse = await pollForSummaryCompletion(article.id, 20, 2000);
+        
+        if (statusResponse.status === 'completed' && statusResponse.summary) {
+          // Update the article with the new summary
+          setArticle(prev => prev ? {
+            ...prev,
+            summary: statusResponse.summary
+          } : null);
+          
+          setSummaryLoading(false);
+        } else if (statusResponse.status === 'failed') {
+          setSummaryError(statusResponse.errorMessage || 'Summary generation failed');
+          setSummaryLoading(false);
+        } else {
+          setSummaryError('Summary generation timed out');
+          setSummaryLoading(false);
+        }
+      } else if (response.success && response.summary) {
+        // Synchronous completion
+        setArticle(prev => prev ? {
+          ...prev,
+          summary: response.summary
+        } : null);
+        setSummaryLoading(false);
+      } else {
+        setSummaryError(response.error || 'Failed to start summary generation');
+        setSummaryLoading(false);
+      }
+    } catch (error) {
+      console.error('Summary generation error:', error);
+      setSummaryError(error instanceof Error ? error.message : 'An unexpected error occurred');
       setSummaryLoading(false);
-      setSummaryError("Summary generation not implemented yet.");
-    }, 1500);
+    }
   };
 
   useEffect(() => {

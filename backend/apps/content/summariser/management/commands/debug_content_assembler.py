@@ -149,65 +149,65 @@ class Command(BaseCommand):
                 f"{result['words']:>7} {result['truncated']:>5} {result['title']}")
 
     def print_separator(self, title: str, char: str = "=", width: int = 80):
-        """Print a formatted separator with title."""
-        padding = (width - len(title) - 2) // 2
+    """Print a formatted separator with title."""
+    padding = (width - len(title) - 2) // 2
         self.stdout.write(f"\n{char * padding} {title} {char * padding}")
 
     def print_content_blocks_summary(self, content_blocks: List[dict]):
-        """Print a summary of content blocks structure."""
-        if not content_blocks:
+    """Print a summary of content blocks structure."""
+    if not content_blocks:
             self.stdout.write("❌ No content blocks found")
-            return
-        
+        return
+    
         self.stdout.write(f"📦 Content Blocks Summary ({len(content_blocks)} blocks):")
+    
+    block_types = {}
+    total_chars = 0
+    
+    for i, block in enumerate(content_blocks, 1):
+        block_type = block.get('type', 'unknown')
+        content = block.get('content', '')
+        char_count = len(content)
         
-        block_types = {}
-        total_chars = 0
+        # Count by type
+        if block_type not in block_types:
+            block_types[block_type] = {'count': 0, 'chars': 0}
+        block_types[block_type]['count'] += 1
+        block_types[block_type]['chars'] += char_count
+        total_chars += char_count
         
-        for i, block in enumerate(content_blocks, 1):
-            block_type = block.get('type', 'unknown')
-            content = block.get('content', '')
-            char_count = len(content)
-            
-            # Count by type
-            if block_type not in block_types:
-                block_types[block_type] = {'count': 0, 'chars': 0}
-            block_types[block_type]['count'] += 1
-            block_types[block_type]['chars'] += char_count
-            total_chars += char_count
-            
-            # Show first few blocks in detail
-            if i <= 5:
-                preview = content[:100].replace('\n', ' ').strip()
-                if len(content) > 100:
-                    preview += "..."
+        # Show first few blocks in detail
+        if i <= 5:
+            preview = content[:100].replace('\n', ' ').strip()
+            if len(content) > 100:
+                preview += "..."
                 self.stdout.write(f"  {i:2d}. {block_type:12s} ({char_count:4d} chars): {preview}")
-        
-        if len(content_blocks) > 5:
+    
+    if len(content_blocks) > 5:
             self.stdout.write(f"     ... and {len(content_blocks) - 5} more blocks")
-        
+    
         self.stdout.write(f"\n📊 Block Type Distribution:")
-        for block_type, stats in sorted(block_types.items()):
+    for block_type, stats in sorted(block_types.items()):
             self.stdout.write(f"  {block_type:15s}: {stats['count']:2d} blocks, {stats['chars']:6d} chars")
-        
+    
         self.stdout.write(f"\n📏 Total original content: {total_chars:,} characters")
 
     def analyze_assembled_content(self, assembled_content: str):
-        """Analyze the quality and structure of assembled content."""
-        if not assembled_content:
+    """Analyze the quality and structure of assembled content."""
+    if not assembled_content:
             self.stdout.write("❌ No assembled content")
-            return
-        
-        lines = assembled_content.split('\n')
-        char_count = len(assembled_content)
-        word_count = len(assembled_content.split())
-        
-        # Count markdown elements
-        headers = len([line for line in lines if line.startswith('#')])
-        quotes = len([line for line in lines if line.startswith('>')])
-        lists = len([line for line in lines if line.strip().startswith(('- ', '* ', '1. ', '2. '))])
-        images = len([line for line in lines if '*[Image:' in line])
-        
+        return
+    
+    lines = assembled_content.split('\n')
+    char_count = len(assembled_content)
+    word_count = len(assembled_content.split())
+    
+    # Count markdown elements
+    headers = len([line for line in lines if line.startswith('#')])
+    quotes = len([line for line in lines if line.startswith('>')])
+    lists = len([line for line in lines if line.strip().startswith(('- ', '* ', '1. ', '2. '))])
+    images = len([line for line in lines if '*[Image:' in line])
+    
         self.stdout.write(f"📊 Assembled Content Analysis:")
         self.stdout.write(f"  Length: {char_count:,} characters, {word_count:,} words")
         self.stdout.write(f"  Lines: {len(lines)}")
@@ -215,53 +215,53 @@ class Command(BaseCommand):
         self.stdout.write(f"  Quotes: {quotes}")
         self.stdout.write(f"  List items: {lists}")
         self.stdout.write(f"  Images: {images}")
-        
-        # Check for truncation
-        if '...' in assembled_content or '[...]' in assembled_content:
+    
+    # Check for truncation
+    if '...' in assembled_content or '[...]' in assembled_content:
             self.stdout.write(f"  ⚠️  Content appears to be truncated")
-        
-        # Estimate reading time
-        reading_time = word_count / 200  # Average 200 WPM
+    
+    # Estimate reading time
+    reading_time = word_count / 200  # Average 200 WPM
         self.stdout.write(f"  📖 Estimated reading time: {reading_time:.1f} minutes")
 
     def debug_article_content_assembly(self, article_id: int):
-        """Debug content assembly for a specific article."""
+    """Debug content assembly for a specific article."""
         self.print_separator(f"ARTICLE {article_id}", "=", 100)
-        
-        try:
-            article = Article.objects.get(id=article_id)
-        except Article.DoesNotExist:
+    
+    try:
+        article = Article.objects.get(id=article_id)
+    except Article.DoesNotExist:
             self.stdout.write(f"❌ Article {article_id} not found")
-            return
-        
-        # Article metadata
+        return
+    
+    # Article metadata
         self.stdout.write(f"📰 Title: {article.title}")
         self.stdout.write(f"🗓️  Published: {article.published_at}")
         self.stdout.write(f"🌐 Source: {article.source_name or 'Unknown'}")
         self.stdout.write(f"🔗 URL: {article.url}")
-        
+    
         # Get content blocks
         content_blocks = article.content_blocks or []
-        
+    
         if not content_blocks:
             self.stdout.write("\n❌ No content blocks available")
-            
-            # Try fallback content
+        
+        # Try fallback content
             self.stdout.write("\n🔄 Checking fallback content sources:")
-            if article.cleaned_text:
+        if article.cleaned_text:
                 self.stdout.write(f"  ✅ Cleaned text available: {len(article.cleaned_text):,} chars")
-            else:
+        else:
                 self.stdout.write(f"  ❌ No cleaned text")
-                
-            if article.incomplete_text:
-                self.stdout.write(f"  ✅ Incomplete text available: {len(article.incomplete_text):,} chars")
-            else:
-                self.stdout.write(f"  ❌ No incomplete text")
             
-            return
+        if article.incomplete_text:
+                self.stdout.write(f"  ✅ Incomplete text available: {len(article.incomplete_text):,} chars")
+        else:
+                self.stdout.write(f"  ❌ No incomplete text")
         
+        return
+    
         self.print_content_blocks_summary(content_blocks)
-        
+    
         # Test with different limits to show scaling
         limits = [10000, 25000, 50000]
         self.stdout.write(f"\n📊 Testing different character limits:")
@@ -295,29 +295,29 @@ class Command(BaseCommand):
         self.stdout.write("─" * 80)
 
     def debug_content_assembly_comparison(self, article_ids: List[int], max_chars: int = 25000):
-        """Compare content assembly across multiple articles."""
+    """Compare content assembly across multiple articles."""
         self.print_separator("CONTENT ASSEMBLY COMPARISON", "=", 100)
-        
-        results = []
-        
-        for article_id in article_ids:
-            try:
-                article = Article.objects.get(id=article_id)
+    
+    results = []
+    
+    for article_id in article_ids:
+        try:
+            article = Article.objects.get(id=article_id)
                 content_blocks = article.content_blocks or []
-                
+            
                 if content_blocks:
                     assembler = get_markdown_assembler(max_chars=max_chars)
                     assembled_content = assembler.assemble_content(content_blocks, title=article.title)
-                    
-                    results.append({
-                        'id': article_id,
-                        'title': article.title[:50] + "..." if len(article.title) > 50 else article.title,
+                
+                results.append({
+                    'id': article_id,
+                    'title': article.title[:50] + "..." if len(article.title) > 50 else article.title,
                         'blocks': len(content_blocks),
                         'original_chars': sum(len(block.get('content', '')) for block in content_blocks),
-                        'assembled_chars': len(assembled_content),
-                        'assembled_words': len(assembled_content.split()),
-                        'truncated': '...' in assembled_content or '[...]' in assembled_content
-                    })
+                    'assembled_chars': len(assembled_content),
+                    'assembled_words': len(assembled_content.split()),
+                    'truncated': '...' in assembled_content or '[...]' in assembled_content
+                })
                 else:
                     results.append({
                         'id': article_id,
@@ -328,25 +328,25 @@ class Command(BaseCommand):
                         'assembled_words': 0,
                         'truncated': False
                     })
-            except Article.DoesNotExist:
-                results.append({
-                    'id': article_id,
-                    'title': 'NOT FOUND',
-                    'blocks': 0,
-                    'original_chars': 0,
-                    'assembled_chars': 0,
-                    'assembled_words': 0,
-                    'truncated': False
-                })
-        
+        except Article.DoesNotExist:
+            results.append({
+                'id': article_id,
+                'title': 'NOT FOUND',
+                'blocks': 0,
+                'original_chars': 0,
+                'assembled_chars': 0,
+                'assembled_words': 0,
+                'truncated': False
+            })
+    
         self.stdout.write(f"{'ID':>6} {'Blocks':>6} {'Original':>10} {'Assembled':>10} {'Words':>7} {'Trunc':>5} Title")
         self.stdout.write("─" * 100)
-        
-        for result in results:
-            truncated_indicator = "YES" if result['truncated'] else "NO"
+    
+    for result in results:
+        truncated_indicator = "YES" if result['truncated'] else "NO"
             self.stdout.write(f"{result['id']:>6} {result['blocks']:>6} {result['original_chars']:>10,} "
-                  f"{result['assembled_chars']:>10,} {result['assembled_words']:>7,} {truncated_indicator:>5} "
-                  f"{result['title']}")
+              f"{result['assembled_chars']:>10,} {result['assembled_words']:>7,} {truncated_indicator:>5} "
+              f"{result['title']}")
 
     def _show_detailed_analysis(self, article, assembled, assembled_chars):
         """Show detailed analysis for a specific article."""
@@ -394,7 +394,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("  ⚠️  GOOD SELECTION: Selected blocks scored higher on average"))
         else:
             self.stdout.write(self.style.ERROR("  ❌ POOR SELECTION: Some high-scoring blocks were excluded"))
-        
+    
         # Show top excluded blocks (should be least relevant)
         self.stdout.write(f"\n🗑️  TOP 10 EXCLUDED BLOCKS (should be least relevant):")
         for i, block in enumerate(analysis['excluded_blocks'][:10]):

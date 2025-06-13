@@ -141,7 +141,7 @@ class ArticleSummary(models.Model):
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     article = models.OneToOneField(
         'articles.Article',
-        on_delete=models.CASCADE,
+        on_delete=models.CASCADE, 
         related_name='structured_summary'
     )
     
@@ -298,7 +298,7 @@ class SummarizationRequest(models.Model):
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     article = models.ForeignKey(
         'articles.Article',
-        on_delete=models.CASCADE,
+        on_delete=models.CASCADE, 
         related_name='summarization_requests'
     )
     
