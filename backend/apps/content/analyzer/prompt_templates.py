@@ -40,7 +40,7 @@ class AnalyzerPrompts:
 
 ARTICLE:
 Title: {title}
-Content: {content[:2000]}...
+Content: {content}
 
 Provide analysis in this exact JSON format:
 {{
@@ -78,7 +78,7 @@ INSTRUCTIONS:
 
 ARTICLE:
 Title: {title}
-Content: {content[:3000]}...
+Content: {content}
 
 Identify entities in this JSON format:
 {{
@@ -140,7 +140,7 @@ INSTRUCTIONS:
 
 ARTICLE:
 Title: {title}
-Content: {content[:2500]}...
+Content: {content}
 
 Analyze the event in this JSON format:
 {{
@@ -163,7 +163,7 @@ Analyze the event in this JSON format:
 }}
 
 INSTRUCTIONS:
-- Identify the ONE main event this article reports on
+- Identify the main events this article reports on
 - Create a concise title (≤80 characters) for the event
 - Write a brief abstract (≤120 words) summarizing what happened
 - Extract 3-7 key facts that are specific and verifiable
@@ -192,7 +192,7 @@ INSTRUCTIONS:
 
 ARTICLE:
 Title: {title}
-Content: {content[:2500]}...
+Content: {content}
 
 AVAILABLE TOPICS:
 {topic_options}
@@ -241,7 +241,7 @@ INSTRUCTIONS:
 
 ARTICLE:
 Title: {title}
-Content: {content[:2500]}...
+Content: {content}
 
 AVAILABLE REGIONS:
 {region_options}
