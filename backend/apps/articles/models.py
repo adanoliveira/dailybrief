@@ -29,8 +29,6 @@ class SummarizationStatus(models.TextChoices):
     FAILED = 'failed', 'Summary Failed'
 
 
-<<<<<<< HEAD
-=======
 class AnalyzerStatus(models.TextChoices):
     """Step 5 analyzer status choices."""
     PENDING = 'pending', 'Pending Analysis'
@@ -39,7 +37,6 @@ class AnalyzerStatus(models.TextChoices):
     FAILED = 'failed', 'Analysis Failed'
 
 
->>>>>>> main
 class StoryGroup(models.Model):
     """
     A group of related articles that form a comprehensive story.
@@ -227,8 +224,6 @@ class Article(models.Model):
         null=True, blank=True
     )
     
-<<<<<<< HEAD
-=======
     # ===== STEP 5: ANALYSIS FIELDS =====
     # Step 5 analyzer status and results
     analyzer_status = models.CharField(
@@ -246,7 +241,6 @@ class Article(models.Model):
     last_analyzer_attempt = models.DateTimeField(null=True, blank=True)
     analyzer_error_message = models.TextField(blank=True)
     
->>>>>>> main
     class Meta:
         ordering = ['-published_at']
         indexes = [
@@ -267,11 +261,8 @@ class Article(models.Model):
             models.Index(fields=['summarization_status']),
             models.Index(fields=['summarized_at']),
             models.Index(fields=['summary_content_source']),
-<<<<<<< HEAD
-=======
             models.Index(fields=['analyzer_status']),
             models.Index(fields=['analyzed_at']),
->>>>>>> main
         ]
     
     def __str__(self):
@@ -423,8 +414,6 @@ class Article(models.Model):
             logger = logging.getLogger(__name__)
             logger.warning(f"Failed to assemble markdown content for article {self.id}: {e}")
             return self.clean_content or self.basic_content or ""
-<<<<<<< HEAD
-=======
     
     # ===== STEP 5 PROPERTIES =====
     @property
@@ -460,7 +449,6 @@ class Article(models.Model):
             return self.description
         else:
             return None
->>>>>>> main
 
 
 class UserArticleInteraction(models.Model):

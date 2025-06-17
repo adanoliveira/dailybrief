@@ -147,10 +147,7 @@ class Command(BaseCommand):
                         f"\n--- SUMMARY ---\n"
                         f"Headline: {result.headline}\n"
                         f"Abstract: {result.abstract}\n"
-<<<<<<< HEAD
-=======
                         f"Longer Abstract: {result.longer_abstract}\n"
->>>>>>> main
                         f"Facts: {result.facts}\n"
                         f"Opinions: {result.opinions}\n"
                         f"Impact: {result.impact}\n"
@@ -211,10 +208,7 @@ class Command(BaseCommand):
                                 f"\n--- SUMMARY ---\n"
                                 f"Headline: {result.headline}\n"
                                 f"Abstract: {result.abstract}\n"
-<<<<<<< HEAD
-=======
                                 f"Longer Abstract: {result.longer_abstract}\n"
->>>>>>> main
                                 f"Facts: {result.facts}\n"
                                 f"Opinions: {result.opinions}\n"
                                 f"Impact: {result.impact}\n"
@@ -314,10 +308,7 @@ class Command(BaseCommand):
                             f"\n--- SUMMARY ---\n"
                             f"Headline: {result.headline}\n"
                             f"Abstract: {result.abstract}\n"
-<<<<<<< HEAD
-=======
                             f"Longer Abstract: {result.longer_abstract}\n"
->>>>>>> main
                             f"Facts: {result.facts}\n"
                             f"Opinions: {result.opinions}\n"
                             f"Impact: {result.impact}\n"

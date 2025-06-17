@@ -68,34 +68,23 @@ class SummarizationPrompts:
         INSTRUCTIONS:
         1. Copy 3-6 most important [FACT] or [STAT] bullets verbatim into "facts"
         2. Write a headline (≤15 words) and abstract (≤60 words) in neutral tone
-<<<<<<< HEAD
-        3. Extract up to 5 "opinions" in format: "Speaker: statement"
-        4. Create up to 3 "impact" bullets
-=======
         3. Write a longer abstract (≤200 words) that comprehensively covers the key information
         4. Extract up to 5 "opinions" in format: "Speaker: statement"
         5. Create up to 3 "impact" bullets
->>>>>>> main
 
         CONSTRAINTS:
         • Use ONLY information from the provided bullets
         • No external knowledge or interpretation
         • Facts must be copied verbatim from bullets
         • Abstract must be ≤60 words exactly
-<<<<<<< HEAD
-=======
         • Longer abstract must be ≤200 words, more comprehensive but still concise
         • Longer abstract should include more facts, events and entities than the short abstract
->>>>>>> main
 
         OUTPUT FORMAT:
         {{
         "headline": "...",
         "abstract": "...",
-<<<<<<< HEAD
-=======
         "longer_abstract": "...",
->>>>>>> main
         "facts": ["...", "..."],
         "opinions": ["Speaker: ...", "..."],
         "impact": ["...", "..."]
@@ -170,11 +159,8 @@ class SummarizationPrompts:
         • Maintain the exact JSON structure
         • Do not add new information beyond what's in the original draft
         • Ensure abstract remains ≤60 words
-<<<<<<< HEAD
-=======
         • Ensure longer abstract remains ≤200 words
         • Longer abstract should be more comprehensive than the short abstract
->>>>>>> main
 
         DRAFT TO REVISE:
         {summary_json}"""
@@ -193,11 +179,7 @@ class SummarizationPrompts:
             'rbc_compression': {
                 'operation': 'rbc_compression',
                 'temperature': 0.3,
-<<<<<<< HEAD
-                'max_tokens': 8192,  # Increased limit to prevent JSON cutoff for verbose articles
-=======
                 'max_tokens': 10000,  # Increased from 8192 to handle larger articles
->>>>>>> main
                 'model_preference': 'gpt-4o-mini',
                 'template_version': f'{SummarizationPrompts.TEMPLATE_VERSION}_rbc',
                 'description': 'Rich Bullet Compression for lossless content encoding'
@@ -205,11 +187,7 @@ class SummarizationPrompts:
             'skeleton_summary': {
                 'operation': 'skeleton_summary', 
                 'temperature': 0.25,
-<<<<<<< HEAD
-                'max_tokens': 4096,  # High limit to prevent JSON cutoff
-=======
                 'max_tokens': 8192,  # Increased from 6144 for longer_abstract
->>>>>>> main
                 'model_preference': 'gpt-4o-mini',
                 'template_version': f'{SummarizationPrompts.TEMPLATE_VERSION}_skeleton',
                 'description': 'Structured summary generation from RBC bullets'
@@ -217,11 +195,7 @@ class SummarizationPrompts:
             'summary_critique': {
                 'operation': 'summary_critique',
                 'temperature': 0.0,
-<<<<<<< HEAD
-                'max_tokens': 4096,  # High limit to prevent JSON cutoff
-=======
                 'max_tokens': 6144,  # Increased from 4096
->>>>>>> main
                 'model_preference': 'gpt-4o-mini',
                 'template_version': f'{SummarizationPrompts.TEMPLATE_VERSION}_critic',
                 'description': 'Summary faithfulness verification and critique'
@@ -229,11 +203,7 @@ class SummarizationPrompts:
             'summary_repair': {
                 'operation': 'summary_repair',
                 'temperature': 0.2,
-<<<<<<< HEAD
-                'max_tokens': 4096,  # High limit to prevent JSON cutoff
-=======
                 'max_tokens': 10000,  # Significantly increased from 6144 to fix JSON parse errors
->>>>>>> main
                 'model_preference': 'gpt-4o-mini',
                 'template_version': f'{SummarizationPrompts.TEMPLATE_VERSION}_repair',
                 'description': 'Summary repair based on critic feedback'
@@ -269,13 +239,8 @@ class SummarizationPrompts:
         
         # Be lenient with bullet count - let critic review handle quality issues
         if len(bullets) > 40:  # Only fail on extreme cases
-<<<<<<< HEAD
-            return {'valid': False, 'error': f'Excessive bullets: {len(bullets)} > 30 (too many to process)', 'data': None}
-        elif len(bullets) > 25:
-=======
             return {'valid': False, 'error': f'Excessive bullets: {len(bullets)} > 40 (too many to process)', 'data': None}
         elif len(bullets) > 30:
->>>>>>> main
             logger.warning(f"Bullet count {len(bullets)} exceeds target of 25 - critic review will assess quality")
         
         # Check bullet labeling
@@ -309,11 +274,7 @@ class SummarizationPrompts:
             return {'valid': False, 'error': 'JSON parse error: Unable to repair malformed JSON', 'data': None}
         
         # Validate the parsed data
-<<<<<<< HEAD
-        required_fields = ['headline', 'abstract', 'facts', 'opinions', 'impact']
-=======
         required_fields = ['headline', 'abstract', 'longer_abstract', 'facts', 'opinions', 'impact']
->>>>>>> main
         missing_fields = [field for field in required_fields if field not in data]
         
         if missing_fields:
@@ -332,10 +293,7 @@ class SummarizationPrompts:
         # Validate constraints
         headline_words = len(data['headline'].split()) if data['headline'] else 0
         abstract_words = len(data['abstract'].split()) if data['abstract'] else 0
-<<<<<<< HEAD
-=======
         longer_abstract_words = len(data['longer_abstract'].split()) if data['longer_abstract'] else 0
->>>>>>> main
         
         if headline_words > 15:
             return {'valid': False, 'error': f'Headline too long: {headline_words} > 15 words', 'data': None}
@@ -345,15 +303,12 @@ class SummarizationPrompts:
             return {'valid': False, 'error': f'Abstract excessively long: {abstract_words} > 80 words', 'data': None}
         elif abstract_words > 60:
             logger.warning(f"Abstract length {abstract_words} exceeds target of 60 words - critic review will assess quality")
-<<<<<<< HEAD
-=======
             
         # Validate longer abstract length
         if longer_abstract_words > 250:  # Only fail on extreme cases
             return {'valid': False, 'error': f'Longer abstract excessively long: {longer_abstract_words} > 250 words', 'data': None}
         elif longer_abstract_words > 200:
             logger.warning(f"Longer abstract length {longer_abstract_words} exceeds target of 200 words - critic review will assess quality")
->>>>>>> main
         
         # Be more lenient with facts count - allow graceful degradation
         if len(data['facts']) < 1:
@@ -407,14 +362,11 @@ class SummarizationPrompts:
         abstract_words = len(summary_data.get('abstract', '').split())
         if abstract_words > 60:
             triggers.append(f'Abstract too long: {abstract_words} words > 60')
-<<<<<<< HEAD
-=======
             
         # Check longer abstract length
         longer_abstract_words = len(summary_data.get('longer_abstract', '').split())
         if longer_abstract_words > 200:
             triggers.append(f'Longer abstract too long: {longer_abstract_words} words > 200')
->>>>>>> main
         
         # Check facts count
         facts_count = len(summary_data.get('facts', []))
@@ -423,24 +375,17 @@ class SummarizationPrompts:
         
         # Check for uncertainty markers
         abstract = summary_data.get('abstract', '').lower()
-<<<<<<< HEAD
-=======
         longer_abstract = summary_data.get('longer_abstract', '').lower()
->>>>>>> main
         uncertainty_markers = ['uncertain', 'unclear', 'possibly', 'might be', 'appears to', 'seems to']
         
         for marker in uncertainty_markers:
             if marker in abstract:
-<<<<<<< HEAD
-                triggers.append(f'Uncertainty marker detected: "{marker}"')
-=======
                 triggers.append(f'Uncertainty marker detected in abstract: "{marker}"')
                 break
                 
         for marker in uncertainty_markers:
             if marker in longer_abstract:
                 triggers.append(f'Uncertainty marker detected in longer abstract: "{marker}"')
->>>>>>> main
                 break
         
         # Check for empty required fields
@@ -449,14 +394,6 @@ class SummarizationPrompts:
         
         if not summary_data.get('abstract'):
             triggers.append('Empty abstract')
-<<<<<<< HEAD
-        
-        # Check RBC bullet count if provided (graceful degradation)
-        if rbc_data:
-            bullets = rbc_data.get('bullets', [])
-            if len(bullets) > 25:
-                triggers.append(f'Excessive RBC bullets: {len(bullets)} > 25 - may need consolidation')
-=======
             
         if not summary_data.get('longer_abstract'):
             triggers.append('Empty longer abstract')
@@ -467,7 +404,6 @@ class SummarizationPrompts:
             bullets = rbc_data.get('bullets', [])
             if len(bullets) > 30:
                 triggers.append(f'Excessive RBC bullets: {len(bullets)} > 30 - may need consolidation')
->>>>>>> main
         
         should_trigger = len(triggers) > 0
         return should_trigger, triggers
@@ -482,31 +418,16 @@ class EmbeddingPrompts:
     """
     
     @staticmethod
-<<<<<<< HEAD
-    def prepare_embedding_text(headline: str, abstract: str) -> str:
-        """
-        Prepare text for embedding generation.
-        
-        Combines headline and abstract in optimal format for semantic search.
-=======
     def prepare_embedding_text(headline: str, abstract: str, longer_abstract: str = None) -> str:
         """
         Prepare text for embedding generation.
         
         Combines headline, abstract, and longer_abstract in optimal format for semantic search.
         Prioritizes longer_abstract if available for richer semantic context.
->>>>>>> main
         """
         # Clean and prepare text
         clean_headline = headline.strip() if headline else ""
         clean_abstract = abstract.strip() if abstract else ""
-<<<<<<< HEAD
-        
-        if clean_headline and clean_abstract:
-            return f"{clean_headline} - {clean_abstract}"
-        elif clean_headline:
-            return clean_headline
-=======
         clean_longer_abstract = longer_abstract.strip() if longer_abstract else ""
         
         # Prefer longer abstract for richer semantic context if available
@@ -518,7 +439,6 @@ class EmbeddingPrompts:
             return clean_headline
         elif clean_longer_abstract:
             return clean_longer_abstract
->>>>>>> main
         elif clean_abstract:
             return clean_abstract
         else:
@@ -535,11 +455,7 @@ class EmbeddingPrompts:
             'model': 'text-embedding-3-small',  # Note: will upgrade to text-embedding-4-small when available
             'dimensions': 1536,
             'batch_size': 50,  # Process up to 50 embeddings per API call
-<<<<<<< HEAD
-            'operation': 'text_embedding',
-=======
             'operation': 'embedding_generation',
->>>>>>> main
             'description': 'Semantic embedding generation for article similarity search'
         }
 
@@ -569,12 +485,9 @@ class JSONRepairUtils:
             JSONRepairUtils._fix_nested_quotes,
             JSONRepairUtils._fix_trailing_comma,
             JSONRepairUtils._fix_unclosed_brackets,
-<<<<<<< HEAD
-=======
             JSONRepairUtils._extract_json_from_text,  # New strategy
             JSONRepairUtils._fix_missing_quotes,      # New strategy
             JSONRepairUtils._aggressive_json_extraction,  # New aggressive strategy
->>>>>>> main
         ]
         
         for strategy in repair_strategies:
@@ -689,9 +602,6 @@ class JSONRepairUtils:
         for _ in range(missing_braces):
             text += '}'
         
-<<<<<<< HEAD
-        return text 
-=======
         return text
 
     @staticmethod
@@ -782,4 +692,3 @@ class JSONRepairUtils:
             return json.dumps(reconstructed_json)
         
         return json_text 
->>>>>>> main

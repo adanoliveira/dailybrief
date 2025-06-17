@@ -45,6 +45,12 @@ class Command(BaseCommand):
             action='store_true',
             help='Show detailed scoring breakdown for all content blocks'
         )
+        parser.add_argument(
+            '--mode',
+            type=str,
+            choices=['hybrid', 'intelligent', 'custom'],
+            help='Force a specific summarization mode (hybrid, intelligent, or custom)'
+        )
 
     def handle(self, *args, **options):
         # Default test batch
@@ -64,12 +70,18 @@ class Command(BaseCommand):
         
         self.stdout.write(self.style.SUCCESS(f"\n🚀 Debugging content assembly for {len(article_ids)} articles"))
 
-        # Test all three summarization approaches
-        approaches = [
-            ("Hybrid Summarization (SUMY + Structure)", True, "hybrid"),
-            ("Pure Intelligent Summarization (SUMY)", True, "intelligent"), 
-            ("Custom Truncation", False, "custom")
-        ]
+        # Test all three summarization approaches or just the specified mode
+        if options['mode']:
+            approaches = [
+                (f"Selected Mode: {options['mode'].capitalize()}", True, options['mode'])
+            ]
+            self.stdout.write(f"\n🔧 Using specified summarization mode: {options['mode']}")
+        else:
+            approaches = [
+                ("Hybrid Summarization (Gensim + Structure)", True, "hybrid"),
+                ("Pure Intelligent Summarization (Gensim)", True, "intelligent"), 
+                ("Custom Truncation", False, "custom")
+            ]
         
         for approach_name, use_intelligent, mode in approaches:
             self.stdout.write(f"\n{'='*100}")
@@ -89,6 +101,14 @@ class Command(BaseCommand):
             summarization_mode=mode
         )
         
+        # Print assembler configuration
+        self.stdout.write(f"\n📋 Assembler Configuration:")
+        self.stdout.write(f"  Max Characters: {max_chars}")
+        self.stdout.write(f"  Using Intelligent Summarization: {use_intelligent}")
+        self.stdout.write(f"  Summarization Mode: {mode}")
+        self.stdout.write(f"  Gensim Available: {getattr(assembler, 'GENSIM_AVAILABLE', False)}")
+        self.stdout.write(f"  Actual Mode Used: {assembler.summarization_mode}")
+        
         comparison_data = []
         
         for article_id in article_ids:
@@ -96,14 +116,21 @@ class Command(BaseCommand):
                 article = Article.objects.get(id=article_id)
                 original_chars = len(str(article.content_blocks or []))
                 
+                self.stdout.write(f"\n\n{'='*50}")
+                self.stdout.write(f"ARTICLE {article_id}: {article.title[:60]}")
+                self.stdout.write(f"{'='*50}")
+                
+                # Print original content blocks summary
+                self.print_content_blocks_summary(article.content_blocks or [])
+                
                 # Assemble content
                 assembled = assembler.assemble_content(article.content_blocks or [], title=article.title)
                 assembled_chars = len(assembled)
                 
                 # Print the full assembled content for inspection
-                print("\n==== FULL ASSEMBLED CONTENT ====")
-                print(assembled)
-                print("==== END OF ASSEMBLED CONTENT ====")
+                self.stdout.write("\n==== FULL ASSEMBLED CONTENT ====")
+                self.stdout.write(assembled)
+                self.stdout.write("==== END OF ASSEMBLED CONTENT ====")
                 
                 # Count words and analyze
                 word_count = len(assembled.split())

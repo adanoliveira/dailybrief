@@ -24,15 +24,12 @@ class AIProviderUsage(models.Model):
         ('summary_critique', 'Summary Critique Review'),
         ('summary_repair', 'Summary Repair'),
         ('embedding_generation', 'Embedding Generation'),
-<<<<<<< HEAD
-=======
         # Analyzer pipeline operations
         ('linguistic_analysis', 'Linguistic Analysis'),
         ('entity_extraction', 'Entity Extraction'),
         ('event_detection', 'Event Detection'),
         ('topic_classification', 'Topic Classification'),
         ('region_classification', 'Region Classification'),
->>>>>>> main
     )
     
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
@@ -90,15 +87,12 @@ class AIProviderConfig(models.Model):
         ('summary_critique', 'Summary Critique Review'),
         ('summary_repair', 'Summary Repair'),
         ('embedding_generation', 'Embedding Generation'),
-<<<<<<< HEAD
-=======
         # Analyzer pipeline operations
         ('linguistic_analysis', 'Linguistic Analysis'),
         ('entity_extraction', 'Entity Extraction'),
         ('event_detection', 'Event Detection'),
         ('topic_classification', 'Topic Classification'),
         ('region_classification', 'Region Classification'),
->>>>>>> main
     )
     
     PROVIDER_CHOICES = (
