@@ -29,6 +29,17 @@ class SummarizationStatus(models.TextChoices):
     FAILED = 'failed', 'Summary Failed'
 
 
+<<<<<<< HEAD
+=======
+class AnalyzerStatus(models.TextChoices):
+    """Step 5 analyzer status choices."""
+    PENDING = 'pending', 'Pending Analysis'
+    PROCESSING = 'processing', 'Processing Analysis'
+    COMPLETED = 'completed', 'Analysis Completed'
+    FAILED = 'failed', 'Analysis Failed'
+
+
+>>>>>>> main
 class StoryGroup(models.Model):
     """
     A group of related articles that form a comprehensive story.
@@ -84,6 +95,24 @@ class Article(models.Model):
         related_name='articles'
     )
     
+    # Primary classification fields (added by analyzer)
+    primary_topic = models.ForeignKey(
+        Topic,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_articles',
+        help_text="Primary topic as determined by analyzer"
+    )
+    primary_region = models.ForeignKey(
+        Region,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_articles',
+        help_text="Primary region as determined by analyzer"
+    )
+    
     # Dates
     published_at = models.DateTimeField()
     fetched_at = models.DateTimeField(auto_now_add=True)
@@ -93,6 +122,7 @@ class Article(models.Model):
     keywords = ArrayField(models.CharField(max_length=100), blank=True, null=True)
     word_count = models.IntegerField(null=True, blank=True)
     read_time_minutes = models.FloatField(null=True, blank=True)
+    readability_score = models.FloatField(null=True, blank=True, help_text="Flesch readability score (0-100, higher = easier)")
     content_hash = models.CharField(max_length=64, null=True, blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
     entities = models.JSONField(default=dict, blank=True)
@@ -197,6 +227,26 @@ class Article(models.Model):
         null=True, blank=True
     )
     
+<<<<<<< HEAD
+=======
+    # ===== STEP 5: ANALYSIS FIELDS =====
+    # Step 5 analyzer status and results
+    analyzer_status = models.CharField(
+        max_length=20,
+        choices=AnalyzerStatus.choices,
+        default=AnalyzerStatus.PENDING,
+        db_index=True
+    )
+    analyzed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Analysis performance tracking
+    analyzer_duration_ms = models.IntegerField(null=True, blank=True)
+    analyzer_cost_usd = models.DecimalField(max_digits=8, decimal_places=6, null=True, blank=True)
+    analyzer_attempts = models.IntegerField(default=0)
+    last_analyzer_attempt = models.DateTimeField(null=True, blank=True)
+    analyzer_error_message = models.TextField(blank=True)
+    
+>>>>>>> main
     class Meta:
         ordering = ['-published_at']
         indexes = [
@@ -217,6 +267,11 @@ class Article(models.Model):
             models.Index(fields=['summarization_status']),
             models.Index(fields=['summarized_at']),
             models.Index(fields=['summary_content_source']),
+<<<<<<< HEAD
+=======
+            models.Index(fields=['analyzer_status']),
+            models.Index(fields=['analyzed_at']),
+>>>>>>> main
         ]
     
     def __str__(self):
@@ -368,6 +423,44 @@ class Article(models.Model):
             logger = logging.getLogger(__name__)
             logger.warning(f"Failed to assemble markdown content for article {self.id}: {e}")
             return self.clean_content or self.basic_content or ""
+<<<<<<< HEAD
+=======
+    
+    # ===== STEP 5 PROPERTIES =====
+    @property
+    def needs_analysis(self):
+        """Check if article needs Step 5 analysis."""
+        return (
+            self.summarization_status == SummarizationStatus.COMPLETED and  # Must complete summarization first
+            self.has_analyzable_content and
+            self.analyzer_status == AnalyzerStatus.PENDING and
+            self.analyzer_attempts < 3  # Max attempts
+        )
+    
+    @property
+    def has_analyzable_content(self):
+        """Check if article has content suitable for analysis."""
+        # Need either clean content or basic content for analysis
+        return (
+            (self.clean_content and len(self.clean_content) > 100) or
+            (self.basic_content and len(self.basic_content) > 100)
+        )
+    
+    @property
+    def best_content_for_analysis(self):
+        """Get the best available content for analysis."""
+        # Priority 1: Clean content (Safari-like processed content)
+        if self.clean_content and len(self.clean_content) > 100:
+            return self.clean_content
+        # Priority 2: Basic content (simple extraction)
+        elif self.basic_content and len(self.basic_content) > 100:
+            return self.basic_content
+        # Priority 3: Description (if available)
+        elif self.description and len(self.description) > 50:
+            return self.description
+        else:
+            return None
+>>>>>>> main
 
 
 class UserArticleInteraction(models.Model):

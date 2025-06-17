@@ -28,6 +28,10 @@ class SummarizationResult:
     rbc_bullets: List[str] = None
     headline: str = ""
     abstract: str = ""
+<<<<<<< HEAD
+=======
+    longer_abstract: str = ""
+>>>>>>> main
     facts: List[str] = None
     opinions: List[str] = None
     impact: List[str] = None
@@ -148,9 +152,16 @@ class ArticleSummary(models.Model):
     # Summary Content (structured fields matching JSON schema)
     headline = models.CharField(max_length=255, help_text="≤15 words")
     abstract = models.TextField(help_text="≤60 words, neutral tone")
+<<<<<<< HEAD
     facts = models.JSONField(default=list, help_text="3-6 key facts verbatim from RBC")
     opinions = models.JSONField(default=list, help_text="Speaker: opinion pairs")
     impact = models.JSONField(default=list, help_text="≤3 impact bullets prefixed with ⚡")
+=======
+    longer_abstract = models.TextField(null=True, blank=True, help_text="≤200 words, comprehensive compression")
+    facts = models.JSONField(default=list, help_text="3-6 key facts verbatim from RBC")
+    opinions = models.JSONField(default=list, help_text="Speaker: opinion pairs")
+    impact = models.JSONField(default=list, help_text="≤3 impact bullets")
+>>>>>>> main
     
     # Versioning and metadata
     summary_version = models.SmallIntegerField(default=2)
@@ -159,6 +170,10 @@ class ArticleSummary(models.Model):
     # Word counts for validation
     headline_words = models.IntegerField(help_text="Headline word count")
     abstract_words = models.IntegerField(help_text="Abstract word count")
+<<<<<<< HEAD
+=======
+    longer_abstract_words = models.IntegerField(null=True, blank=True, help_text="Longer abstract word count")
+>>>>>>> main
     facts_count = models.IntegerField(help_text="Number of facts")
     
     # Processing metadata
@@ -197,6 +212,10 @@ class ArticleSummary(models.Model):
         return {
             'headline': self.headline,
             'abstract': self.abstract,
+<<<<<<< HEAD
+=======
+            'longer_abstract': self.longer_abstract,
+>>>>>>> main
             'facts': self.facts,
             'opinions': self.opinions,
             'impact': self.impact,
@@ -209,6 +228,10 @@ class ArticleSummary(models.Model):
         """Update word count fields from content."""
         self.headline_words = len(self.headline.split()) if self.headline else 0
         self.abstract_words = len(self.abstract.split()) if self.abstract else 0
+<<<<<<< HEAD
+=======
+        self.longer_abstract_words = len(self.longer_abstract.split()) if self.longer_abstract else 0
+>>>>>>> main
         self.facts_count = len(self.facts) if self.facts else 0
 
 

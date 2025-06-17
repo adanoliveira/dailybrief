@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 import logging
 
+<<<<<<< HEAD
 # Add SUMY imports for intelligent summarization
 try:
     from sumy.parsers.plaintext import PlaintextParser
@@ -20,6 +21,17 @@ try:
     SUMY_AVAILABLE = True
 except ImportError:
     SUMY_AVAILABLE = False
+=======
+# Replace SUMY imports with Gensim imports
+try:
+    import gensim
+    from gensim import corpora, models, similarities
+    from gensim.utils import simple_preprocess
+    from gensim.parsing.preprocessing import STOPWORDS
+    GENSIM_AVAILABLE = True
+except ImportError:
+    GENSIM_AVAILABLE = False
+>>>>>>> main
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +74,19 @@ class MarkdownContentAssembler:
             summarization_mode: 'intelligent', 'custom', or 'hybrid' (default)
         """
         self.max_chars = max_chars
+<<<<<<< HEAD
         self.use_intelligent_summarization = use_intelligent_summarization and SUMY_AVAILABLE
         self.summarization_mode = summarization_mode
         
         if self.use_intelligent_summarization and not SUMY_AVAILABLE:
             logger.warning("SUMY not available, falling back to custom truncation")
+=======
+        self.use_intelligent_summarization = use_intelligent_summarization and GENSIM_AVAILABLE
+        self.summarization_mode = summarization_mode
+        
+        if self.use_intelligent_summarization and not GENSIM_AVAILABLE:
+            logger.warning("Gensim not available, falling back to custom truncation")
+>>>>>>> main
             self.use_intelligent_summarization = False
             self.summarization_mode = "custom"
     
@@ -127,6 +147,7 @@ class MarkdownContentAssembler:
     
     def _intelligent_summarize(self, content: str, title: str = None) -> str:
         """
+<<<<<<< HEAD
         Use SUMY's LSA algorithm for intelligent text summarization.
         
         This preserves the most semantically important sentences while 
@@ -155,6 +176,42 @@ class MarkdownContentAssembler:
             
             # Join sentences back into text
             summarized_content = " ".join(str(sentence) for sentence in summary_sentences)
+=======
+        Use Gensim's TextRank for intelligent text summarization.
+        This preserves the most semantically important sentences.
+        """
+        if not GENSIM_AVAILABLE:
+            logger.warning("Gensim not available, falling back to simple truncation")
+            return self._smart_truncate_text(content, self.max_chars - 100)
+            
+        try:
+            original_length = len(content)
+            
+            # Calculate target ratio based on character limit
+            title_length = len(f"# {title}\n\n") if title else 0
+            available_chars = self.max_chars - title_length - 200  # Buffer for processing info
+            target_ratio = available_chars / original_length if original_length > 0 else 0.5
+            target_ratio = max(0.1, min(0.9, target_ratio))  # Keep between 10% and 90%
+            
+            # Use Gensim's summarization functionality
+            try:
+                # Import summarize function from gensim.summarization
+                from gensim.summarization import summarize
+                
+                # Generate summary with target ratio
+                summarized_content = summarize(content, ratio=target_ratio)
+                
+                # If summarization returned empty, fall back to TextRank implementation
+                if not summarized_content:
+                    summarized_content = self._textrank_summarize(content, target_ratio)
+            except ImportError:
+                # If gensim.summarization is not available, use our custom implementation
+                summarized_content = self._textrank_summarize(content, target_ratio)
+            
+            # If summarization failed or returned empty, fall back to simple truncation
+            if not summarized_content:
+                summarized_content = self._smart_truncate_text(content, available_chars)
+>>>>>>> main
             
             # Add title at the beginning if provided
             if title:
@@ -165,7 +222,11 @@ class MarkdownContentAssembler:
             reduction_percentage = ((original_length - final_length) / original_length * 100) if original_length > 0 else 0
             
             if reduction_percentage >= 10:  # Only add if significant reduction
+<<<<<<< HEAD
                 processing_info = f"*[INTELLIGENT SUMMARIZATION: {original_length:,} → {final_length:,} characters ({reduction_percentage:.1f}% reduction using SUMY LSA algorithm)]*"
+=======
+                processing_info = f"*[INTELLIGENT SUMMARIZATION: {original_length:,} → {final_length:,} characters ({reduction_percentage:.1f}% reduction using Gensim TextRank algorithm)]*"
+>>>>>>> main
                 summarized_content += f"\n\n{processing_info}"
             
             # Final length check and truncation if needed
@@ -177,13 +238,78 @@ class MarkdownContentAssembler:
             return summarized_content
             
         except Exception as e:
+<<<<<<< HEAD
             logger.warning(f"SUMY summarization failed: {e}, falling back to simple truncation")
+=======
+            logger.warning(f"Gensim summarization failed: {e}, falling back to simple truncation")
+>>>>>>> main
             # Simple fallback with title support
             result = self._smart_truncate_text(content, self.max_chars - 100)
             if title:
                 result = f"# {title}\n\n{result}"
             result += "\n\n*[Content truncated due to summarization failure]*"
             return result
+<<<<<<< HEAD
+=======
+            
+    def _textrank_summarize(self, text: str, ratio: float) -> str:
+        """
+        Custom TextRank implementation using Gensim's core functionality.
+        This is a fallback in case gensim.summarization is not available.
+        """
+        try:
+            # Split text into sentences (simple split by period, question mark, exclamation mark)
+            sentences = re.split(r'(?<=[.!?])\s+', text)
+            if len(sentences) <= 5:  # Too few sentences for meaningful summarization
+                return text
+                
+            # Preprocess sentences
+            clean_sentences = []
+            for s in sentences:
+                s = s.strip()
+                if s:  # Skip empty sentences
+                    clean_sentences.append(s)
+                    
+            # Create sentence vectors using TF-IDF
+            processed_sentences = []
+            for sentence in clean_sentences:
+                tokens = simple_preprocess(sentence)
+                tokens = [token for token in tokens if token not in STOPWORDS]
+                processed_sentences.append(tokens)
+                
+            # Create dictionary and corpus
+            dictionary = corpora.Dictionary(processed_sentences)
+            corpus = [dictionary.doc2bow(sentence) for sentence in processed_sentences]
+            
+            # Create TF-IDF model
+            tfidf = models.TfidfModel(corpus)
+            corpus_tfidf = tfidf[corpus]
+            
+            # Create similarity matrix
+            similarity_matrix = similarities.MatrixSimilarity(corpus_tfidf)
+            
+            # Calculate sentence scores based on similarity to other sentences
+            scores = []
+            for i, sentence in enumerate(corpus_tfidf):
+                # Get similarities to all other sentences
+                sims = similarity_matrix[sentence]
+                # Sum of similarities (excluding self-similarity)
+                score = sum(sims) - sims[i]  # Subtract self-similarity
+                scores.append(score)
+                
+            # Select top sentences based on ratio
+            num_sentences = max(1, int(len(clean_sentences) * ratio))
+            top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:num_sentences]
+            top_indices.sort()  # Sort by original order
+            
+            # Assemble summary
+            summary = " ".join(clean_sentences[i] for i in top_indices)
+            return summary
+            
+        except Exception as e:
+            logger.warning(f"Custom TextRank summarization failed: {e}")
+            return ""
+>>>>>>> main
     
     def _hybrid_summarize(self, content_blocks: List[Dict[str, Any]], full_content: str, title: str = None) -> str:
         """
@@ -253,6 +379,7 @@ class MarkdownContentAssembler:
     
     def _score_blocks_for_importance(self, content_blocks: List[Dict[str, Any]], available_chars: int) -> List[Dict[str, Any]]:
         """
+<<<<<<< HEAD
         Score each content block for importance using multiple factors:
         - Position (lead/conclusion get higher scores)
         - Block type (quotes, headings get higher scores)  
@@ -326,6 +453,179 @@ class MarkdownContentAssembler:
             except Exception as e:
                 logger.warning(f"SUMY scoring failed: {e}, using base scores only")
         
+=======
+        Score content blocks based on semantic importance using Gensim's advanced features.
+        This approach evaluates blocks based on semantic similarity to the overall document.
+        """
+        if not GENSIM_AVAILABLE:
+            logger.warning("Gensim not available, falling back to base scoring")
+            return self._score_blocks_base(content_blocks, available_chars)
+        
+        scored_blocks = []
+        total_blocks = len(content_blocks)
+        
+        # Convert blocks to markdown and gather texts
+        block_texts = []
+        for block in content_blocks:
+            markdown = self._block_to_markdown(block)
+            block_texts.append(markdown)
+        
+        # Skip if too few blocks
+        if len(block_texts) <= 1:
+            return [{'block': block, 
+                    'position': i, 
+                    'score': 1.0, 
+                    'length': len(text), 
+                    'markdown': text} 
+                    for i, (block, text) in enumerate(zip(content_blocks, block_texts))]
+        
+        try:
+            # Preprocess texts - remove stopwords and tokenize
+            processed_texts = []
+            for text in block_texts:
+                # Simple preprocessing without NLTK
+                tokens = simple_preprocess(text)
+                # Remove stopwords
+                tokens = [token for token in tokens if token not in STOPWORDS]
+                processed_texts.append(tokens)
+            
+            # Create dictionary and corpus
+            dictionary = corpora.Dictionary(processed_texts)
+            corpus = [dictionary.doc2bow(text) for text in processed_texts]
+            
+            # Create TF-IDF model
+            tfidf = models.TfidfModel(corpus)
+            corpus_tfidf = tfidf[corpus]
+            
+            # Create LSI model for semantic analysis
+            # Number of topics should be appropriate for the content
+            num_topics = min(len(corpus), 10)  # Use fewer topics for small documents
+            lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=num_topics)
+            corpus_lsi = lsi[corpus_tfidf]
+            
+            # Compute similarity matrix
+            index = similarities.MatrixSimilarity(corpus_lsi)
+            
+            # Create a "document centroid" by averaging all block vectors
+            # This represents the overall semantic meaning of the document
+            doc_centroid = [0] * num_topics
+            for doc_vec in corpus_lsi:
+                for topic_id, weight in doc_vec:
+                    doc_centroid[topic_id] += weight / len(corpus_lsi)
+            
+            # Score each block based on similarity to document centroid
+            # and other important factors
+            for i, block in enumerate(content_blocks):
+                # Base score from position, type, etc.
+                base_score = self._get_base_importance_score(block, i, total_blocks)
+                
+                # Get semantic similarity to document centroid
+                block_vec = corpus_lsi[i]
+                semantic_score = 0
+                for topic_id, weight in block_vec:
+                    semantic_score += weight * doc_centroid[topic_id]
+                
+                # Normalize semantic score (0-5 range to match your original scale)
+                semantic_score = min(5, max(0, semantic_score * 5))
+                
+                # Information density score based on TF-IDF values
+                tfidf_sum = sum(weight for _, weight in corpus_tfidf[i])
+                tfidf_len = len(corpus_tfidf[i]) if len(corpus_tfidf[i]) > 0 else 1
+                density_score = min(3, tfidf_sum / tfidf_len * 3)  # Scale to 0-3 range
+                
+                # Calculate final score with appropriate weighting
+                final_score = base_score + semantic_score + density_score
+                
+                # Add to scored blocks
+                scored_blocks.append({
+                    'block': block,
+                    'position': i,
+                    'score': final_score,
+                    'length': len(block_texts[i]),
+                    'markdown': block_texts[i],
+                    'semantic_score': semantic_score,  # For debugging
+                    'density_score': density_score     # For debugging
+                })
+            
+        except Exception as e:
+            logger.warning(f"Advanced semantic scoring failed: {e}, falling back to simpler method")
+            return self._score_blocks_simpler(content_blocks, block_texts, available_chars)
+        
+        # Sort by score (highest first)
+        scored_blocks.sort(key=lambda x: x['score'], reverse=True)
+        
+        return scored_blocks
+
+    def _score_blocks_simpler(self, content_blocks: List[Dict[str, Any]], block_texts: List[str], available_chars: int) -> List[Dict[str, Any]]:
+        """Simpler fallback scoring method using basic TF-IDF without LSI."""
+        try:
+            scored_blocks = []
+            total_blocks = len(content_blocks)
+            
+            # Preprocess texts
+            processed_texts = []
+            for text in block_texts:
+                tokens = simple_preprocess(text)
+                tokens = [token for token in tokens if token not in STOPWORDS]
+                processed_texts.append(tokens)
+            
+            # Create dictionary and corpus
+            dictionary = corpora.Dictionary(processed_texts)
+            corpus = [dictionary.doc2bow(text) for text in processed_texts]
+            
+            # Create TF-IDF model
+            tfidf = models.TfidfModel(corpus)
+            corpus_tfidf = tfidf[corpus]
+            
+            # Score each block
+            for i, block in enumerate(content_blocks):
+                # Base score from position, type, etc.
+                base_score = self._get_base_importance_score(block, i, total_blocks)
+                
+                # TF-IDF score
+                tfidf_score = 0
+                if len(corpus_tfidf[i]) > 0:
+                    tfidf_score = sum(weight for _, weight in corpus_tfidf[i]) / len(corpus_tfidf[i]) * 5
+                
+                # Final score
+                final_score = base_score + tfidf_score
+                
+                scored_blocks.append({
+                    'block': block,
+                    'position': i,
+                    'score': final_score,
+                    'length': len(block_texts[i]),
+                    'markdown': block_texts[i]
+                })
+                
+            # Sort by score
+            scored_blocks.sort(key=lambda x: x['score'], reverse=True)
+            return scored_blocks
+            
+        except Exception as e:
+            logger.warning(f"Simple scoring failed: {e}, falling back to base scoring")
+            return self._score_blocks_base(content_blocks, available_chars)
+
+    def _score_blocks_base(self, content_blocks: List[Dict[str, Any]], available_chars: int) -> List[Dict[str, Any]]:
+        """Base scoring method using only position and block type."""
+        scored_blocks = []
+        total_blocks = len(content_blocks)
+        
+        for i, block in enumerate(content_blocks):
+            markdown = self._block_to_markdown(block)
+            score = self._get_base_importance_score(block, i, total_blocks)
+            
+            scored_blocks.append({
+                'block': block,
+                'position': i,
+                'score': score,
+                'length': len(markdown),
+                'markdown': markdown
+            })
+        
+        # Sort by score
+        scored_blocks.sort(key=lambda x: x['score'], reverse=True)
+>>>>>>> main
         return scored_blocks
     
     def _get_base_importance_score(self, block: Dict[str, Any], position: int, total_blocks: int) -> float:
@@ -374,7 +674,11 @@ class MarkdownContentAssembler:
         3. Ensure we maintain document flow by including connecting elements
         """
         # Sort by score (descending) while tracking original order
+<<<<<<< HEAD
         blocks_by_score = sorted(scored_blocks, key=lambda x: x['final_score'], reverse=True)
+=======
+        blocks_by_score = sorted(scored_blocks, key=lambda x: x['score'], reverse=True)
+>>>>>>> main
         
         selected_indices = set()
         current_length = 0
@@ -383,14 +687,24 @@ class MarkdownContentAssembler:
         for block_info in blocks_by_score:
             if block_info['block_type'] in ['subtitle', 'heading']:
                 if current_length + block_info['length'] <= available_chars:
+<<<<<<< HEAD
                     selected_indices.add(block_info['index'])
+=======
+                    selected_indices.add(block_info['position'])
+>>>>>>> main
                     current_length += block_info['length']
         
         # Phase 2: Add highest-scoring content blocks
         for block_info in blocks_by_score:
+<<<<<<< HEAD
             if block_info['index'] not in selected_indices:
                 if current_length + block_info['length'] <= available_chars:
                     selected_indices.add(block_info['index'])
+=======
+            if block_info['position'] not in selected_indices:
+                if current_length + block_info['length'] <= available_chars:
+                    selected_indices.add(block_info['position'])
+>>>>>>> main
                     current_length += block_info['length']
                 elif current_length >= available_chars * 0.8:  # Stop when we're at 80% capacity
                     break
@@ -398,11 +712,19 @@ class MarkdownContentAssembler:
         # Phase 3: Return selected blocks in original document order
         selected_blocks = []
         for block_info in scored_blocks:
+<<<<<<< HEAD
             if block_info['index'] in selected_indices:
                 selected_blocks.append(block_info)
         
         # Sort by original index to maintain document order
         selected_blocks.sort(key=lambda x: x['index'])
+=======
+            if block_info['position'] in selected_indices:
+                selected_blocks.append(block_info)
+        
+        # Sort by original index to maintain document order
+        selected_blocks.sort(key=lambda x: x['position'])
+>>>>>>> main
         
         return selected_blocks
     
@@ -877,7 +1199,11 @@ class MarkdownContentAssembler:
         
         # Methodology note
         if reduction_percentage >= 25:
+<<<<<<< HEAD
             summary_parts.append("*[METHODOLOGY: Intelligent summarization using SUMY LSA algorithm with structural preservation]*")
+=======
+            summary_parts.append("*[METHODOLOGY: Intelligent summarization using Gensim TextRank algorithm with structural preservation]*")
+>>>>>>> main
         
         return "\n\n".join(summary_parts) if summary_parts else ""
 
@@ -899,7 +1225,11 @@ class MarkdownContentAssembler:
             
             # Select blocks
             selected_blocks = self._select_blocks_with_flow(scored_blocks, available_chars)
+<<<<<<< HEAD
             selected_indices = {block['index'] for block in selected_blocks}
+=======
+            selected_indices = {block['position'] for block in selected_blocks}
+>>>>>>> main
             
             # Separate selected and excluded blocks
             selected_analysis = []
@@ -907,23 +1237,38 @@ class MarkdownContentAssembler:
             
             for block_info in scored_blocks:
                 analysis_item = {
+<<<<<<< HEAD
                     'index': block_info['index'],
                     'type': block_info['block_type'],
                     'base_score': block_info['base_score'],
                     'final_score': block_info['final_score'],
+=======
+                    'position': block_info['position'],
+                    'type': block_info['block_type'],
+                    'score': block_info['score'],
+>>>>>>> main
                     'length': block_info['length'],
                     'content_preview': block_info['content'][:100] + "..." if len(block_info['content']) > 100 else block_info['content'],
                     'markdown_preview': block_info['markdown'][:100] + "..." if len(block_info['markdown']) > 100 else block_info['markdown']
                 }
                 
+<<<<<<< HEAD
                 if block_info['index'] in selected_indices:
+=======
+                if block_info['position'] in selected_indices:
+>>>>>>> main
                     selected_analysis.append(analysis_item)
                 else:
                     excluded_analysis.append(analysis_item)
             
             # Sort excluded blocks by score (lowest first) to show least relevant
+<<<<<<< HEAD
             excluded_analysis.sort(key=lambda x: x['final_score'])
             selected_analysis.sort(key=lambda x: x['final_score'], reverse=True)
+=======
+            excluded_analysis.sort(key=lambda x: x['score'])
+            selected_analysis.sort(key=lambda x: x['score'], reverse=True)
+>>>>>>> main
             
             return {
                 'total_blocks': len(content_blocks),
@@ -932,10 +1277,17 @@ class MarkdownContentAssembler:
                 'selected_blocks': selected_analysis,
                 'excluded_blocks': excluded_analysis,
                 'selection_quality': {
+<<<<<<< HEAD
                     'avg_selected_score': sum(b['final_score'] for b in selected_analysis) / len(selected_analysis) if selected_analysis else 0,
                     'avg_excluded_score': sum(b['final_score'] for b in excluded_analysis) / len(excluded_analysis) if excluded_analysis else 0,
                     'lowest_selected_score': min(b['final_score'] for b in selected_analysis) if selected_analysis else 0,
                     'highest_excluded_score': max(b['final_score'] for b in excluded_analysis) if excluded_analysis else 0,
+=======
+                    'avg_selected_score': sum(b['score'] for b in selected_analysis) / len(selected_analysis) if selected_analysis else 0,
+                    'avg_excluded_score': sum(b['score'] for b in excluded_analysis) / len(excluded_analysis) if excluded_analysis else 0,
+                    'lowest_selected_score': min(b['score'] for b in selected_analysis) if selected_analysis else 0,
+                    'highest_excluded_score': max(b['score'] for b in excluded_analysis) if excluded_analysis else 0,
+>>>>>>> main
                 }
             }
             

@@ -111,6 +111,10 @@ INSTALLED_APPS = [
     'apps.content.processor',
     'apps.content.quality',
     'apps.content.summariser',
+<<<<<<< HEAD
+=======
+    'apps.content.analyzer',
+>>>>>>> main
 ]
 
 MIDDLEWARE = [

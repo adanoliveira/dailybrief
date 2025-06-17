@@ -9,6 +9,14 @@ ENV POETRY_VERSION=1.7.1
 # Set work directory
 WORKDIR /app
 
+# Install system dependencies and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
