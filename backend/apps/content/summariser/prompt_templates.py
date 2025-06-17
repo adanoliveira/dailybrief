@@ -105,19 +105,12 @@ class SummarizationPrompts:
         prompt = f"""SYSTEM: You are SummaryGuard. Audit the draft summary for hallucinations and errors.
 
         CHECK FOR:
-<<<<<<< HEAD
-        • Every number/date in abstract appears verbatim in source bullets
-        • Abstract is ≤60 words
-        • Facts are copied exactly from source bullets
-        • No information added beyond source bullets
-=======
         • Every number/date in abstract and longer_abstract appears verbatim in source bullets
         • Abstract is ≤60 words
         • Longer abstract is ≤200 words
         • Facts are copied exactly from source bullets
         • No information added beyond source bullets
         • Longer abstract should be more comprehensive than short abstract but still faithful to source
->>>>>>> main
         • If source has >25 bullets, assess if summary captures the most important information
 
         GRACEFUL DEGRADATION:
