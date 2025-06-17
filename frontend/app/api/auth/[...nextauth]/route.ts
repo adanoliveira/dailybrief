@@ -83,14 +83,39 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
 // Function to sync user with Django backend
 async function syncUserWithBackend(user: any): Promise<any> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    // Remove trailing slash if present
-    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    // Check if baseUrl already contains /api
-    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/sync/' : '/api/accounts/sync/';
-    const apiUrl = `${cleanBaseUrl}${apiPath}`;
+    // Different base URLs for server-side vs client-side requests
+    let baseUrl: string;
+    
+    // Check if we're running on the server (NextAuth JWT callback runs server-side)
+    if (typeof window === 'undefined') {
+      // Server-side: Use backend service name or localhost
+      baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      console.log("Server-side sync - using baseUrl:", baseUrl);
+    } else {
+      // Client-side: Use browser-accessible URL
+      baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      console.log("Client-side sync - using baseUrl:", baseUrl);
+    }
+    
+    // Construct the API URL properly
+    let apiUrl: string;
+    if (baseUrl.includes('/api')) {
+      // If baseUrl already includes /api (like http://backend:8000/api), append the endpoint
+      apiUrl = `${baseUrl}/accounts/sync/`;
+    } else {
+      // If baseUrl doesn't include /api (like http://localhost:8000), add it
+      const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
+    }
     
     console.log(`Syncing user with backend at: ${apiUrl}`);
+    console.log("Sync payload:", JSON.stringify({
+      email: user.email,
+      name: user.name || user.email.split("@")[0],
+      provider: user.provider || "email",
+      nextauth_id: user.id,
+      image: user.image || "",
+    }));
     
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -105,19 +130,48 @@ async function syncUserWithBackend(user: any): Promise<any> {
         image: user.image || "",
       }),
       // Add a timeout to prevent hanging if backend is down
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(10000) // Increased to 10 seconds
     })
+    
+    console.log(`Backend sync response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Backend sync failed with status ${response.status}: ${errorText}`);
-      throw new Error(`Backend sync failed: ${response.status}`)
+      throw new Error(`Backend sync failed: ${response.status} - ${errorText}`)
     }
     
-    return await response.json()
+    const data = await response.json();
+    console.log("Backend sync success - received data keys:", Object.keys(data));
+    
+    // Validate the token format before returning
+    if (data.django_token) {
+      const token = data.django_token.trim();
+      
+      // Basic JWT validation - should have 3 segments separated by dots
+      if (!token || token === "offline_mode_token" || !token.includes('.') || token.split('.').length !== 3) {
+        console.error("Invalid token format received from backend:", 
+          token ? `Length: ${token.length}, Segments: ${token.split('.').length}` : "No token");
+        throw new Error("Invalid token format received from backend");
+      }
+      
+      console.log("Valid JWT token received from backend - length:", token.length);
+    } else {
+      console.error("No django_token in backend response:", data);
+      throw new Error("No django_token received from backend");
+    }
+    
+    return data;
   } catch (error) {
-    console.error("Error syncing user with backend:", error)
+    console.error("Error syncing user with backend:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      name: error instanceof Error ? error.name : 'Unknown',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
+    
     // Return a default response that allows the user to continue
+    console.log("Falling back to offline_mode_token");
     return {
       id: 0,
       django_token: "offline_mode_token",
@@ -135,11 +189,17 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     if (token === "offline_mode_token") return false;
     
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    // Remove trailing slash if present
-    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    // Check if baseUrl already contains /api
-    const apiPath = cleanBaseUrl.endsWith('/api') ? '/accounts/sync/' : '/api/accounts/sync/';
-    const apiUrl = `${cleanBaseUrl}${apiPath}`;
+    
+    // Construct the API URL properly
+    let apiUrl: string;
+    if (baseUrl.includes('/api')) {
+      // If baseUrl already includes /api (like http://backend:8000/api), append the endpoint
+      apiUrl = `${baseUrl}/accounts/sync/`;
+    } else {
+      // If baseUrl doesn't include /api (like http://localhost:8000), add it
+      const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
+    }
     
     console.log(`Checking user status at: ${apiUrl}`);
     

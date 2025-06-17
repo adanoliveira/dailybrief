@@ -4,6 +4,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 import logging
 from utils.http import create_cors_response
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +16,34 @@ def create_jwt_token(user):
         'user_id': user.id,
         'django_user_id': user.id,  # Add this for compatibility
         'email': user.email,
+        'exp': int(time.time()) + 60 * 60 * 24 * 30,  # 30 days expiration
     }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+    
+    # Generate the token
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+    
+    # Validate the token format
+    try:
+        # Ensure the token is a string (PyJWT sometimes returns bytes)
+        if isinstance(token, bytes):
+            token = token.decode('utf-8')
+            
+        # Basic format validation
+        if not token or token.count('.') != 2:
+            logger.error(f"Generated invalid JWT token format: {token[:10]}...")
+            raise ValueError("Generated token has invalid format")
+            
+        # Verify the token can be decoded
+        decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+        if decoded['user_id'] != user.id:
+            logger.error("Generated token has incorrect user_id")
+            raise ValueError("Generated token has incorrect payload")
+            
+        logger.info(f"Successfully generated JWT token for user {user.id}")
+        return token
+    except Exception as e:
+        logger.error(f"Error validating generated token: {str(e)}")
+        raise
 
 def authenticate_request(request):
     """
@@ -38,7 +65,18 @@ def authenticate_request(request):
     
     # Check for Bearer token
     if auth_header.startswith('Bearer '):
-        token = auth_header[7:]  # Remove 'Bearer ' prefix
+        token = auth_header[7:].strip()  # Remove 'Bearer ' prefix and trim whitespace
+        
+        # Validate token format before attempting to decode
+        if not token:
+            logger.warning("Empty token provided")
+            return False, None, "Empty token provided"
+            
+        # Basic JWT format validation (should have 3 segments separated by dots)
+        if token.count('.') != 2:
+            logger.warning(f"JWT token error: Not enough segments (found {token.count('.')+1}, expected 3)")
+            return False, None, f"Invalid token format: expected 3 segments, got {token.count('.')+1}"
+        
         try:
             # Decode JWT token
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])

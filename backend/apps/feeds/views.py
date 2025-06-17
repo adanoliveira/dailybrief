@@ -1,15 +1,11 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.pagination import PageNumberPagination
+from django.views.decorators.csrf import csrf_exempt
 from .models import Topic, Region, Language, Publication
 from .serializers import TopicSerializer, RegionSerializer, LanguageSerializer, PublicationSerializer
 import json
 import logging
 import traceback
-from rest_framework.permissions import AllowAny
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from django.conf import settings
 from django.db.models import Q
@@ -17,55 +13,42 @@ from utils.http import create_cors_response, handle_options_request, add_cors_he
 
 logger = logging.getLogger(__name__)
 
-# Custom pagination class
-class PublicationPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-    
-    def get_paginated_response(self, data):
-        response = Response({
-            'results': data,
-            'pagination': {
-                'page': self.page.number,
-                'page_size': self.page_size,
-                'total_count': self.page.paginator.count,
-                'total_pages': self.page.paginator.num_pages
-            }
-        })
-        # Add CORS headers to the response
-        return add_cors_headers(response)
-
 # Create your views here.
 
-@api_view(['GET'])
+@csrf_exempt
 def get_topics(request):
     """
     Get all available topics/categories.
     """
-    topics = Topic.objects.all().order_by('name')
-    serializer = TopicSerializer(topics, many=True)
-    return Response(serializer.data)
+    if request.method == 'OPTIONS':
+        return handle_options_request("GET, OPTIONS")
+        
+    topics = Topic.objects.all().order_by('name').values('id', 'name', 'slug')
+    return create_cors_response({'topics': list(topics)})
 
-@api_view(['GET'])
+@csrf_exempt
 def get_regions(request):
     """
     Get all available regions.
     """
-    regions = Region.objects.all().order_by('name')
-    serializer = RegionSerializer(regions, many=True)
-    return Response(serializer.data)
+    if request.method == 'OPTIONS':
+        return handle_options_request("GET, OPTIONS")
+        
+    regions = Region.objects.all().order_by('name').values('id', 'code', 'name')
+    return create_cors_response({'regions': list(regions)})
 
-@api_view(['GET'])
+@csrf_exempt
 def get_languages(request):
     """
     Get all available languages.
     """
-    languages = Language.objects.all().order_by('name')
-    serializer = LanguageSerializer(languages, many=True)
-    return Response(serializer.data)
+    if request.method == 'OPTIONS':
+        return handle_options_request("GET, OPTIONS")
+        
+    languages = Language.objects.all().order_by('name').values('id', 'iso_code', 'name')
+    return create_cors_response({'languages': list(languages)})
 
-@api_view(['GET'])
+@csrf_exempt
 def get_publications(request):
     """
     Get publications with pagination and flexible filtering.
@@ -85,17 +68,27 @@ def get_publications(request):
     if request.method == 'OPTIONS':
         return handle_options_request("GET, OPTIONS")
     
+    # Validate authentication for GET requests
+    if request.method == 'GET':
+        authenticated, user, error = authenticate_request(request)
+        if not authenticated:
+            return get_auth_response(error)
+    
     # Get the filter mode (recommended or other)
-    filter_mode = request.query_params.get('filter_mode', 'recommended')
+    filter_mode = request.GET.get('filter_mode', 'recommended')
     
     # Get all topic IDs from query params (can be multiple)
-    topic_ids = request.query_params.getlist('topic_id')
+    topic_ids = request.GET.getlist('topic_id')
     
     # Get all region codes from query params (can be multiple)
-    region_codes = request.query_params.getlist('region_code')
+    region_codes = request.GET.getlist('region_code')
     
     # Get language code (single)
-    language_code = request.query_params.get('language_code')
+    language_code = request.GET.get('language_code')
+    
+    # Get pagination parameters
+    page = int(request.GET.get('page', 1))
+    page_size = int(request.GET.get('page_size', 20))
     
     # Start with all publications - always order by authority DESC, then ID ASC
     # This ensures deterministic ordering and prevents pagination duplicates
@@ -137,16 +130,13 @@ def get_publications(request):
     logger.info(f"Publications query - Filter mode: {filter_mode}, Topics: {topic_ids}, Regions: {region_codes}")
     logger.info(f"Total matching publications: {publications.count()}")
     
-    # Use DRF's pagination
-    paginator = PublicationPagination()
-    paginator.page_size = int(request.query_params.get('page_size', 20))
-    paginated_publications = paginator.paginate_queryset(publications, request)
+    # Manual pagination
+    total_count = publications.count()
+    total_pages = (total_count + page_size - 1) // page_size
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
     
-    # Check for duplicates in debug mode
-    if settings.DEBUG:
-        pub_ids = [p.id for p in paginated_publications]
-        if len(pub_ids) != len(set(pub_ids)):
-            logger.warning(f"Duplicate publication IDs detected: {pub_ids}")
+    paginated_publications = publications[start_index:end_index]
     
     # Add related entities to each publication
     publications_list = []
@@ -166,13 +156,20 @@ def get_publications(request):
         }
         publications_list.append(pub_data)
     
-    # Use paginator to create response with pagination metadata
-    paginated_response = paginator.get_paginated_response(publications_list)
+    # Create response with pagination metadata
+    response_data = {
+        'results': publications_list,
+        'pagination': {
+            'page': page,
+            'page_size': page_size,
+            'total_count': total_count,
+            'total_pages': total_pages
+        }
+    }
     
-    return paginated_response
+    return create_cors_response(response_data)
 
-@api_view(['GET'])
-@permission_classes([AllowAny])  # Allow any user (no authentication required)
+@csrf_exempt
 def debug_endpoint(request):
     """
     Debug endpoint to help isolate issues - returns hardcoded data
@@ -190,11 +187,12 @@ def debug_endpoint(request):
             }
         }
         logger.info("Debug endpoint success")
-        return Response(result)
+        return create_cors_response(result)
     except Exception as e:
         logger.error(f"Error in debug endpoint: {e}")
-        return Response({"error": str(e)}, status=500)
+        return create_cors_response({"error": str(e)}, status=500)
 
+@csrf_exempt
 def basic_data(request):
     """
     Get all reference data for onboarding in a single request.
@@ -205,14 +203,6 @@ def basic_data(request):
         if request.method == 'OPTIONS':
             return handle_options_request("GET, OPTIONS")
             
-        # Authenticate the request
-        skip_auth = True  # Set to False in production for strict auth
-        
-        if not skip_auth:
-            authenticated, user, error = authenticate_request(request)
-            if not authenticated:
-                return get_auth_response(error)
-        
         # Get data from the database
         topics = list(Topic.objects.all().order_by('name').values('id', 'name', 'slug'))
         regions = list(Region.objects.all().order_by('name').values('id', 'code', 'name'))
@@ -253,8 +243,7 @@ def basic_data(request):
         logger.error(traceback.format_exc())
         return create_cors_response({}, status=500, error=str(e))
 
-@api_view(['GET'])
-@permission_classes([AllowAny])  # Allow any user (no authentication required)
+@csrf_exempt
 def get_reference_data(request):
     """
     Get all reference data for onboarding in a single request.
@@ -313,11 +302,8 @@ def get_reference_data(request):
         }
         
         logger.info("Returning hardcoded reference data successfully")
-        return Response(data)
+        return create_cors_response(data)
         
     except Exception as e:
         logger.error(f"Error in get_reference_data: {e}")
-        return Response(
-            {"error": str(e)}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return create_cors_response({"error": str(e)}, status=500)

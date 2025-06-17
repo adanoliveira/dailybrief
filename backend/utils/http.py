@@ -31,7 +31,7 @@ def create_cors_response(
     # Add CORS headers
     response["Access-Control-Allow-Origin"] = "*"
     response["Access-Control-Allow-Methods"] = allowed_methods
-    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
     
     return response
 
@@ -46,7 +46,12 @@ def handle_options_request(allowed_methods: str = "GET, POST, OPTIONS") -> JsonR
     Returns:
         JsonResponse with appropriate CORS headers
     """
-    return create_cors_response({}, allowed_methods=allowed_methods)
+    response = JsonResponse({})
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Methods"] = allowed_methods
+    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response["Access-Control-Max-Age"] = "86400"  # 24 hours
+    return response
 
 
 def add_cors_headers(response: Union[Response, JsonResponse]) -> Union[Response, JsonResponse]:
@@ -61,5 +66,5 @@ def add_cors_headers(response: Union[Response, JsonResponse]) -> Union[Response,
     """
     response["Access-Control-Allow-Origin"] = "*"
     response["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
     return response 

@@ -2,20 +2,16 @@ from django.shortcuts import render
 from django.contrib.auth.models import User
 from django.conf import settings
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction
 import json
 import traceback
-from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 import jwt
 import uuid
 from .models import UserProfile
 from .serializers import OnboardingDataSerializer
-from django.db import transaction
 from apps.accounts.auth_helpers import authenticate_request, get_auth_response, create_jwt_token
 from utils.http import create_cors_response, handle_options_request
-from django.views.decorators.csrf import csrf_exempt
 
 # Unified endpoint for user sync and status
 @csrf_exempt
@@ -125,6 +121,7 @@ def user_sync_and_status(request):
     return create_cors_response({'error': 'Method not allowed'}, status=405)
 
 # Consolidated preferences handling
+@csrf_exempt
 def user_preferences(request):
     """
     Unified endpoint for managing user preferences:

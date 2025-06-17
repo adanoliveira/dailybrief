@@ -62,8 +62,7 @@ Use worldclass software engineering principles as made popular by tought leaders
 - Isolate business rules from UI, frameworks, and databases.
 - Prefer hexagonal / ports-and-adapters layout.
 
-
 # Environments
-- We're using docker to setup and run our environment. Refer to ./docker.sh for docker commands and docker-compose.yml for more.
+- **We're using docker** to setup and run our environment. Refer to **./docker.sh** for docker commands and **docker-compose.yml** for more.
 
 # ---------------------------------------------------------------------
