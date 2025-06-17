@@ -173,17 +173,6 @@ Extract events in this exact JSON format:
 
 EVENT EXTRACTION GUIDELINES:
 
-**What constitutes an event:**
-- Product launches, announcements, releases
-- Policy changes, regulations, legal decisions
-- Corporate actions (mergers, acquisitions, partnerships)
-- Economic developments (earnings, market changes)
-- Political developments (elections, legislation, diplomatic actions)
-- Incidents, accidents, crises
-- Scientific discoveries, research findings
-- Cultural or social developments
-- Conflicts, protests, social movements
-
 **Event title requirements:**
 - Concise and descriptive (≤80 characters)
 - Include key actors and action taken

@@ -715,7 +715,7 @@ class AnalyzerService:
                     extracted_events = validation_result['data']['events']
                     
                     # If no events extracted, create fallback event
-                                         if not extracted_events:
+                    if not extracted_events:
                          extracted_events = [{
                              'title': article.title[:80],  # Ensure title length limit
                              'abstract': article.description or article.title,
@@ -740,7 +740,7 @@ class AnalyzerService:
                 else:
                     logger.error(f"Event validation failed for article {article.id}: {validation_result['error']}")
                     # Fallback to basic event
-                                         fallback_event = {
+                    fallback_event = {
                          'title': article.title[:80],
                          'abstract': article.description or article.title,
                          'event_type': 'other',  # Default fallback type
@@ -1068,8 +1068,8 @@ class AnalyzerService:
                 
                 # Step 3: Create new event if no match found
                 if not semantic_match_found:
-                    # Use a placeholder embedding if no article embedding is available
-                    placeholder_embedding = [0.0] * 1536
+                    # Generate event embedding that includes event type for better clustering
+                    event_embedding = self._generate_event_embedding(event_data, article_embedding)
                     
                     new_event = Event.objects.create(
                         title=event_title,
@@ -1079,7 +1079,7 @@ class AnalyzerService:
                         event_hash=event_hash,
                         first_seen_at=article.published_at,
                         last_seen_at=article.published_at,
-                        centroid_embed=article_embedding or placeholder_embedding,
+                        centroid_embed=event_embedding,
                         article_count=1
                     )
                     
@@ -1263,4 +1263,65 @@ class AnalyzerService:
             
         except Exception as e:
             logger.error(f"Failed to generate embedding for {text}: {e}")
-        return None 
+        return None
+    
+    def _generate_event_embedding(self, event_data: Dict[str, Any], article_embedding: Optional[List[float]] = None) -> List[float]:
+        """
+        Generate embedding for event that includes event type and content for better clustering.
+        
+        Creates a rich embedding by combining:
+        1. Event type (for categorical clustering)
+        2. Event title and abstract (for semantic content)
+        3. Article embedding (if available, for context)
+        
+        Args:
+            event_data: Dict containing event title, abstract, event_type, facts
+            article_embedding: Optional article embedding for context
+            
+        Returns:
+            1536-dimensional embedding vector
+        """
+        try:
+            # Create rich text representation including event type
+            event_text_parts = [
+                f"Event Type: {event_data.get('event_type', 'other')}",
+                f"Title: {event_data.get('title', '')}",
+                f"Abstract: {event_data.get('abstract', '')}"
+            ]
+            
+            # Add key facts for more context
+            facts = event_data.get('facts', [])
+            if facts:
+                event_text_parts.append(f"Key Facts: {' '.join(facts[:3])}")  # First 3 facts only
+            
+            event_text = "\n".join(event_text_parts)
+            
+            # Generate embedding for the event text
+            ai_response = self.ai_service.generate_embedding(
+                texts=[event_text],
+                operation='event_embedding_generation'
+            )
+            
+            if ai_response.success and ai_response.embeddings:
+                event_embedding = ai_response.embeddings[0]
+                
+                # If we have article embedding, blend them for richer representation
+                # Use 70% event-specific content, 30% article context
+                if article_embedding:
+                    blended_embedding = [
+                        0.7 * event_val + 0.3 * article_val
+                        for event_val, article_val in zip(event_embedding, article_embedding)
+                    ]
+                    return blended_embedding
+                else:
+                    return event_embedding
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate event embedding: {e}")
+        
+        # Fallback: use article embedding or zero vector
+        if article_embedding:
+            return article_embedding
+        else:
+            logger.warning("Using zero vector as fallback for event embedding")
+            return [0.0] * 1536 
