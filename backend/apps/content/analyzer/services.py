@@ -715,15 +715,16 @@ class AnalyzerService:
                     extracted_events = validation_result['data']['events']
                     
                     # If no events extracted, create fallback event
-                    if not extracted_events:
-                        extracted_events = [{
-                            'title': article.title[:80],  # Ensure title length limit
-                            'abstract': article.description or article.title,
-                            'facts': [
-                                f"Published: {article.published_at.strftime('%Y-%m-%d')}",
-                                f"Source: {article.source_name or 'Unknown'}"
-                            ]
-                        }]
+                                         if not extracted_events:
+                         extracted_events = [{
+                             'title': article.title[:80],  # Ensure title length limit
+                             'abstract': article.description or article.title,
+                             'event_type': 'other',  # Default fallback type
+                             'facts': [
+                                 f"Published: {article.published_at.strftime('%Y-%m-%d')}",
+                                 f"Source: {article.source_name or 'Unknown'}"
+                             ]
+                         }]
                     
                     duration_ms = int((time.time() - stage_start) * 1000)
                     
@@ -739,14 +740,15 @@ class AnalyzerService:
                 else:
                     logger.error(f"Event validation failed for article {article.id}: {validation_result['error']}")
                     # Fallback to basic event
-                    fallback_event = {
-                        'title': article.title[:80],
-                        'abstract': article.description or article.title,
-                        'facts': [
-                            f"Published: {article.published_at.strftime('%Y-%m-%d')}",
-                            f"Source: {article.source_name or 'Unknown'}"
-                        ]
-                    }
+                                         fallback_event = {
+                         'title': article.title[:80],
+                         'abstract': article.description or article.title,
+                         'event_type': 'other',  # Default fallback type
+                         'facts': [
+                             f"Published: {article.published_at.strftime('%Y-%m-%d')}",
+                             f"Source: {article.source_name or 'Unknown'}"
+                         ]
+                     }
                     
                     duration_ms = int((time.time() - stage_start) * 1000)
                     return {
@@ -1072,6 +1074,7 @@ class AnalyzerService:
                     new_event = Event.objects.create(
                         title=event_title,
                         abstract=event_data.get('abstract', article.description or article.title),
+                        event_type=event_data.get('event_type', 'other'),
                         facts=facts,
                         event_hash=event_hash,
                         first_seen_at=article.published_at,

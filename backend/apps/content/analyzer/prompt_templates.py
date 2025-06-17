@@ -149,6 +149,7 @@ Extract events in this exact JSON format:
         {{
             "title": "Apple announces iPhone 15 with USB-C",
             "abstract": "Apple unveiled its iPhone 15 lineup featuring USB-C ports, replacing Lightning connectors after regulatory pressure from the EU.",
+            "event_type": "product_launch",
             "facts": [
                 "Apple announced iPhone 15 lineup on September 12, 2023",
                 "New phones feature USB-C instead of Lightning ports",
@@ -159,6 +160,7 @@ Extract events in this exact JSON format:
         {{
             "title": "EU mandates USB-C for mobile devices",
             "abstract": "European Union regulation requiring USB-C as standard charging port for mobile devices takes effect, forcing Apple to abandon Lightning.",
+            "event_type": "policy_change",
             "facts": [
                 "EU USB-C mandate became effective in 2023",
                 "Regulation applies to all mobile devices sold in Europe",
@@ -193,6 +195,23 @@ EVENT EXTRACTION GUIDELINES:
 - Include who, what, when, where if available
 - Provide sufficient context for clustering with related articles
 - Focus on impact and significance
+
+**Event type classification:**
+- product_launch: Product announcements, releases, launches
+- earnings: Financial results, earnings reports, revenue announcements
+- policy_change: Government regulations, policy updates, law changes
+- incident: Accidents, crises, emergencies, security breaches
+- meeting: Conferences, summits, board meetings, official gatherings
+- acquisition: Mergers, acquisitions, takeovers, buyouts
+- partnership: Business partnerships, collaborations, joint ventures
+- research: Scientific discoveries, studies, research findings
+- legal: Court decisions, lawsuits, legal proceedings, regulatory actions
+- election: Elections, political campaigns, voting events
+- conflict: Wars, military actions, diplomatic tensions
+- natural_disaster: Earthquakes, hurricanes, floods, natural events
+- cultural: Social movements, cultural events, entertainment news
+- sports: Sports competitions, tournaments, athletic events
+- other: Events that don't fit the above categories
 
 **Facts requirements:**
 - Extract 3-8 specific, verifiable facts per event
@@ -492,7 +511,7 @@ INSTRUCTIONS:
                 if not isinstance(event, dict):
                     return {'success': False, 'error': f'Event {i} must be an object'}
                 
-                required_fields = ['title', 'abstract', 'facts']
+                required_fields = ['title', 'abstract', 'event_type', 'facts']
                 for field in required_fields:
                     if field not in event:
                         return {'success': False, 'error': f'Event {i} missing field: {field}'}
@@ -504,6 +523,15 @@ INSTRUCTIONS:
                 # Validate abstract length
                 if len(event['abstract']) > 500:  # More generous limit than 150 words
                     return {'success': False, 'error': f'Event {i} abstract too long (max 500 chars)'}
+                
+                # Validate event_type
+                valid_event_types = [
+                    'product_launch', 'earnings', 'policy_change', 'incident', 'meeting',
+                    'acquisition', 'partnership', 'research', 'legal', 'election',
+                    'conflict', 'natural_disaster', 'cultural', 'sports', 'other'
+                ]
+                if event['event_type'] not in valid_event_types:
+                    return {'success': False, 'error': f'Event {i} has invalid event_type: {event["event_type"]}. Must be one of: {valid_event_types}'}
                 
                 # Validate facts
                 if not isinstance(event['facts'], list):

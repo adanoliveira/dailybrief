@@ -203,6 +203,30 @@ class Event(models.Model):
         help_text="Key facts extracted from related articles"
     )
     
+    # Event classification
+    event_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('product_launch', 'Product Launch'),
+            ('earnings', 'Earnings/Financial'),
+            ('policy_change', 'Policy Change'),
+            ('incident', 'Incident/Crisis'),
+            ('meeting', 'Meeting/Conference'),
+            ('acquisition', 'Acquisition/Merger'),
+            ('partnership', 'Partnership'),
+            ('research', 'Research/Discovery'),
+            ('legal', 'Legal/Court Decision'),
+            ('election', 'Election/Political'),
+            ('conflict', 'Conflict/War'),
+            ('natural_disaster', 'Natural Disaster'),
+            ('cultural', 'Cultural/Social'),
+            ('sports', 'Sports Event'),
+            ('other', 'Other'),
+        ],
+        default='other',
+        help_text="Type of event for categorization"
+    )
+    
     # Deduplication and clustering
     event_hash = models.CharField(
         max_length=64, 
@@ -237,6 +261,7 @@ class Event(models.Model):
         db_table = 'analyzer_event'
         indexes = [
             models.Index(fields=['event_hash']),
+            models.Index(fields=['event_type']),
             models.Index(fields=['last_seen_at']),
             models.Index(fields=['article_count']),
             models.Index(fields=['first_seen_at']),
