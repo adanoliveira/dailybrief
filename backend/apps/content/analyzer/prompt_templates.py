@@ -47,11 +47,6 @@ Provide analysis in this exact JSON format:
     "style_tone": "factual|opinion|narrative|analytical|satirical|sensational"
 }}
 
-INSTRUCTIONS:
-- Classify the writing style and tone ONLY
-- Use exact style_tone options: factual, opinion, narrative, analytical, satirical, sensational
-- Focus on the overall approach and presentation style
-
 Style and tone definitions:
 
 | Style         | Definition / Scope                                                                 | Example Context                                      |
@@ -62,6 +57,11 @@ Style and tone definitions:
 | analytical    | In-depth analysis or forecasting based on evidence and trends.                    | Market analysis, policy evaluations, predictions.   |
 | satirical     | Humorous or ironic content aiming to critique or entertain.                       | Satire pieces, parody articles.                     |
 | sensational   | Dramatic, emotionally charged, or celebrity-focused content with a gossipy or exaggerated tone. | Tabloid stories, celebrity gossip, scandal reports. |
+
+INSTRUCTIONS:
+- Classify the writing style and tone ONLY
+- Use exact style_tone options: factual, opinion, narrative, analytical, satirical, sensational
+- Focus on the overall approach and presentation style
 
 """
 
@@ -74,7 +74,7 @@ Style and tone definitions:
         
         Extracts named entities with types, confidence scores, and aliases.
         """
-        prompt = f"""SYSTEM: You are an expert in named entity recognition. Extract and classify the most important entities.
+        prompt = f"""SYSTEM: You are an expert in named entity recognition. Extract and classify the 5-15 most important entities in the article.
 
 ARTICLE:
 Title: {title}
@@ -102,7 +102,7 @@ Identify entities in this JSON format:
     ]
 }}
 
-ENTITY TYPE TAXONOMY:
+ENTITY TYPES AND TAXONOMY:
 
 | Code              | Label                     | Definition / Scope                                                                                                         | Maps to spaCy / Wikidata         |
 |-------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------------|
@@ -122,7 +122,7 @@ INSTRUCTIONS:
 - Extract 5-15 most important entities central to the story
 - Provide confidence scores (0.0-1.0) based on context clarity
 - Count total mentions throughout the article
-- Include brief context explaining the entity's role
+- Include brief context explaining the entity's role, based on the article content
 - List common aliases, abbreviations, or alternative names
 - Focus on entities that readers need to understand the story
 - Use exact entity type options provided"""
@@ -136,7 +136,7 @@ INSTRUCTIONS:
         
         Identifies the main event/story and extracts key facts for clustering.
         """
-        prompt = f"""SYSTEM: You are an expert in news event analysis. Identify the main event and extract key facts.
+        prompt = f"""SYSTEM: You are an expert in news event analysis. Identify the main events mentioned in the article and extract key facts.
 
 ARTICLE:
 Title: {title}
