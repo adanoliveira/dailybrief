@@ -336,16 +336,6 @@ class ArticleAnalysis(models.Model):
     # Note: readability, reading_time, word_count, sentiment, keywords, entities 
     # are stored in existing Article fields to avoid duplication
     
-    # Secondary classifications (supplements existing Article M2M fields)
-    secondary_topics = models.JSONField(
-        default=list, 
-        help_text="List of secondary topic slugs"
-    )
-    secondary_regions = models.JSONField(
-        default=list, 
-        help_text="List of secondary region codes"
-    )
-    
     # Pipeline tracking
     stages_completed = models.JSONField(
         default=list, 

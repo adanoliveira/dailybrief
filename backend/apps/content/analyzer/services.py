@@ -128,10 +128,13 @@ class AnalyzerService:
             analyzer_request.attempts = article.analyzer_attempts
             analyzer_request.save()
             
-            # Get content for analysis
-            content = article.best_content_for_analysis
-            if not content:
+            # Get standard content for analysis
+            standard_content = article.best_content_for_analysis
+            if not standard_content:
                 raise ValueError("No suitable content found for analysis")
+            
+            # Get enhanced content for LLM tasks (using summary components if available)
+            enhanced_content = self._get_enhanced_content_for_analysis(article)
             
             # Create or get ArticleAnalysis record
             analysis_record, created = ArticleAnalysis.objects.get_or_create(
@@ -146,7 +149,7 @@ class AnalyzerService:
             
             # STAGE 1: Language ID (FREE - langdetect)
             logger.info(f"Stage 1: Language detection for article {article.id}")
-            lang_result = self._stage_1_language_detection(article, content)
+            lang_result = self._stage_1_language_detection(article, standard_content)
             results['language'] = lang_result
             analyzer_request.mark_stage_completed('language_detection')
             
@@ -155,7 +158,8 @@ class AnalyzerService:
             analyzer_request.current_stage = 'linguistic_processing'
             analyzer_request.save()
             
-            linguistic_result = self._stage_2_linguistic_analysis(article, content, analysis_record)
+            # Use enhanced content for style tone analysis (LLM task)
+            linguistic_result = self._stage_2_linguistic_analysis(article, enhanced_content, analysis_record)
             results['linguistic'] = linguistic_result
             total_cost += linguistic_result.get('cost', Decimal('0.00'))
             analyzer_request.mark_stage_completed('linguistic_processing')
@@ -165,7 +169,8 @@ class AnalyzerService:
             analyzer_request.current_stage = 'entity_processing'
             analyzer_request.save()
             
-            entity_result = self._stage_3_entity_extraction(article, content)
+            # Use standard content for entity extraction (CPU task)
+            entity_result = self._stage_3_entity_extraction(article, standard_content)
             results['entities'] = entity_result
             analyzer_request.mark_stage_completed('entity_processing')
             
@@ -178,7 +183,8 @@ class AnalyzerService:
             analyzer_request.current_stage = 'event_processing'
             analyzer_request.save()
             
-            event_result = self._stage_5_event_extraction(article, content)
+            # Use enhanced content for event extraction (LLM task)
+            event_result = self._stage_5_event_extraction(article, enhanced_content)
             results['events'] = event_result
             total_cost += event_result.get('cost', Decimal('0.00'))
             analyzer_request.mark_stage_completed('event_processing')
@@ -188,7 +194,8 @@ class AnalyzerService:
             analyzer_request.current_stage = 'region_processing'
             analyzer_request.save()
             
-            region_result = self._stage_6_region_classification(article, content, analysis_record)
+            # Use enhanced content for region classification (LLM task)
+            region_result = self._stage_6_region_classification(article, enhanced_content, analysis_record)
             results['regions'] = region_result
             total_cost += region_result.get('cost', Decimal('0.00'))
             analyzer_request.mark_stage_completed('region_processing')
@@ -198,7 +205,8 @@ class AnalyzerService:
             analyzer_request.current_stage = 'topic_processing'
             analyzer_request.save()
             
-            topic_result = self._stage_7_topic_classification(article, content, analysis_record)
+            # Use enhanced content for topic classification (LLM task)
+            topic_result = self._stage_7_topic_classification(article, enhanced_content, analysis_record)
             results['topics'] = topic_result
             total_cost += topic_result.get('cost', Decimal('0.00'))
             analyzer_request.mark_stage_completed('topic_processing')
@@ -250,46 +258,95 @@ class AnalyzerService:
             
             return {
                 'success': True,
-                'results': results,
+                'article_id': article.id,
                 'duration_ms': duration_ms,
                 'cost_usd': total_cost,
                 'stages_completed': analyzer_request.stages_completed
             }
             
         except Exception as e:
-            duration_ms = int((time.time() - start_time) * 1000)
-            error_msg = str(e)
+            logger.error(f"Analysis failed for article {article.id}: {str(e)}")
             
-            logger.error(f"Failed to analyze article {article.id}: {error_msg}")
-            
-            # Update article with error state
+            # Update article status
             article.analyzer_status = AnalyzerStatus.FAILED
-            article.analyzer_error_message = error_msg
-            article.analyzer_duration_ms = duration_ms
-            article.analyzer_cost_usd = total_cost
-            article.save(
-                update_fields=[
-                    'analyzer_status', 'analyzer_error_message', 
-                    'analyzer_duration_ms', 'analyzer_cost_usd'
-                ]
-            )
+            article.analyzer_error_message = str(e)
+            article.save(update_fields=['analyzer_status', 'analyzer_error_message'])
             
-            # Update request with error info
+            # Update request status
             analyzer_request.status = 'failed'
-            analyzer_request.last_error = error_msg
+            analyzer_request.last_error = str(e)
             analyzer_request.failed_stage = analyzer_request.current_stage
-            analyzer_request.total_cost_usd = total_cost
-            analyzer_request.total_duration_ms = duration_ms
             analyzer_request.pipeline_end_time = django_timezone.now()
             analyzer_request.save()
             
             return {
                 'success': False,
-                'error': error_msg,
-                'duration_ms': duration_ms,
-                'cost_usd': total_cost,
+                'article_id': article.id,
+                'error': str(e),
                 'failed_stage': analyzer_request.current_stage
             }
+    
+    def _get_enhanced_content_for_analysis(self, article: Article) -> str:
+        """
+        Assemble enhanced content for analysis using summary components if available.
+        
+        This creates a more comprehensive text for analysis by combining:
+        - Summary headline
+        - Longer abstract (or regular abstract if not available)
+        - Article facts
+        - Article opinions
+        - Article impacts
+        - Fallback to regular content if summary not available
+        
+        Returns:
+            Enhanced content string for analysis
+        """
+        # Check if article has a structured summary
+        try:
+            summary = article.structured_summary
+            if summary:
+                # Start with headline and abstract
+                components = []
+                
+                # Add headline if available
+                if summary.headline:
+                    components.append(f"# {summary.headline}")
+                
+                # Add longer abstract (or regular abstract if not available)
+                if summary.longer_abstract:
+                    components.append(f"\n## Summary\n{summary.longer_abstract}")
+                elif summary.abstract:
+                    components.append(f"\n## Summary\n{summary.abstract}")
+                
+                # Add facts if available
+                if summary.facts and len(summary.facts) > 0:
+                    facts_text = "\n## Key Facts\n" + "\n".join(f"- {fact}" for fact in summary.facts)
+                    components.append(facts_text)
+                
+                # Add opinions if available
+                if summary.opinions and len(summary.opinions) > 0:
+                    opinions_text = "\n## Perspectives\n" + "\n".join(f"- {opinion}" for opinion in summary.opinions)
+                    components.append(opinions_text)
+                
+                # Add impact if available
+                if summary.impact and len(summary.impact) > 0:
+                    impact_text = "\n## Impact\n" + "\n".join(f"- {impact}" for impact in summary.impact)
+                    components.append(impact_text)
+                
+                # Combine all components
+                enhanced_content = "\n\n".join(components)
+                
+                # If we have meaningful enhanced content, use it
+                if len(enhanced_content) > 200:
+                    logger.info(f"Using enhanced content from summary components for article {article.id} ({len(enhanced_content)} chars)")
+                    return enhanced_content
+        
+        except Exception as e:
+            logger.warning(f"Error assembling enhanced content for article {article.id}: {str(e)}")
+        
+        # Fallback to standard content
+        logger.info(f"Using standard content for article {article.id} (no summary available)")
+        return article.best_content_for_analysis
     
     def _stage_1_language_detection(self, article: Article, content: str) -> Dict[str, Any]:
         """
@@ -378,126 +435,108 @@ class AnalyzerService:
     
     def _stage_2_linguistic_analysis(self, article: Article, content: str, analysis_record: ArticleAnalysis) -> Dict[str, Any]:
         """
-        Stage 2: Linguistic analysis using textstat (FREE) + GPT for style_tone only.
+        Stage 2: Linguistic Analysis (FREE + minimal LLM).
         
-        Updates existing Article fields: word_count, read_time_minutes.
+        Uses textstat for readability, word count, and reading time (FREE).
+        Only uses LLM for style_tone classification (minimal cost).
+        
+        Args:
+            article: Article to analyze
+            content: Content to analyze
+            analysis_record: Analysis record to update
+            
+        Returns:
+            Dict with linguistic analysis results
         """
-        stage_start = time.time()
-        
         try:
-            # FREE: Calculate readability and reading time using textstat
-            full_text = f"{article.title} {content}"
+            # 1. Calculate readability metrics (FREE - textstat)
+            readability_score = None
+            word_count = None
+            read_time = None
             
-            # Word count and reading time (FREE) - following plan: word_count / 200 wpm
-            word_count = len(full_text.split())
-            reading_time_minutes = word_count / 200  # 200 words per minute (as per plan)
-            
-            # Readability score (FREE) - Flesch score 0-100, higher = easier
-            flesch_score = textstat.flesch_reading_ease(full_text)
-            
-            # Extract keywords using YAKE algorithm (FREE, better than regex)
             try:
-                import yake
-                kw_extractor = yake.KeywordExtractor(
-                    lan="en",
-                    n=3,  # Extract 1-3 word phrases
-                    dedupLim=0.7,
-                    top=8  # Top 8 keywords
+                # Calculate readability score using textstat
+                readability_score = textstat.flesch_reading_ease(content)
+                
+                # Calculate word count
+                word_count = textstat.lexicon_count(content)
+                
+                # Calculate reading time (average 200-250 wpm)
+                read_time = word_count / 225.0  # minutes
+                
+                # Update article with readability metrics
+                article.readability_score = readability_score
+                article.word_count = word_count
+                article.read_time_minutes = read_time
+                article.save(update_fields=['readability_score', 'word_count', 'read_time_minutes'])
+                
+                logger.info(f"Calculated readability metrics for article {article.id}: "
+                           f"score={readability_score:.1f}, words={word_count}, "
+                           f"read_time={read_time:.1f}min")
+                
+            except Exception as e:
+                logger.warning(f"Readability analysis failed for article {article.id}: {str(e)}")
+            
+            # 2. Calculate sentiment score (FREE - spaCy)
+            sentiment_score = None
+            try:
+                if nlp:
+                    # Use spaCy for basic sentiment analysis
+                    doc = nlp(content[:1000])  # Limit to first 1000 chars for performance
+                    sentiment_score = sum(token.sentiment for token in doc) / len(doc)
+                    
+                    # Update article with sentiment score
+                    article.sentiment_score = sentiment_score
+                    article.save(update_fields=['sentiment_score'])
+                    
+                    logger.info(f"Calculated sentiment score for article {article.id}: {sentiment_score:.2f}")
+            except Exception as e:
+                logger.warning(f"Sentiment analysis failed for article {article.id}: {str(e)}")
+            
+            # 3. Analyze style and tone (LLM - GPT-4o-mini)
+            style_tone = "factual"  # Default
+            
+            try:
+                # Generate prompt for style/tone analysis
+                prompt = self.prompts.linguistic_analysis_prompt(article.title, content)
+                
+                # Get response from AI provider
+                response = self.ai_service.call_llm(
+                    prompt=prompt,
+                    operation="linguistic_analysis",
+                    max_tokens=150,
+                    temperature=0.1
                 )
-                yake_keywords = kw_extractor.extract_keywords(full_text)
-                # YAKE returns (keyword, score) tuples, lower score = better
-                keywords = [kw[0] for kw in yake_keywords]  # Extract the keyword (index 0), not the score (index 1)
+                
+                # Validate and extract style/tone
+                result = self.prompts.validate_linguistic_output(response.content)
+                style_tone = result.get('style_tone', 'factual')
+                
+                # Update analysis record with style/tone
+                analysis_record.style_tone = style_tone
+                analysis_record.save(update_fields=['style_tone'])
+                
+                logger.info(f"Analyzed style/tone for article {article.id}: {style_tone}")
                 
             except Exception as e:
-                logger.warning(f"YAKE keyword extraction failed for article {article.id}: {e}")
-                # Fallback to simple title extraction
-                import re
-                title_words = re.findall(r'\b[A-Za-z]{3,}\b', article.title.lower())
-                stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our', 'had', 'what', 'has', 'have', 'with', 'this', 'that', 'they', 'will', 'been', 'from', 'said', 'about', 'their'}
-                keywords = [word for word in title_words if word not in stop_words][:8]
+                logger.error(f"Linguistic analysis failed for article {article.id}: {str(e)}")
+                style_tone = "factual"  # Default fallback
             
-            # Sentiment analysis using spacytextblob (better than word counting)
-            sentiment_score = 0.0  # Default neutral
-            try:
-                # Import spacytextblob for sentiment analysis
-                import spacy
-                from spacytextblob.spacytextblob import SpacyTextBlob
-                
-                # Use small model with textblob
-                nlp_sentiment = spacy.load("en_core_web_sm")
-                nlp_sentiment.add_pipe('spacytextblob')
-                
-                # Analyze sentiment on title + first 500 chars (for performance)
-                sentiment_text = f"{article.title} {content[:500]}"
-                doc = nlp_sentiment(sentiment_text)
-                sentiment_score = doc._.polarity  # Returns -1.0 to 1.0
-                
-            except Exception as e:
-                logger.warning(f"Sentiment analysis failed for article {article.id}: {e}")
-                # Leave sentiment as 0.0 (neutral) for MVP if spacytextblob fails
-                sentiment_score = 0.0
-            
-            # Update existing Article fields directly (following plan integration)
-            article.word_count = word_count
-            article.read_time_minutes = reading_time_minutes
-            article.readability_score = flesch_score  # NEW: Store readability score
-            article.keywords = keywords
-            article.sentiment_score = sentiment_score
-            article.save(update_fields=[
-                'word_count', 'read_time_minutes', 'readability_score', 
-                'keywords', 'sentiment_score'
-            ])
-            
-            # PAID: Style tone classification using GPT-4o-mini
-            style_prompt = self.prompts.linguistic_analysis_prompt(article.title, content[:2000])
-            
-            ai_response = self.ai_service.call_llm(
-                prompt=style_prompt,
-                operation='linguistic_analysis',
-                max_tokens=50,
-                temperature=0.0
-            )
-            
-            if ai_response.success:
-                validation_result = self.prompts.validate_linguistic_output(ai_response.content)
-                if validation_result['success']:
-                    linguistic_data = validation_result['data']
-                    
-                    # Store style_tone in analysis record
-                    analysis_record.style_tone = linguistic_data.get('style_tone')
-                    analysis_record.language_confidence = linguistic_data.get('language_confidence', 0.0)
-                    analysis_record.save()
-                    
-                    # Store additional data we calculated
-                    linguistic_data['word_count'] = word_count
-                    linguistic_data['reading_time_minutes'] = reading_time_minutes
-                    linguistic_data['readability_score'] = flesch_score
-                    linguistic_data['keywords'] = keywords
-                    linguistic_data['sentiment_score'] = sentiment_score
-                else:
-                    raise ValueError(f"Invalid linguistic analysis output: {validation_result['error']}")
-            else:
-                raise ValueError(f"AI service failed: {ai_response.error_message}")
-            
-            duration_ms = int((time.time() - stage_start) * 1000)
-            
+            # Return combined results
             return {
-                'success': True,
-                'data': linguistic_data,
-                'duration_ms': duration_ms,
-                'cost': Decimal(str(ai_response.usage.get('total_cost', 0))),
-                'tokens_input': ai_response.usage.get('prompt_tokens', 0),
-                'tokens_output': ai_response.usage.get('completion_tokens', 0)
+                'readability_score': readability_score,
+                'word_count': word_count,
+                'read_time_minutes': read_time,
+                'sentiment_score': sentiment_score,
+                'style_tone': style_tone,
+                'cost': response.usage.get('total_cost', 0) if 'response' in locals() else Decimal('0.0')
             }
             
         except Exception as e:
-            logger.error(f"Linguistic analysis failed for article {article.id}: {e}")
-            duration_ms = int((time.time() - stage_start) * 1000)
+            logger.error(f"Linguistic analysis failed for article {article.id}: {str(e)}")
             return {
-                'success': False,
                 'error': str(e),
-                'duration_ms': duration_ms,
-                'cost': Decimal('0.00')
+                'cost': Decimal('0.0')
             }
     
     def _stage_3_entity_extraction(self, article: Article, content: str) -> Dict[str, Any]:
@@ -505,40 +544,77 @@ class AnalyzerService:
         Stage 3: Named entity extraction using spaCy (CPU-only, FREE).
         
         Extracts entities and ticker symbols, stores in Article.entities field.
+        Falls back to regex-based extraction if spaCy is not available.
         """
         stage_start = time.time()
         
         try:
-            if not nlp:
-                raise ValueError("spaCy model not loaded")
-            
-            # Process text with spaCy
-            text_sample = f"{article.title} {content[:3000]}"  # Limit to 3000 chars
-            doc = nlp(text_sample)
-            
-            # Extract entities from spaCy
             entities = []
             entity_counts = {}
             
-            for ent in doc.ents:
-                entity_name = ent.text.strip()
-                entity_type = self._map_spacy_entity_type(ent.label_)
+            # Try spaCy-based extraction if available
+            if nlp:
+                # Process text with spaCy
+                text_sample = f"{article.title} {content[:3000]}"  # Limit to 3000 chars
+                doc = nlp(text_sample)
                 
-                if len(entity_name) < 2 or len(entity_name) > 100:
-                    continue
+                # Extract entities from spaCy
+                for ent in doc.ents:
+                    entity_name = ent.text.strip()
+                    entity_type = self._map_spacy_entity_type(ent.label_)
+                    
+                    if len(entity_name) < 2 or len(entity_name) > 100:
+                        continue
+                    
+                    # Count mentions
+                    if entity_name in entity_counts:
+                        entity_counts[entity_name]['mentions'] += 1
+                    else:
+                        entity_counts[entity_name] = {
+                            'name': entity_name,
+                            'type': entity_type,
+                            'mentions': 1,
+                            'confidence': 0.9  # High confidence for spaCy
+                        }
+            else:
+                # Fallback: Use regex-based extraction for basic entities
+                logger.warning(f"spaCy not available for article {article.id}, using regex fallback")
                 
-                # Count mentions
-                if entity_name in entity_counts:
-                    entity_counts[entity_name]['mentions'] += 1
-                else:
-                    entity_counts[entity_name] = {
-                        'name': entity_name,
-                        'type': entity_type,
-                        'mentions': 1,
-                        'confidence': 0.9  # High confidence for spaCy
-                    }
+                # Extract organization names (simple heuristic)
+                import re
+                
+                # Extract potential company names (capitalized words followed by Inc, Corp, etc.)
+                company_pattern = r'([A-Z][a-zA-Z0-9\s]+)\s+(Inc\.?|Corp\.?|Corporation|Company|Ltd\.?|Limited)'
+                companies = re.findall(company_pattern, content)
+                
+                for company in companies:
+                    company_name = f"{company[0]} {company[1]}".strip()
+                    if company_name in entity_counts:
+                        entity_counts[company_name]['mentions'] += 1
+                    else:
+                        entity_counts[company_name] = {
+                            'name': company_name,
+                            'type': 'ORGANIZATION',
+                            'mentions': 1,
+                            'confidence': 0.7  # Lower confidence for regex
+                        }
+                
+                # Extract potential person names (consecutive capitalized words)
+                name_pattern = r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})'
+                names = re.findall(name_pattern, content)
+                
+                for name in names:
+                    if name in entity_counts:
+                        entity_counts[name]['mentions'] += 1
+                    else:
+                        entity_counts[name] = {
+                            'name': name,
+                            'type': 'PERSON',
+                            'mentions': 1,
+                            'confidence': 0.6  # Lower confidence for regex
+                        }
             
-            # Extract ticker symbols with regex
+            # Extract ticker symbols with regex (works regardless of spaCy)
             ticker_pattern = r'\$([A-Z]{2,6})'
             tickers = re.findall(ticker_pattern, content)
             
@@ -563,7 +639,7 @@ class AnalyzerService:
             # Store in Article.entities field (JSONField)
             article.entities = {
                 'extracted_entities': entities,
-                'extraction_method': 'spacy_en_core_web_lg',
+                'extraction_method': 'spacy_en_core_web_lg' if nlp else 'regex_fallback',
                 'extracted_at': django_timezone.now().isoformat()
             }
             article.save(update_fields=['entities'])
@@ -692,182 +768,184 @@ class AnalyzerService:
     
     def _stage_6_region_classification(self, article: Article, content: str, analysis_record: ArticleAnalysis) -> Dict[str, Any]:
         """
-        Stage 6: Region classification using GPT-4o-mini.
+        Stage 6: Region Classification (LLM - GPT-4o-mini).
         
-        Updates Article.primary_region and Article.regions fields.
+        Identifies geographic regions relevant to the article.
+        
+        Args:
+            article: Article to classify
+            content: Content to analyze
+            analysis_record: Analysis record to update
+            
+        Returns:
+            Dict with region classification results
         """
-        stage_start = time.time()
-        
         try:
-            # Get available regions with descriptions
-            available_regions = list(Region.objects.all().values('code', 'name', 'description'))
-            if not available_regions:
-                raise ValueError("No regions available in database")
+            # Get available regions
+            regions = list(Region.objects.all().values('code', 'name', 'description'))
             
-            # Prepare region classification prompt
-            region_prompt = self.prompts.region_classification_prompt(article.title, content[:2500], available_regions)
-            
-            ai_response = self.ai_service.call_llm(
-                prompt=region_prompt,
-                operation='region_classification',
-                max_tokens=300,
-                temperature=0.1
+            # Generate prompt for region classification
+            prompt = self.prompts.region_classification_prompt(
+                article.title, content, regions
             )
             
-            if ai_response.success:
-                # Validate and parse response
-                valid_options = [r['code'] for r in available_regions]
-                validation_result = self.prompts.validate_classification_output(ai_response.content, valid_options)
-                
-                if validation_result['success']:
-                    region_data = validation_result['data']
-                    
-                    primary_region_code = region_data.get('primary_region')
-                    primary_confidence = region_data.get('primary_region_confidence', 0.0)
-                    secondary_regions = region_data.get('secondary_regions', [])
-                    
-                    # Update Article fields
-                    with transaction.atomic():
-                        # Set primary region
-                        if primary_region_code and primary_confidence > 0.5:
-                            try:
-                                primary_region = Region.objects.get(code=primary_region_code)
-                                article.primary_region = primary_region
-                                analysis_record.primary_region_confidence = primary_confidence
-                                
-                                # Add to M2M regions
-                                article.regions.add(primary_region)
-                            except Region.DoesNotExist:
-                                logger.warning(f"Primary region {primary_region_code} not found")
-                        
-                        # Add secondary regions
-                        for region_code in secondary_regions:
-                            try:
-                                region = Region.objects.get(code=region_code)
-                                article.regions.add(region)
-                            except Region.DoesNotExist:
-                                logger.warning(f"Secondary region {region_code} not found")
-                        
-                        # Save changes
-                        article.save(update_fields=['primary_region'])
-                        analysis_record.secondary_regions = secondary_regions
-                        analysis_record.save()
-                    
-                    duration_ms = int((time.time() - stage_start) * 1000)
-                    
-                    return {
-                        'success': True,
-                        'primary_region': primary_region_code,
-                        'primary_confidence': primary_confidence,
-                        'secondary_regions': secondary_regions,
-                        'duration_ms': duration_ms,
-                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00005))),
-                        'tokens_input': ai_response.usage.get('prompt_tokens', 0),
-                        'tokens_output': ai_response.usage.get('completion_tokens', 0)
-                    }
-                else:
-                    raise ValueError(f"Invalid region classification output: {validation_result['error']}")
-            else:
-                raise ValueError(f"AI service failed: {ai_response.error_message}")
-            
-        except Exception as e:
-            logger.error(f"Region classification failed for article {article.id}: {e}")
-            duration_ms = int((time.time() - stage_start) * 1000)
-            return {
-                'success': False,
-                'error': str(e),
-                'duration_ms': duration_ms,
-                'cost': Decimal('0.00')
-            }
-    
-    def _stage_7_topic_classification(self, article: Article, content: str, analysis_record: ArticleAnalysis) -> Dict[str, Any]:
-        """
-        Stage 7: Topic classification using GPT-4o-mini.
-        
-        Updates Article.primary_topic and Article.topics fields.
-        """
-        stage_start = time.time()
-        
-        try:
-            # Get available topics with descriptions
-            available_topics = list(Topic.objects.all().values('slug', 'name', 'description'))
-            if not available_topics:
-                raise ValueError("No topics available in database")
-            
-            # Prepare topic classification prompt
-            topic_prompt = self.prompts.topic_classification_prompt(article.title, content[:2500], available_topics)
-            
-            ai_response = self.ai_service.call_llm(
-                prompt=topic_prompt,
-                operation='topic_classification',
+            # Get response from AI provider
+            response = self.ai_service.call_llm(
+                prompt=prompt,
+                operation="region_classification",
                 max_tokens=400,
                 temperature=0.1
             )
             
-            if ai_response.success:
-                # Validate and parse response
-                valid_options = [t['slug'] for t in available_topics]
-                validation_result = self.prompts.validate_classification_output(ai_response.content, valid_options)
+            # Validate and extract region classifications
+            valid_region_codes = [r['code'] for r in regions]
+            result = self.prompts.validate_classification_output(response.content, valid_region_codes)
+            
+            # Extract primary region
+            primary_region_code = result.get('primary_region')
+            primary_confidence = result.get('primary_region_confidence', 0.7)
+            
+            # Extract secondary regions
+            secondary_region_codes = result.get('secondary_regions', [])
+            
+            # Extract relevance scores
+            region_relevance = result.get('region_relevance', {})
+            
+            # Update article with primary region only if confidence is high enough or if not set
+            # For testing purposes, use a lower threshold of 0.5
+            if primary_region_code and (primary_confidence >= 0.5 or not article.primary_region):
+                try:
+                    primary_region = Region.objects.get(code=primary_region_code)
+                    
+                    # Only update if different or not set
+                    if not article.primary_region or article.primary_region.code != primary_region_code:
+                        article.primary_region = primary_region
+                        article.save(update_fields=['primary_region'])
+                        
+                        logger.info(f"Set primary region for article {article.id}: "
+                                  f"{primary_region.name} ({primary_confidence:.2f})")
+                except Region.DoesNotExist:
+                    logger.warning(f"Region not found: {primary_region_code}")
+            
+            # Update article with secondary regions only if they're not already associated
+            if secondary_region_codes:
+                current_regions = set(article.regions.values_list('code', flat=True))
+                new_region_codes = set(secondary_region_codes) - current_regions
                 
-                if validation_result['success']:
-                    topic_data = validation_result['data']
+                if new_region_codes:
+                    secondary_regions = Region.objects.filter(code__in=new_region_codes)
+                    article.regions.add(*secondary_regions)
                     
-                    primary_topic_slug = topic_data.get('primary_topic')
-                    primary_confidence = topic_data.get('primary_topic_confidence', 0.0)
-                    secondary_topics = topic_data.get('secondary_topics', [])
-                    
-                    # Update Article fields
-                    with transaction.atomic():
-                        # Set primary topic
-                        if primary_topic_slug and primary_confidence > 0.5:
-                            try:
-                                primary_topic = Topic.objects.get(slug=primary_topic_slug)
-                                article.primary_topic = primary_topic
-                                analysis_record.primary_topic_confidence = primary_confidence
-                                
-                                # Add to M2M topics
-                                article.topics.add(primary_topic)
-                            except Topic.DoesNotExist:
-                                logger.warning(f"Primary topic {primary_topic_slug} not found")
-                        
-                        # Add secondary topics
-                        for topic_slug in secondary_topics:
-                            try:
-                                topic = Topic.objects.get(slug=topic_slug)
-                                article.topics.add(topic)
-                            except Topic.DoesNotExist:
-                                logger.warning(f"Secondary topic {topic_slug} not found")
-                        
-                        # Save changes
-                        article.save(update_fields=['primary_topic'])
-                        analysis_record.secondary_topics = secondary_topics
-                        analysis_record.save()
-                    
-                    duration_ms = int((time.time() - stage_start) * 1000)
-                    
-                    return {
-                        'success': True,
-                        'primary_topic': primary_topic_slug,
-                        'primary_confidence': primary_confidence,
-                        'secondary_topics': secondary_topics,
-                        'duration_ms': duration_ms,
-                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00007))),
-                        'tokens_input': ai_response.usage.get('prompt_tokens', 0),
-                        'tokens_output': ai_response.usage.get('completion_tokens', 0)
-                    }
-                else:
-                    raise ValueError(f"Invalid topic classification output: {validation_result['error']}")
-            else:
-                raise ValueError(f"AI service failed: {ai_response.error_message}")
+                    logger.info(f"Added {secondary_regions.count()} secondary regions for article {article.id}")
+            
+            # Store minimal metadata in analysis record
+            analysis_record.primary_region_confidence = primary_confidence
+            analysis_record.save(update_fields=['primary_region_confidence'])
+            
+            return {
+                'primary_region': primary_region_code,
+                'primary_confidence': primary_confidence,
+                'secondary_regions': secondary_region_codes,
+                'region_relevance': region_relevance,
+                'cost': response.usage.get('total_cost', 0)
+            }
             
         except Exception as e:
-            logger.error(f"Topic classification failed for article {article.id}: {e}")
-            duration_ms = int((time.time() - stage_start) * 1000)
+            logger.error(f"Region classification failed for article {article.id}: {str(e)}")
             return {
-                'success': False,
                 'error': str(e),
-                'duration_ms': duration_ms,
-                'cost': Decimal('0.00')
+                'cost': Decimal('0.0')
+            }
+    
+    def _stage_7_topic_classification(self, article: Article, content: str, analysis_record: ArticleAnalysis) -> Dict[str, Any]:
+        """
+        Stage 7: Topic Classification (LLM - GPT-4o-mini).
+        
+        Classifies article into available topic categories.
+        
+        Args:
+            article: Article to classify
+            content: Content to analyze
+            analysis_record: Analysis record to update
+            
+        Returns:
+            Dict with topic classification results
+        """
+        try:
+            # Get available topics
+            topics = list(Topic.objects.all().values('slug', 'name', 'description'))
+            
+            # Generate prompt for topic classification
+            prompt = self.prompts.topic_classification_prompt(
+                article.title, content, topics
+            )
+            
+            # Get response from AI provider
+            response = self.ai_service.call_llm(
+                prompt=prompt,
+                operation="topic_classification",
+                max_tokens=400,
+                temperature=0.1
+            )
+            
+            # Validate and extract topic classifications
+            valid_topic_slugs = [t['slug'] for t in topics]
+            result = self.prompts.validate_classification_output(response.content, valid_topic_slugs)
+            
+            # Extract primary topic
+            primary_topic_slug = result.get('primary_topic')
+            primary_confidence = result.get('primary_topic_confidence', 0.7)
+            
+            # Extract secondary topics
+            secondary_topic_slugs = result.get('secondary_topics', [])
+            
+            # Extract relevance scores
+            topic_relevance = result.get('topic_relevance', {})
+            
+            # Update article with primary topic only if confidence is high enough or if not set
+            # For testing purposes, use a lower threshold of 0.5
+            if primary_topic_slug and (primary_confidence >= 0.5 or not article.primary_topic):
+                try:
+                    primary_topic = Topic.objects.get(slug=primary_topic_slug)
+                    
+                    # Only update if different or not set
+                    if not article.primary_topic or article.primary_topic.slug != primary_topic_slug:
+                        article.primary_topic = primary_topic
+                        article.save(update_fields=['primary_topic'])
+                        
+                        logger.info(f"Set primary topic for article {article.id}: "
+                                  f"{primary_topic.name} ({primary_confidence:.2f})")
+                except Topic.DoesNotExist:
+                    logger.warning(f"Topic not found: {primary_topic_slug}")
+            
+            # Update article with secondary topics only if they're not already associated
+            if secondary_topic_slugs:
+                current_topics = set(article.topics.values_list('slug', flat=True))
+                new_topic_slugs = set(secondary_topic_slugs) - current_topics
+                
+                if new_topic_slugs:
+                    secondary_topics = Topic.objects.filter(slug__in=new_topic_slugs)
+                    article.topics.add(*secondary_topics)
+                    
+                    logger.info(f"Added {secondary_topics.count()} secondary topics for article {article.id}")
+            
+            # Store minimal metadata in analysis record
+            analysis_record.primary_topic_confidence = primary_confidence
+            analysis_record.save(update_fields=['primary_topic_confidence'])
+            
+            return {
+                'primary_topic': primary_topic_slug,
+                'primary_confidence': primary_confidence,
+                'secondary_topics': secondary_topic_slugs,
+                'topic_relevance': topic_relevance,
+                'cost': response.usage.get('total_cost', 0)
+            }
+            
+        except Exception as e:
+            logger.error(f"Topic classification failed for article {article.id}: {str(e)}")
+            return {
+                'error': str(e),
+                'cost': Decimal('0.0')
             }
     
     def _stage_8_event_resolution(self, main_event: Dict, entity_ids: List[int], article: Article) -> Optional[int]:
@@ -914,8 +992,15 @@ class AnalyzerService:
             from django.utils import timezone
             from datetime import timedelta
             
-            # Get article embedding from summariser
-            article_embedding = article.summary.embedding if article.summary else None
+            # Get article embedding from summariser if available
+            article_embedding = None
+            try:
+                # Try to get embedding from structured_summary if available
+                if hasattr(article, 'structured_summary') and article.structured_summary:
+                    if hasattr(article.structured_summary, 'embedding') and article.structured_summary.embedding:
+                        article_embedding = article.structured_summary.embedding
+            except Exception as e:
+                logger.warning(f"Could not get article embedding: {str(e)}")
             
             if article_embedding:
                 # Find similar events from last 48 hours
@@ -946,10 +1031,10 @@ class AnalyzerService:
                         event.article_count += 1
                         event.update_centroid(article_embedding)  # Updates running mean
                         
-                        # Link article to event
-                        ArticleEvent.objects.create(
+                        # Link article to event (use get_or_create to avoid duplicate key errors)
+                        ArticleEvent.objects.get_or_create(
                             article=article,
-                            event=event
+                            defaults={'event': event}
                         )
                         
                         # Link entities to event
@@ -967,6 +1052,9 @@ class AnalyzerService:
                         return event.id
             
             # Step 3: Create new event
+            # Use a placeholder embedding if no article embedding is available
+            placeholder_embedding = [0.0] * 1536
+            
             new_event = Event.objects.create(
                 title=event_title,
                 abstract=main_event.get('abstract', article.description or article.title),
@@ -974,14 +1062,14 @@ class AnalyzerService:
                 event_hash=event_hash,
                 first_seen_at=article.published_at,
                 last_seen_at=article.published_at,
-                centroid_embed=article_embedding or [0.0] * 1536,  # Use article embedding or placeholder
+                centroid_embed=article_embedding or placeholder_embedding,
                 article_count=1
             )
             
-            # Link article to new event
-            ArticleEvent.objects.create(
+            # Link article to new event (use get_or_create to avoid duplicate key errors)
+            ArticleEvent.objects.get_or_create(
                 article=article,
-                event=new_event
+                defaults={'event': new_event}
             )
             
             # Link entities to event
@@ -1146,14 +1234,13 @@ class AnalyzerService:
         """
         try:
             # Use OpenAI embeddings (same as summariser)
-            ai_response = self.ai_service.call_llm(
-                prompt=text,
-                operation='text_embedding',
-                model='text-embedding-3-small'
+            ai_response = self.ai_service.generate_embedding(
+                texts=[text],
+                operation='embedding_generation'
             )
             
-            if ai_response.success and ai_response.embedding:
-                return ai_response.embedding
+            if ai_response.success and ai_response.embeddings:
+                return ai_response.embeddings[0]
             
         except Exception as e:
             logger.error(f"Failed to generate embedding for {text}: {e}")
