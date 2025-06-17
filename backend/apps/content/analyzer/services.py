@@ -999,24 +999,21 @@ class AnalyzerService:
                 except Event.DoesNotExist:
                     pass
                 
-                # Step 2: Try semantic matching on recent events
+                # Step 2: Try semantic matching on recent events using event embeddings
                 from django.utils import timezone
                 from datetime import timedelta
                 
-                # Get article embedding from summariser if available
-                article_embedding = None
+                # Generate embedding for the current event for comparison
+                current_event_embedding = None
                 try:
-                    # Try to get embedding from structured_summary if available
-                    if hasattr(article, 'structured_summary') and article.structured_summary:
-                        if hasattr(article.structured_summary, 'embedding') and article.structured_summary.embedding:
-                            article_embedding = article.structured_summary.embedding
+                    current_event_embedding = self._generate_event_embedding(event_data)
                 except Exception as e:
-                    logger.warning(f"Could not get article embedding: {str(e)}")
+                    logger.warning(f"Could not generate event embedding for comparison: {str(e)}")
                 
                 semantic_match_found = False
                 
-                if article_embedding:
-                    # Find similar events from last 48 hours
+                if current_event_embedding:
+                    # Find similar events from last 48 hours using event-to-event comparison
                     recent_cutoff = timezone.now() - timedelta(hours=48)
                     
                     from pgvector.django import CosineDistance
@@ -1024,9 +1021,9 @@ class AnalyzerService:
                         last_seen_at__gte=recent_cutoff,
                         centroid_embed__isnull=False
                     ).annotate(
-                        distance=CosineDistance('centroid_embed', article_embedding)
+                        distance=CosineDistance('centroid_embed', current_event_embedding)
                     ).filter(
-                        distance__lt=0.18  # Lower distance = more similar
+                        distance__lt=0.15  # Lower threshold for event-to-event similarity
                     ).order_by('distance')
                     
                     # Check entity overlap for each candidate
@@ -1042,7 +1039,7 @@ class AnalyzerService:
                             # Found matching event, update it
                             event.last_seen_at = article.published_at
                             event.article_count += 1
-                            event.update_centroid(article_embedding)  # Updates running mean
+                            event.update_centroid(current_event_embedding)  # Updates running mean with event embedding
                             
                             # Link article to event (use get_or_create to avoid duplicate key errors)
                             ArticleEvent.objects.get_or_create(
@@ -1068,8 +1065,8 @@ class AnalyzerService:
                 
                 # Step 3: Create new event if no match found
                 if not semantic_match_found:
-                    # Generate event embedding that includes event type for better clustering
-                    event_embedding = self._generate_event_embedding(event_data, article_embedding)
+                    # Use the event embedding we already generated (or generate it if semantic matching was skipped)
+                    event_embedding = current_event_embedding or self._generate_event_embedding(event_data)
                     
                     new_event = Event.objects.create(
                         title=event_title,
