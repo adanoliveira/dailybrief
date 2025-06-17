@@ -134,43 +134,80 @@ INSTRUCTIONS:
         """
         Stage 3: Event detection and key facts extraction.
         
-        Identifies the main event/story and extracts key facts for clustering.
+        Identifies all significant events mentioned in the article for clustering and deduplication.
+        Returns only the fields that will be stored in the Event model.
         """
-        prompt = f"""SYSTEM: You are an expert in news event analysis. Identify the main events mentioned in the article and extract key facts.
+        prompt = f"""SYSTEM: You are an expert news analyst. Extract all significant events mentioned in this article. Focus on events that are newsworthy, actionable, or historically significant.
 
 ARTICLE:
 Title: {title}
 Content: {content}
 
-Analyze the event in this JSON format:
+Extract events in this exact JSON format:
 {{
-    "main_event": {{
-        "title": "Apple announces iPhone 15 with USB-C",
-        "abstract": "Apple unveiled its iPhone 15 lineup featuring USB-C ports, replacing Lightning connectors after regulatory pressure.",
-        "event_type": "product_launch|earnings|policy_change|incident|meeting|other",
-        "significance": "major|moderate|minor",
-        "facts": [
-            "Apple announced iPhone 15 lineup on September 12, 2023",
-            "New phones feature USB-C instead of Lightning ports",
-            "Change driven by EU regulatory requirements"
-        ]
-    }},
-    "timeline": {{
-        "when": "2023-09-12",
-        "duration": "single_day|ongoing|multi_day",
-        "status": "completed|ongoing|planned"
-    }}
+    "events": [
+        {{
+            "title": "Apple announces iPhone 15 with USB-C",
+            "abstract": "Apple unveiled its iPhone 15 lineup featuring USB-C ports, replacing Lightning connectors after regulatory pressure from the EU.",
+            "facts": [
+                "Apple announced iPhone 15 lineup on September 12, 2023",
+                "New phones feature USB-C instead of Lightning ports",
+                "Change driven by EU regulatory requirements",
+                "Available in four models with different storage options"
+            ]
+        }},
+        {{
+            "title": "EU mandates USB-C for mobile devices",
+            "abstract": "European Union regulation requiring USB-C as standard charging port for mobile devices takes effect, forcing Apple to abandon Lightning.",
+            "facts": [
+                "EU USB-C mandate became effective in 2023",
+                "Regulation applies to all mobile devices sold in Europe",
+                "Companies had transition period to comply",
+                "Aims to reduce electronic waste and improve consumer convenience"
+            ]
+        }}
+    ]
 }}
 
-INSTRUCTIONS:
-- Identify the main events this article reports on
-- Create a concise title (≤80 characters) for the event
-- Write a brief abstract (≤120 words) summarizing what happened
-- Extract 3-7 key facts that are specific and verifiable
-- Determine event type and significance level
-- Identify when the event occurred/is occurring
-- Assess if the event is completed, ongoing, or planned
-- Focus on facts that would help cluster related articles"""
+EVENT EXTRACTION GUIDELINES:
+
+**What constitutes an event:**
+- Product launches, announcements, releases
+- Policy changes, regulations, legal decisions
+- Corporate actions (mergers, acquisitions, partnerships)
+- Economic developments (earnings, market changes)
+- Political developments (elections, legislation, diplomatic actions)
+- Incidents, accidents, crises
+- Scientific discoveries, research findings
+- Cultural or social developments
+- Conflicts, protests, social movements
+
+**Event title requirements:**
+- Concise and descriptive (≤80 characters)
+- Include key actors and action taken
+- Use active voice when possible
+- Focus on the core newsworthy element
+
+**Abstract requirements:**
+- Comprehensive summary in 1-2 sentences (≤150 words)
+- Include who, what, when, where if available
+- Provide sufficient context for clustering with related articles
+- Focus on impact and significance
+
+**Facts requirements:**
+- Extract 3-8 specific, verifiable facts per event
+- Include dates, numbers, names, locations when available
+- Prioritize facts that help identify related coverage
+- Avoid opinions or speculation
+- Each fact should be a complete, standalone statement
+
+**CRITICAL INSTRUCTIONS:**
+- Extract ALL significant events mentioned, not just the primary one
+- Events can be current, recent, or historical if prominently discussed
+- Ensure each event is distinct and newsworthy
+- If an article mentions multiple related developments, extract each as separate events
+- Skip minor details or background information that aren't events themselves
+- Maximum 5 events per article to maintain quality and relevance"""
 
         return prompt
     
@@ -425,6 +462,67 @@ INSTRUCTIONS:
             # Add default confidence if missing
             if confidence_key not in data:
                 data[confidence_key] = 0.0
+            
+            return {'success': True, 'data': data}
+            
+        except json.JSONDecodeError as e:
+            return {'success': False, 'error': f'Invalid JSON: {str(e)}'}
+        except Exception as e:
+            return {'success': False, 'error': f'Validation error: {str(e)}'}
+    
+    @staticmethod
+    def validate_event_output(output_text: str) -> Dict[str, Any]:
+        """
+        Validate and parse event detection output.
+        
+        Returns:
+            Dict with 'success', 'data', and optional 'error' keys
+        """
+        try:
+            data = json.loads(output_text.strip())
+            
+            if 'events' not in data:
+                return {'success': False, 'error': 'Missing events field'}
+            
+            if not isinstance(data['events'], list):
+                return {'success': False, 'error': 'events must be a list'}
+            
+            # Validate each event
+            for i, event in enumerate(data['events']):
+                if not isinstance(event, dict):
+                    return {'success': False, 'error': f'Event {i} must be an object'}
+                
+                required_fields = ['title', 'abstract', 'facts']
+                for field in required_fields:
+                    if field not in event:
+                        return {'success': False, 'error': f'Event {i} missing field: {field}'}
+                
+                # Validate title length
+                if len(event['title']) > 80:
+                    return {'success': False, 'error': f'Event {i} title too long (max 80 chars)'}
+                
+                # Validate abstract length
+                if len(event['abstract']) > 500:  # More generous limit than 150 words
+                    return {'success': False, 'error': f'Event {i} abstract too long (max 500 chars)'}
+                
+                # Validate facts
+                if not isinstance(event['facts'], list):
+                    return {'success': False, 'error': f'Event {i} facts must be a list'}
+                
+                if len(event['facts']) < 2:
+                    return {'success': False, 'error': f'Event {i} must have at least 2 facts'}
+                
+                if len(event['facts']) > 8:
+                    return {'success': False, 'error': f'Event {i} too many facts (max 8)'}
+                
+                # Validate each fact
+                for j, fact in enumerate(event['facts']):
+                    if not isinstance(fact, str) or len(fact.strip()) < 10:
+                        return {'success': False, 'error': f'Event {i} fact {j} must be a meaningful string (min 10 chars)'}
+            
+            # Limit total number of events
+            if len(data['events']) > 5:
+                return {'success': False, 'error': 'Too many events (max 5 per article)'}
             
             return {'success': True, 'data': data}
             

@@ -212,12 +212,12 @@ class AnalyzerService:
             analyzer_request.mark_stage_completed('topic_processing')
             
             # STAGE 8: Event Resolution (CPU-only)
-            event_id = self._stage_8_event_resolution(
-                event_result.get('main_event'),
+            event_ids = self._stage_8_event_resolution(
+                event_result.get('events', []),
                 entity_ids,
                 article
             )
-            results['event_resolution'] = {'event_id': event_id}
+            results['event_resolution'] = {'event_ids': event_ids}
             
             # STAGE 9: Persist to existing Article fields
             self._stage_9_persist_results(article, results, analysis_record)
@@ -692,66 +692,69 @@ class AnalyzerService:
         """
         Stage 5: Event extraction using GPT-4o-mini.
         
-        Identifies main event for later resolution and clustering.
+        Identifies all significant events mentioned in the article for clustering and deduplication.
         """
         stage_start = time.time()
         
         try:
             # Prepare event extraction prompt
-            event_prompt = self.prompts.event_detection_prompt(article.title, content[:2500])
+            event_prompt = self.prompts.event_detection_prompt(article.title, content)
             
             ai_response = self.ai_service.call_llm(
                 prompt=event_prompt,
                 operation='event_detection',
-                max_tokens=600,
+                max_tokens=1200,  # Increased for multiple events
                 temperature=0.1
             )
             
             if ai_response.success:
-                # Parse and validate response
-                import json
-                try:
-                    event_data = json.loads(ai_response.content.strip())
-                    main_event = event_data.get('main_event')
-                    timeline = event_data.get('timeline', {})
+                # Parse and validate response using new validation method
+                validation_result = self.prompts.validate_event_output(ai_response.content)
+                
+                if validation_result['success']:
+                    extracted_events = validation_result['data']['events']
                     
-                    if not main_event:
-                        # Fallback: create basic event from article
-                        main_event = {
-                            'title': article.title,
+                    # If no events extracted, create fallback event
+                    if not extracted_events:
+                        extracted_events = [{
+                            'title': article.title[:80],  # Ensure title length limit
                             'abstract': article.description or article.title,
-                            'facts': [f"Published: {article.published_at.strftime('%Y-%m-%d')}"],
-                            'event_type': 'other',
-                            'significance': 'moderate'
-                        }
+                            'facts': [
+                                f"Published: {article.published_at.strftime('%Y-%m-%d')}",
+                                f"Source: {article.source_name or 'Unknown'}"
+                            ]
+                        }]
                     
                     duration_ms = int((time.time() - stage_start) * 1000)
                     
                     return {
                         'success': True,
-                        'main_event': main_event,
-                        'timeline': timeline,
+                        'events': extracted_events,
+                        'events_count': len(extracted_events),
                         'duration_ms': duration_ms,
-                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00005))),
+                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00008))),
                         'tokens_input': ai_response.usage.get('prompt_tokens', 0),
                         'tokens_output': ai_response.usage.get('completion_tokens', 0)
                     }
-                    
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse event extraction JSON: {e}")
+                else:
+                    logger.error(f"Event validation failed for article {article.id}: {validation_result['error']}")
                     # Fallback to basic event
-                    main_event = {
-                        'title': article.title,
+                    fallback_event = {
+                        'title': article.title[:80],
                         'abstract': article.description or article.title,
-                        'facts': [f"Published: {article.published_at.strftime('%Y-%m-%d')}"]
+                        'facts': [
+                            f"Published: {article.published_at.strftime('%Y-%m-%d')}",
+                            f"Source: {article.source_name or 'Unknown'}"
+                        ]
                     }
                     
                     duration_ms = int((time.time() - stage_start) * 1000)
                     return {
                         'success': True,
-                        'main_event': main_event,
+                        'events': [fallback_event],
+                        'events_count': 1,
                         'duration_ms': duration_ms,
-                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00005)))
+                        'cost': Decimal(str(ai_response.usage.get('total_cost', 0.00008)))
                     }
             else:
                 raise ValueError(f"AI service failed: {ai_response.error_message}")
@@ -948,147 +951,160 @@ class AnalyzerService:
                 'cost': Decimal('0.0')
             }
     
-    def _stage_8_event_resolution(self, main_event: Dict, entity_ids: List[int], article: Article) -> Optional[int]:
+    def _stage_8_event_resolution(self, extracted_events: List[Dict], entity_ids: List[int], article: Article) -> List[int]:
         """
         Stage 8: Event resolution with hash-based deduplication and semantic clustering.
         
-        Following exact plan algorithm:
+        Following exact plan algorithm for each extracted event:
         1. Generate event hash for exact matching
         2. If hash matches, link to existing event
         3. If no match, try semantic matching on recent events
         4. If no semantic match, create new event
+        
+        Returns list of event IDs that the article is linked to.
         """
-        try:
-            if not main_event:
-                return None
-            
-            # Generate event hash (plan algorithm)
-            event_title = main_event.get('title', article.title)
-            facts = main_event.get('facts', [])
-            event_hash = Event.generate_event_hash(event_title, facts)
-            
-            # Step 1: Try exact hash match
+        event_ids = []
+        
+        if not extracted_events:
+            return event_ids
+        
+        for event_data in extracted_events:
             try:
-                existing_event = Event.objects.get(event_hash=event_hash)
+                # Generate event hash (plan algorithm)
+                event_title = event_data.get('title', article.title)
+                facts = event_data.get('facts', [])
+                event_hash = Event.generate_event_hash(event_title, facts)
                 
-                # Update existing event
-                existing_event.last_seen_at = article.published_at
-                existing_event.article_count += 1
-                existing_event.save(update_fields=['last_seen_at', 'article_count'])
-                
-                # Link article to existing event
-                ArticleEvent.objects.get_or_create(
-                    article=article,
-                    defaults={'event': existing_event}
-                )
-                
-                logger.info(f"Article {article.id} linked to existing event {existing_event.id} via hash match")
-                return existing_event.id
-                
-            except Event.DoesNotExist:
-                pass
-            
-            # Step 2: Try semantic matching on recent events
-            from django.utils import timezone
-            from datetime import timedelta
-            
-            # Get article embedding from summariser if available
-            article_embedding = None
-            try:
-                # Try to get embedding from structured_summary if available
-                if hasattr(article, 'structured_summary') and article.structured_summary:
-                    if hasattr(article.structured_summary, 'embedding') and article.structured_summary.embedding:
-                        article_embedding = article.structured_summary.embedding
-            except Exception as e:
-                logger.warning(f"Could not get article embedding: {str(e)}")
-            
-            if article_embedding:
-                # Find similar events from last 48 hours
-                recent_cutoff = timezone.now() - timedelta(hours=48)
-                
-                from pgvector.django import CosineDistance
-                similar_events = Event.objects.filter(
-                    last_seen_at__gte=recent_cutoff,
-                    centroid_embed__isnull=False
-                ).annotate(
-                    distance=CosineDistance('centroid_embed', article_embedding)
-                ).filter(
-                    distance__lt=0.18  # Lower distance = more similar
-                ).order_by('distance')
-                
-                # Check entity overlap for each candidate
-                for event in similar_events:
-                    event_entity_ids = set(
-                        EventEntity.objects.filter(event=event)
-                        .values_list('entity_id', flat=True)
+                # Step 1: Try exact hash match
+                try:
+                    existing_event = Event.objects.get(event_hash=event_hash)
+                    
+                    # Update existing event
+                    existing_event.last_seen_at = article.published_at
+                    existing_event.article_count += 1
+                    existing_event.save(update_fields=['last_seen_at', 'article_count'])
+                    
+                    # Link article to existing event
+                    ArticleEvent.objects.get_or_create(
+                        article=article,
+                        defaults={'event': existing_event}
                     )
                     
-                    shared_entities = len(event_entity_ids.intersection(entity_ids))
+                    logger.info(f"Article {article.id} linked to existing event {existing_event.id} via hash match")
+                    event_ids.append(existing_event.id)
+                    continue
                     
-                    if shared_entities >= 2:
-                        # Found matching event, update it
-                        event.last_seen_at = article.published_at
-                        event.article_count += 1
-                        event.update_centroid(article_embedding)  # Updates running mean
-                        
-                        # Link article to event (use get_or_create to avoid duplicate key errors)
-                        ArticleEvent.objects.get_or_create(
-                            article=article,
-                            defaults={'event': event}
+                except Event.DoesNotExist:
+                    pass
+                
+                # Step 2: Try semantic matching on recent events
+                from django.utils import timezone
+                from datetime import timedelta
+                
+                # Get article embedding from summariser if available
+                article_embedding = None
+                try:
+                    # Try to get embedding from structured_summary if available
+                    if hasattr(article, 'structured_summary') and article.structured_summary:
+                        if hasattr(article.structured_summary, 'embedding') and article.structured_summary.embedding:
+                            article_embedding = article.structured_summary.embedding
+                except Exception as e:
+                    logger.warning(f"Could not get article embedding: {str(e)}")
+                
+                semantic_match_found = False
+                
+                if article_embedding:
+                    # Find similar events from last 48 hours
+                    recent_cutoff = timezone.now() - timedelta(hours=48)
+                    
+                    from pgvector.django import CosineDistance
+                    similar_events = Event.objects.filter(
+                        last_seen_at__gte=recent_cutoff,
+                        centroid_embed__isnull=False
+                    ).annotate(
+                        distance=CosineDistance('centroid_embed', article_embedding)
+                    ).filter(
+                        distance__lt=0.18  # Lower distance = more similar
+                    ).order_by('distance')
+                    
+                    # Check entity overlap for each candidate
+                    for event in similar_events:
+                        event_entity_ids = set(
+                            EventEntity.objects.filter(event=event)
+                            .values_list('entity_id', flat=True)
                         )
                         
-                        # Link entities to event
-                        for entity_id in entity_ids:
-                            try:
-                                entity = Entity.objects.get(id=entity_id)
-                                EventEntity.objects.get_or_create(
-                                    event=event,
-                                    entity=entity
-                                )
-                            except Entity.DoesNotExist:
-                                continue
+                        shared_entities = len(event_entity_ids.intersection(entity_ids))
                         
-                        logger.info(f"Article {article.id} linked to existing event {event.id} via semantic match")
-                        return event.id
-            
-            # Step 3: Create new event
-            # Use a placeholder embedding if no article embedding is available
-            placeholder_embedding = [0.0] * 1536
-            
-            new_event = Event.objects.create(
-                title=event_title,
-                abstract=main_event.get('abstract', article.description or article.title),
-                facts=facts,
-                event_hash=event_hash,
-                first_seen_at=article.published_at,
-                last_seen_at=article.published_at,
-                centroid_embed=article_embedding or placeholder_embedding,
-                article_count=1
-            )
-            
-            # Link article to new event (use get_or_create to avoid duplicate key errors)
-            ArticleEvent.objects.get_or_create(
-                article=article,
-                defaults={'event': new_event}
-            )
-            
-            # Link entities to event
-            for entity_id in entity_ids:
-                try:
-                    entity = Entity.objects.get(id=entity_id)
-                    EventEntity.objects.get_or_create(
-                        event=new_event,
-                        entity=entity
-                    )
-                except Entity.DoesNotExist:
-                    continue
-            
-            logger.info(f"Article {article.id} linked to new event {new_event.id}")
-            return new_event.id
+                        if shared_entities >= 2:
+                            # Found matching event, update it
+                            event.last_seen_at = article.published_at
+                            event.article_count += 1
+                            event.update_centroid(article_embedding)  # Updates running mean
+                            
+                            # Link article to event (use get_or_create to avoid duplicate key errors)
+                            ArticleEvent.objects.get_or_create(
+                                article=article,
+                                defaults={'event': event}
+                            )
+                            
+                            # Link entities to event
+                            for entity_id in entity_ids:
+                                try:
+                                    entity = Entity.objects.get(id=entity_id)
+                                    EventEntity.objects.get_or_create(
+                                        event=event,
+                                        entity=entity
+                                    )
+                                except Entity.DoesNotExist:
+                                    continue
+                            
+                            logger.info(f"Article {article.id} linked to existing event {event.id} via semantic match")
+                            event_ids.append(event.id)
+                            semantic_match_found = True
+                            break
                 
-        except Exception as e:
-            logger.error(f"Event resolution failed for article {article.id}: {e}")
-            return None
+                # Step 3: Create new event if no match found
+                if not semantic_match_found:
+                    # Use a placeholder embedding if no article embedding is available
+                    placeholder_embedding = [0.0] * 1536
+                    
+                    new_event = Event.objects.create(
+                        title=event_title,
+                        abstract=event_data.get('abstract', article.description or article.title),
+                        facts=facts,
+                        event_hash=event_hash,
+                        first_seen_at=article.published_at,
+                        last_seen_at=article.published_at,
+                        centroid_embed=article_embedding or placeholder_embedding,
+                        article_count=1
+                    )
+                    
+                    # Link article to new event (use get_or_create to avoid duplicate key errors)
+                    ArticleEvent.objects.get_or_create(
+                        article=article,
+                        defaults={'event': new_event}
+                    )
+                    
+                    # Link entities to event
+                    for entity_id in entity_ids:
+                        try:
+                            entity = Entity.objects.get(id=entity_id)
+                            EventEntity.objects.get_or_create(
+                                event=new_event,
+                                entity=entity
+                            )
+                        except Entity.DoesNotExist:
+                            continue
+                    
+                    logger.info(f"Article {article.id} linked to new event {new_event.id}")
+                    event_ids.append(new_event.id)
+                    
+            except Exception as e:
+                logger.error(f"Event resolution failed for event '{event_data.get('title', 'Unknown')}' in article {article.id}: {e}")
+                continue
+        
+        return event_ids
     
     def _stage_9_persist_results(self, article: Article, results: Dict, analysis_record: ArticleAnalysis):
         """
