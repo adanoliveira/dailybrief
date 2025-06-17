@@ -1267,60 +1267,53 @@ class AnalyzerService:
     
     def _generate_event_embedding(self, event_data: Dict[str, Any], article_embedding: Optional[List[float]] = None) -> List[float]:
         """
-        Generate embedding for event that includes event type and content for better clustering.
+        Generate embedding for event content only for deduplication and article clustering.
         
-        Creates a rich embedding by combining:
+        Creates a pure event embedding using:
         1. Event type (for categorical clustering)
         2. Event title and abstract (for semantic content)
-        3. Article embedding (if available, for context)
+        3. Key facts (for specific details)
+        
+        This embedding represents the event itself, not the article context,
+        enabling effective event deduplication and article clustering by event.
         
         Args:
             event_data: Dict containing event title, abstract, event_type, facts
-            article_embedding: Optional article embedding for context
+            article_embedding: Unused, kept for backward compatibility
             
         Returns:
-            1536-dimensional embedding vector
+            1536-dimensional embedding vector representing the event
         """
         try:
-            # Create rich text representation including event type
+            # Create rich text representation of the event itself
             event_text_parts = [
                 f"Event Type: {event_data.get('event_type', 'other')}",
                 f"Title: {event_data.get('title', '')}",
                 f"Abstract: {event_data.get('abstract', '')}"
             ]
             
-            # Add key facts for more context
+            # Add key facts for specific event details
             facts = event_data.get('facts', [])
             if facts:
                 event_text_parts.append(f"Key Facts: {' '.join(facts[:3])}")  # First 3 facts only
             
             event_text = "\n".join(event_text_parts)
             
-            # Generate embedding for the event text
+            # Generate embedding for the pure event content
             ai_response = self.ai_service.generate_embedding(
                 texts=[event_text],
                 operation='event_embedding_generation'
             )
             
             if ai_response.success and ai_response.embeddings:
-                event_embedding = ai_response.embeddings[0]
-                
-                # If we have article embedding, blend them for richer representation
-                # Use 70% event-specific content, 30% article context
-                if article_embedding:
-                    blended_embedding = [
-                        0.7 * event_val + 0.3 * article_val
-                        for event_val, article_val in zip(event_embedding, article_embedding)
-                    ]
-                    return blended_embedding
-                else:
-                    return event_embedding
+                return ai_response.embeddings[0]
             
         except Exception as e:
             logger.warning(f"Failed to generate event embedding: {e}")
         
-        # Fallback: use article embedding or zero vector
+        # Fallback: use article embedding if available, otherwise zero vector
         if article_embedding:
+            logger.warning("Using article embedding as fallback for event embedding")
             return article_embedding
         else:
             logger.warning("Using zero vector as fallback for event embedding")
