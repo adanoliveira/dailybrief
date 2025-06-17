@@ -212,10 +212,7 @@ class SummarizationService:
         summary_data = summary_result['data']
         result.headline = summary_data['headline']
         result.abstract = summary_data['abstract']
-<<<<<<< HEAD
-=======
         result.longer_abstract = summary_data.get('longer_abstract', '')
->>>>>>> main
         result.facts = summary_data['facts']
         result.opinions = summary_data['opinions']
         result.impact = summary_data['impact']
@@ -254,10 +251,7 @@ class SummarizationService:
                         summary_data = repair_result['data']
                         result.headline = summary_data['headline']
                         result.abstract = summary_data['abstract']
-<<<<<<< HEAD
-=======
                         result.longer_abstract = summary_data.get('longer_abstract', '')
->>>>>>> main
                         result.facts = summary_data['facts']
                         result.opinions = summary_data['opinions']
                         result.impact = summary_data['impact']
@@ -267,12 +261,6 @@ class SummarizationService:
                     else:
                         logger.warning(f"Summary repair failed for article {article.id}: {repair_result['error']}")
         
-<<<<<<< HEAD
-        # Store final summary
-        summary_instance = self._store_summary_result(article, summary_data, summary_result, result)
-        
-=======
->>>>>>> main
         # Stage 5: Embedding Generation
         if self.enable_embeddings:
             logger.info(f"Stage 5: Embedding generation for article {article.id}")
@@ -280,30 +268,19 @@ class SummarizationService:
             request.status = 'embedding_processing'
             request.save()
             
-<<<<<<< HEAD
-            embedding_result = self._generate_embedding(result.headline, result.abstract)
-            if embedding_result['success']:
-                embedding_instance = self._store_embedding_result(article, embedding_result, result.headline, result.abstract)
-=======
             embedding_result = self._generate_embedding(result.headline, result.abstract, result.longer_abstract)
             if embedding_result['success']:
                 embedding_instance = self._store_embedding_result(article, embedding_result, result.headline, result.abstract, result.longer_abstract)
->>>>>>> main
                 result.embedding = embedding_result['data']
                 result.total_cost_usd += embedding_result['cost_usd']
                 request.mark_stage_completed('embedding_generation')
             else:
-<<<<<<< HEAD
-                logger.warning(f"Embedding generation failed for article {article.id}: {embedding_result['error']}")
-        
-=======
                 # Embedding failure is not fatal - we can proceed with the summary
                 logger.warning(f"Embedding generation failed for article {article.id}: {embedding_result['error']}")
         
         # Store final summary
         summary_instance = self._store_summary_result(article, summary_data, summary_result, result)
         
->>>>>>> main
         result.stages_completed = request.stages_completed
         return result
     
@@ -496,28 +473,6 @@ class SummarizationService:
             'ai_model': ai_response.model
         }
     
-<<<<<<< HEAD
-    def _generate_embedding(self, headline: str, abstract: str) -> Dict[str, Any]:
-        """
-        Generate embedding from headline and abstract.
-        
-        Uses OpenAI's text-embedding-4-small model for semantic search.
-        """
-        # Prepare text for embedding
-        embedding_text = EmbeddingPrompts.prepare_embedding_text(headline, abstract)
-        if not embedding_text:
-            return {
-                'success': False,
-                'error': "No text available for embedding",
-                'cost_usd': Decimal('0.0')
-            }
-        
-        # Call AI service for embedding
-        try:
-            ai_response = self.ai_service.generate_embedding(
-                texts=[embedding_text],
-                operation='embedding_generation'
-=======
     def _generate_embedding(self, headline: str, abstract: str, longer_abstract: str = None) -> Dict[str, Any]:
         """
         Generate vector embedding for headline + abstract.
@@ -542,7 +497,6 @@ class SummarizationService:
             ai_response = self.ai_service.generate_embedding(
                 texts=[embedding_text],
                 operation=embedding_config['operation']
->>>>>>> main
             )
             
             if ai_response.success and ai_response.embeddings:
@@ -551,11 +505,7 @@ class SummarizationService:
                     'data': ai_response.embeddings[0],  # Single embedding from single text
                     'cost_usd': Decimal('0.00002'),  # Estimated cost, actual tracked in aiproviders
                     'tokens_used': ai_response.usage.get('prompt_tokens', 0),
-<<<<<<< HEAD
-                    'processing_time_ms': int(ai_response.response_time * 1000),
-=======
                     'processing_time_ms': int((time.time() - start_time) * 1000),
->>>>>>> main
                     'embedding_text': embedding_text
                 }
             else:
@@ -669,10 +619,7 @@ class SummarizationService:
         # Calculate word counts
         headline_words = len(summary_data['headline'].split()) if summary_data.get('headline') else 0
         abstract_words = len(summary_data['abstract'].split()) if summary_data.get('abstract') else 0
-<<<<<<< HEAD
-=======
         longer_abstract_words = len(summary_data['longer_abstract'].split()) if summary_data.get('longer_abstract') else 0
->>>>>>> main
         facts_count = len(summary_data.get('facts', []))
         
         summary, created = ArticleSummary.objects.update_or_create(
@@ -680,20 +627,14 @@ class SummarizationService:
             defaults={
                 'headline': summary_data['headline'],
                 'abstract': summary_data['abstract'],
-<<<<<<< HEAD
-=======
                 'longer_abstract': summary_data['longer_abstract'],
->>>>>>> main
                 'facts': summary_data['facts'],
                 'opinions': summary_data['opinions'],
                 'impact': summary_data['impact'],
                 'content_source': pipeline_result.content_source,
                 'headline_words': headline_words,
                 'abstract_words': abstract_words,
-<<<<<<< HEAD
-=======
                 'longer_abstract_words': longer_abstract_words,
->>>>>>> main
                 'facts_count': facts_count,
                 'tokens_input': summary_result['tokens_used'].get('prompt_tokens', 0),
                 'tokens_output': summary_result['tokens_used'].get('completion_tokens', 0),
@@ -708,11 +649,7 @@ class SummarizationService:
         return summary
     
     def _store_embedding_result(self, article: Article, embedding_result: Dict[str, Any], 
-<<<<<<< HEAD
-                              headline: str, abstract: str) -> ArticleEmbedding:
-=======
                               headline: str, abstract: str, longer_abstract: str = None) -> ArticleEmbedding:
->>>>>>> main
         """Store embedding result."""
         embedding, created = ArticleEmbedding.objects.update_or_create(
             article=article,
@@ -737,10 +674,7 @@ class SummarizationService:
                 article_id=article.id,
                 headline=summary.headline,
                 abstract=summary.abstract,
-<<<<<<< HEAD
-=======
                 longer_abstract=summary.longer_abstract,
->>>>>>> main
                 facts=summary.facts,
                 opinions=summary.opinions,
                 impact=summary.impact,
