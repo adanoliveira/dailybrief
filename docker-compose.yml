@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # Database
+  # Database with pgvector extension
   db:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:

@@ -9,6 +9,7 @@ class Topic(models.Model):
     """
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
+    description = models.TextField(blank=True, help_text="Description to help AI models with classification")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -21,6 +22,7 @@ class Region(models.Model):
     """
     code = models.CharField(max_length=5, unique=True)
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, help_text="Description to help AI models with classification")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -33,6 +35,7 @@ class Language(models.Model):
     """
     iso_code = models.CharField(max_length=5, unique=True)
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, help_text="Description to help AI models with classification")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

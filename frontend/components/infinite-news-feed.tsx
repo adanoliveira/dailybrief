@@ -1,103 +1,100 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { Check, Coffee, Newspaper } from "lucide-react"
+import { Check, Coffee, Newspaper, AlertTriangle } from "lucide-react"
+import { getPersonalizedFeed, getWorldFeed, ArticleQueryParams } from "@/lib/api"
+import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
+import { Skeleton } from "@/components/ui/skeleton"
+import { NewsCard, ArticlePreviewWithTopics } from "@/components/news-card"
 
-interface Article {
-  id: string
-  title: string
-  description: string
-  source: {
-    name: string
-  }
-  publishedAt: string
+interface InfiniteNewsFeedProps {
+  feedType?: 'personalized' | 'world';
+  topicSlug?: string;
+  searchQuery?: string;
+  sortOrder?: 'relevance' | 'newest' | 'oldest';
 }
 
-export function InfiniteNewsFeed() {
-  const [articles, setArticles] = useState<Article[]>([])
+export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQuery, sortOrder = 'relevance' }: InfiniteNewsFeedProps) {
+  const [articles, setArticles] = useState<ArticlePreviewWithTopics[]>([])
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // Start with loading
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const [reachedEnd, setReachedEnd] = useState(false)
   const observer = useRef<IntersectionObserver | null>(null)
 
-  // Mock data for demonstration
-  const mockArticles = [
-    {
-      id: "1",
-      title: "Major Tech Company Announces Revolutionary AI Assistant",
-      description:
-        "The new AI assistant promises to revolutionize how users interact with technology, offering unprecedented natural language understanding and task automation capabilities.",
-      source: { name: "TechNews" },
-      publishedAt: "2 hours ago",
-    },
-    {
-      id: "2",
-      title: "Global Markets React to New Economic Policy",
-      description:
-        "Stock markets worldwide showed mixed reactions to the announcement of a major economic policy shift by one of the world's largest economies.",
-      source: { name: "Financial Times" },
-      publishedAt: "3 hours ago",
-    },
-    {
-      id: "3",
-      title: "Breakthrough in Renewable Energy Storage",
-      description:
-        "Scientists have developed a new type of battery that could solve one of the biggest challenges in renewable energy adoption.",
-      source: { name: "Science Daily" },
-      publishedAt: "5 hours ago",
-    },
-    {
-      id: "4",
-      title: "New Study Links Exercise to Improved Mental Health",
-      description:
-        "Researchers have found strong evidence that regular physical activity can significantly reduce symptoms of anxiety and depression.",
-      source: { name: "Health Journal" },
-      publishedAt: "6 hours ago",
-    },
-    {
-      id: "5",
-      title: "Film Festival Announces Award Winners",
-      description:
-        "The international film festival concluded yesterday with the announcement of this year's award winners, celebrating diverse storytelling from around the world.",
-      source: { name: "Entertainment Weekly" },
-      publishedAt: "8 hours ago",
-    },
-  ]
-
-  // Function to load more articles
-  const loadMoreArticles = useCallback(async () => {
-    if (loading || !hasMore) return
-
+  // Function to load articles
+  const loadArticles = useCallback(async (pageNum: number, reset: boolean = false) => {
     setLoading(true)
-
-    // In a real app, this would be an API call
-    // For now, we'll simulate with a timeout and mock data
-    setTimeout(() => {
-      // If we've loaded 3 pages, simulate reaching the end
-      if (page >= 3) {
-        setHasMore(false)
-        setReachedEnd(true)
-        setLoading(false)
-        return
+    setError(null)
+    
+    try {
+      const params: ArticleQueryParams = {
+        page: pageNum,
+        page_size: 10,
       }
 
-      setArticles((prev) => [
-        ...prev,
-        ...mockArticles.map((article) => ({
-          ...article,
-          id: `${article.id}-${page}`,
-        })),
-      ])
-      setPage((prev) => prev + 1)
+      // Add sort parameter only for personalized feed
+      if (feedType === 'personalized') {
+        params.sort = sortOrder
+      }
+      
+      if (topicSlug && topicSlug !== 'for-you' && topicSlug !== 'all') {
+        params.topic = topicSlug
+      }
+      
+      if (searchQuery) {
+        params.search = searchQuery
+      }
+      
+      // Choose the appropriate API based on feed type
+      const data = feedType === 'world' 
+        ? await getWorldFeed(params)
+        : await getPersonalizedFeed(params)
+      
+      if (reset) {
+        setArticles(data.articles)
+      } else {
+        setArticles(prev => [...prev, ...data.articles])
+      }
+      
+      if (!data.pagination.hasNext) {
+        setHasMore(false)
+        if (data.articles.length === 0 && pageNum === 1) {
+          // No articles found
+          setReachedEnd(false)
+        } else {
+        setReachedEnd(true)
+        }
+      } else {
+        setHasMore(true)
+        setReachedEnd(false)
+      }
+      
+      return data.articles.length
+    } catch (err) {
+      console.error("Error fetching articles:", err)
+      setError(err instanceof Error ? err.message : "Failed to load articles")
+      return 0
+    } finally {
       setLoading(false)
-    }, 1000)
-  }, [loading, hasMore, page])
+      setInitialLoading(false)
+    }
+  }, [feedType, topicSlug, searchQuery, sortOrder])
 
-  // Set up the intersection observer
+  // Handle search/filter changes
+  useEffect(() => {
+    setPage(1)
+    setHasMore(true)
+    setReachedEnd(false)
+    setInitialLoading(true)
+    loadArticles(1, true)
+  }, [topicSlug, searchQuery, sortOrder, loadArticles])
+
+  // Set up the intersection observer for infinite scroll
   const lastArticleRef = useCallback(
     (node: HTMLDivElement | null) => {
       if (loading) return
@@ -106,19 +103,128 @@ export function InfiniteNewsFeed() {
 
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && hasMore) {
-          loadMoreArticles()
+          setPage(prevPage => prevPage + 1)
         }
       })
 
       if (node) observer.current.observe(node)
     },
-    [loading, hasMore, loadMoreArticles],
+    [loading, hasMore],
   )
 
-  // Initial load
+  // Load more articles when page changes
   useEffect(() => {
-    setArticles(mockArticles)
-  }, [])
+    if (page > 1) {
+      loadArticles(page)
+    }
+  }, [page, loadArticles])
+
+  // Handle retry
+  const handleRetry = () => {
+    setError(null)
+    loadArticles(page, page === 1)
+  }
+
+  // Render empty state
+  const renderEmptyState = () => (
+    <Card className="bg-primary/5 border-primary/20 text-center">
+      <CardContent className="pt-6 pb-4">
+        <div className="flex justify-center mb-4">
+          <div className="bg-primary/10 p-3 rounded-full">
+            <Newspaper className="h-6 w-6 text-primary" />
+          </div>
+        </div>
+        <h3 className="text-lg font-medium mb-2">
+          {feedType === 'world' ? 'No headlines found' : 'No articles found'}
+        </h3>
+        <p className="text-muted-foreground">
+          {searchQuery 
+            ? `No ${feedType === 'world' ? 'headlines' : 'articles'} match your search criteria. Try a different search term.`
+            : topicSlug !== 'for-you' && topicSlug !== 'all'
+              ? `No ${feedType === 'world' ? 'headlines' : 'articles'} found in this topic. Try a different topic or check back later.`
+              : feedType === 'world' 
+                ? "We couldn't find any headlines. Check back later for the latest news."
+                : "We couldn't find any articles for your preferences. Update your interests or check back later."}
+        </p>
+      </CardContent>
+    </Card>
+  )
+
+  // Render error state
+  const renderErrorState = () => (
+    <Card className="bg-destructive/5 border-destructive/20 text-center">
+      <CardContent className="pt-6 pb-4">
+        <div className="flex justify-center mb-4">
+          <div className="bg-destructive/10 p-3 rounded-full">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+          </div>
+        </div>
+        <h3 className="text-lg font-medium mb-2">
+          Failed to load {feedType === 'world' ? 'headlines' : 'articles'}
+        </h3>
+        <p className="text-muted-foreground mb-4">
+          {error || "Something went wrong. Please try again."}
+        </p>
+        <Button onClick={handleRetry} variant="outline">
+          Try again
+        </Button>
+      </CardContent>
+    </Card>
+  )
+
+  // Loading skeletons for initial load
+  const renderSkeletons = () => (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-6 w-3/4 mb-2" />
+            <Skeleton className="h-4 w-1/3" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-4 w-full mb-2" />
+            <Skeleton className="h-4 w-full mb-2" />
+            <Skeleton className="h-4 w-2/3" />
+          </CardContent>
+          <CardFooter>
+            <Skeleton className="h-9 w-24" />
+          </CardFooter>
+        </Card>
+      ))}
+    </div>
+  )
+
+  // Format date with enhanced relative time
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const oneWeekAgo = subDays(now, 7)
+      
+      // If within the last week, show relative time
+      if (isWithinInterval(date, { start: oneWeekAgo, end: now })) {
+        return formatDistanceToNow(date, { addSuffix: true })
+      }
+      
+      // For older articles, show the date in format "Mar 15, 2023"
+      return format(date, 'MMM d, yyyy')
+    } catch (e) {
+      return dateString
+    }
+  }
+
+  // Render content based on state
+  if (initialLoading) {
+    return renderSkeletons()
+  }
+  
+  if (error && articles.length === 0) {
+    return renderErrorState()
+  }
+  
+  if (!loading && articles.length === 0) {
+    return renderEmptyState()
+  }
 
   return (
     <div className="space-y-4">
@@ -126,21 +232,29 @@ export function InfiniteNewsFeed() {
         if (articles.length === index + 1) {
           return (
             <div ref={lastArticleRef} key={article.id}>
-              <NewsCard article={article} />
+              <NewsCard article={article} formatDate={formatDate} />
             </div>
           )
         } else {
-          return <NewsCard key={article.id} article={article} />
+          return <NewsCard key={article.id} article={article} formatDate={formatDate} />
         }
       })}
 
-      {loading && (
+      {loading && !initialLoading && (
         <div className="flex justify-center py-4">
           <div className="animate-pulse flex space-x-2">
             <div className="rounded-full bg-muted h-2 w-2"></div>
             <div className="rounded-full bg-muted h-2 w-2"></div>
             <div className="rounded-full bg-muted h-2 w-2"></div>
           </div>
+        </div>
+      )}
+
+      {error && articles.length > 0 && (
+        <div className="flex justify-center py-4">
+          <Button onClick={handleRetry} variant="outline" size="sm">
+            Failed to load more. Retry?
+          </Button>
         </div>
       )}
 
@@ -154,7 +268,9 @@ export function InfiniteNewsFeed() {
             </div>
             <h3 className="text-lg font-medium mb-2">You're all caught up!</h3>
             <p className="text-muted-foreground">
-              You've read all the top stories for today. Enjoy the rest of your day!
+              {feedType === 'world' 
+                ? "You've seen all the top headlines for now. Check back later for more updates."
+                : "You've read all the top stories for now. Check back later for more updates."}
             </p>
             <div className="flex justify-center mt-4 gap-2">
               <Coffee className="h-5 w-5 text-muted-foreground" />
@@ -167,35 +283,4 @@ export function InfiniteNewsFeed() {
   )
 }
 
-interface NewsCardProps {
-  article: Article
-}
 
-function NewsCard({ article }: NewsCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="line-clamp-2">
-          <Link href={`/article/${article.id}`} className="hover:underline">
-            {article.title}
-          </Link>
-        </CardTitle>
-        <CardDescription className="flex items-center gap-2 text-xs">
-          <span>{article.source.name}</span>
-          <span>•</span>
-          <span>{article.publishedAt}</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground line-clamp-3">{article.description}</p>
-      </CardContent>
-      <CardFooter>
-        <Link href={`/article/${article.id}`}>
-          <Button variant="ghost" size="sm">
-            Read more
-          </Button>
-        </Link>
-      </CardFooter>
-    </Card>
-  )
-}

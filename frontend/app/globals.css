@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -93,4 +95,51 @@
   .container {
     max-width: 1536px;
   }
+}
+
+/* Article Content Typography */
+.article-content-font {
+  font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
+}
+
+/* Enhanced article body text styles - only for regular paragraphs */
+.article-content-font p {
+  font-family: "Source Serif Pro", Georgia, "Times New Roman", serif;
+  font-size: 1.125rem; /* 18px base - text-lg */
+  line-height: 1.75;
+}
+
+/* Responsive font sizing for article content - only for regular paragraphs */
+@media (min-width: 768px) {
+  .article-content-font p {
+    font-size: 1.25rem; /* 20px on md+ - text-xl */
+  }
+}
+
+@media (min-width: 1024px) {
+  .article-content-font p {
+    font-size: 1.25rem; /* 20px on lg+ - text-xl (same as tablet) */
+  }
+}
+
+/* Keep headings with original sans-serif font */
+.article-content-font h1,
+.article-content-font h2,
+.article-content-font h3,
+.article-content-font h4,
+.article-content-font h5,
+.article-content-font h6 {
+  font-family: inherit; /* Use the default system font */
+}
+
+/* Italic styles */
+.article-content-font em,
+.article-content-font i {
+  font-style: italic;
+}
+
+/* Strong/bold styles */
+.article-content-font strong,
+.article-content-font b {
+  font-weight: 700;
 }

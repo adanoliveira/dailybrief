@@ -33,7 +33,6 @@ Brand      → Use Tailwind classes from frontend/tailwind.brand.ts
 * Assume a teacher-like position, walking me through the changes made. I'm a begginer product engineer, needing to learn web app engineering.
 * Check docs/initial_idea.md for project context and docs/implementation_plan.md for a simple roadmap of the version of the app. You should also propose updates to these files as we move forward with our implementation, to keep them updated and relevant.
 
-
 # UI and UX design
 * Use worldclass UI pattern for mobile webs apps.
 * Be a masterful UX copywriter.
@@ -62,5 +61,9 @@ Use worldclass software engineering principles as made popular by tought leaders
 * Clean Architecture
 - Isolate business rules from UI, frameworks, and databases.
 - Prefer hexagonal / ports-and-adapters layout.
+
+
+# Environments
+- We're using docker to setup and run our environment. Refer to ./docker.sh for docker commands and docker-compose.yml for more.
 
 # ---------------------------------------------------------------------

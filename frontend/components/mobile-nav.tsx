@@ -15,7 +15,7 @@ export function MobileNav() {
     <div className="fixed bottom-0 left-0 z-50 w-full h-16 bg-background border-t md:hidden">
       <div className="grid h-full grid-cols-3">
         <NavItem href="/home" icon={<Home className="h-5 w-5" />} label="Home" isActive={pathname === "/home"} />
-        <NavItem href="/world" icon={<Globe className="h-5 w-5" />} label="World" isActive={pathname === "/world"} />
+        <NavItem href="/world" icon={<Globe className="h-5 w-5" />} label="Headlines" isActive={pathname === "/world"} />
         <NavItem
           href="/profile"
           icon={<User className="h-5 w-5" />}

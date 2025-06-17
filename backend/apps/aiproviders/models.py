@@ -16,11 +16,25 @@ class AIProviderUsage(models.Model):
         ('summarization', 'Article Summarization'),
         ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
+        ('quality_assessment', 'Content Quality Assessment'),
+        ('content_extraction', 'Content Extraction'),
+        # Summarization pipeline operations
+        ('rbc_compression', 'Rich Bullet Compression'),
+        ('skeleton_summary', 'Skeleton Summary Generation'),
+        ('summary_critique', 'Summary Critique Review'),
+        ('summary_repair', 'Summary Repair'),
+        ('embedding_generation', 'Embedding Generation'),
+        # Analyzer pipeline operations
+        ('linguistic_analysis', 'Linguistic Analysis'),
+        ('entity_extraction', 'Entity Extraction'),
+        ('event_detection', 'Event Detection'),
+        ('topic_classification', 'Topic Classification'),
+        ('region_classification', 'Region Classification'),
     )
     
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
     model = models.CharField(max_length=50, help_text="Specific model used (e.g. 'gpt-3.5-turbo')")
-    operation = models.CharField(max_length=20, choices=OPERATION_TYPES)
+    operation = models.CharField(max_length=30, choices=OPERATION_TYPES)
     
     # Usage metrics
     prompt_tokens = models.IntegerField(default=0)
@@ -65,6 +79,20 @@ class AIProviderConfig(models.Model):
         ('summarization', 'Article Summarization'),
         ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
+        ('quality_assessment', 'Content Quality Assessment'),
+        ('content_extraction', 'Content Extraction'),
+        # Summarization pipeline operations
+        ('rbc_compression', 'Rich Bullet Compression'),
+        ('skeleton_summary', 'Skeleton Summary Generation'),
+        ('summary_critique', 'Summary Critique Review'),
+        ('summary_repair', 'Summary Repair'),
+        ('embedding_generation', 'Embedding Generation'),
+        # Analyzer pipeline operations
+        ('linguistic_analysis', 'Linguistic Analysis'),
+        ('entity_extraction', 'Entity Extraction'),
+        ('event_detection', 'Event Detection'),
+        ('topic_classification', 'Topic Classification'),
+        ('region_classification', 'Region Classification'),
     )
     
     PROVIDER_CHOICES = (
@@ -73,7 +101,7 @@ class AIProviderConfig(models.Model):
         ('other', 'Other Provider'),
     )
     
-    operation = models.CharField(max_length=20, choices=OPERATION_TYPES, unique=True)
+    operation = models.CharField(max_length=30, choices=OPERATION_TYPES, unique=True)
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
     model = models.CharField(max_length=50, help_text="Specific model to use")
     
