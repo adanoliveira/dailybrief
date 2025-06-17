@@ -130,65 +130,84 @@ INSTRUCTIONS:
         return prompt
     
     @staticmethod
-    def event_detection_prompt(title: str, content: str) -> str:
+    def event_detection_prompt(title: str, content: str, published_at: str = None) -> str:
         """
         Stage 3: Event detection and key facts extraction.
         
         Identifies all significant events mentioned in the article for clustering and deduplication.
         Returns only the fields that will be stored in the Event model.
         """
-        prompt = f"""SYSTEM: You are an expert news analyst. Extract all significant events mentioned in this article. Focus on events that are newsworthy, actionable, or historically significant.
+        # Format published date if provided
+        published_info = f"\nPublished: {published_at}" if published_at else ""
+        
+        prompt = f"""SYSTEM: You are an expert news analyst. Extract events from this article at TWO levels:
+1. BROAD CONTEXTUAL EVENTS: Major ongoing situations, conflicts, competitions, or developments
+2. SPECIFIC NEWS EVENTS: Particular developments, announcements, or incidents
+
+This dual approach enables both broad clustering (multiple articles about the same topic) and specific tracking (individual developments).
 
 ARTICLE:
-Title: {title}
+Title: {title}{published_info}
 Content: {content}
 
 Extract events in this exact JSON format:
 {{
     "events": [
         {{
-            "title": "Apple announces iPhone 15 with USB-C",
-            "abstract": "Apple unveiled its iPhone 15 lineup featuring USB-C ports, replacing Lightning connectors after regulatory pressure from the EU.",
-            "event_type": "product_launch",
+            "title": "Russia-Ukraine War",
+            "abstract": "Ongoing military conflict between Russia and Ukraine that began in February 2022, involving territorial disputes, international sanctions, and humanitarian concerns.",
+            "event_type": "conflict",
             "facts": [
-                "Apple announced iPhone 15 lineup on September 12, 2023",
-                "New phones feature USB-C instead of Lightning ports",
-                "Change driven by EU regulatory requirements",
-                "Available in four models with different storage options"
+                "Conflict began with Russian invasion in February 2022",
+                "Multiple countries providing military and humanitarian aid to Ukraine",
+                "Significant civilian casualties and refugee crisis",
+                "International sanctions imposed on Russia"
             ]
         }},
         {{
-            "title": "EU mandates USB-C for mobile devices",
-            "abstract": "European Union regulation requiring USB-C as standard charging port for mobile devices takes effect, forcing Apple to abandon Lightning.",
+            "title": "US Senate considers new sanctions against Russia",
+            "abstract": "The US Senate is contemplating additional sanctions against Russia as part of ongoing efforts to pressure for genuine peace negotiations in the Ukraine conflict.",
             "event_type": "policy_change",
             "facts": [
-                "EU USB-C mandate became effective in 2023",
-                "Regulation applies to all mobile devices sold in Europe",
-                "Companies had transition period to comply",
-                "Aims to reduce electronic waste and improve consumer convenience"
+                "US Senate considering new sanctions package",
+                "Sanctions aimed at compelling peace talks",
+                "Part of broader international response to conflict"
             ]
         }}
     ]
 }}
 
-EVENT EXTRACTION GUIDELINES:
+EVENT EXTRACTION STRATEGY:
 
-**Event title requirements:**
-- Concise and descriptive (≤80 characters)
-- Include key actors and action taken
-- Use active voice when possible
-- Focus on the core newsworthy element
+**BROAD CONTEXTUAL EVENTS (Extract 1 per article):**
+- Major ongoing situations that span weeks/months: wars, pandemics, economic crises
+- Long-running competitions: sports seasons, election campaigns, trade disputes
+- Extended developments: ongoing investigations, merger processes, policy debates
+- Examples: "Russia-Ukraine War", "2024 US Presidential Election", "Climate Change", "MLB Season", "Tech Industry Layoffs"
 
-**Abstract requirements:**
-- Comprehensive summary in 1-2 sentences (≤150 words)
-- Include who, what, when, where if available
-- Provide sufficient context for clustering with related articles
-- Focus on impact and significance
+**SPECIFIC RECENT EVENTS (Extract 1-3 per article):**
+- Recent developments within the broader context (days/weeks timeframe)
+- Specific incidents, announcements, decisions, or battles
+- Particular games, meetings, or policy actions
+- Examples: "June 2023 Eastern Ukraine Fighting", "September 2023 Apple iPhone 15 Launch", "June 2023 Fed Rate Decision", "October 2023 Lakers Victory"
 
-**Event type classification:**
+**Event Title Guidelines:**
+- BROAD events: Use enduring, categorical names (≤50 characters)
+  - "Russia-Ukraine War" not "Day 1,195 of Ukraine War"
+  - "NBA Playoffs" not "Lakers vs Warriors Series"
+  - "Tech Layoffs 2024" not "Meta announces layoffs"
+
+- SPECIFIC events: Include timeframe + key details (≤70 characters)
+  - "June 2023 Eastern Ukraine Fighting" not "Ongoing fighting results in casualties"
+  - "October 2023 Angels Victory Over Red Sox" not "Mike Trout returns from injury"
+  - "September 2023 Apple iPhone 15 Launch" not "Apple announces new product"
+
+**Event Type Classification:**
+- conflict: Wars, military actions, diplomatic tensions
+- sports: Athletic competitions, games, tournaments, seasons
+- policy_change: Government regulations, policy updates, law changes
 - product_launch: Product announcements, releases, launches
 - earnings: Financial results, earnings reports, revenue announcements
-- policy_change: Government regulations, policy updates, law changes
 - incident: Accidents, crises, emergencies, security breaches
 - meeting: Conferences, summits, board meetings, official gatherings
 - acquisition: Mergers, acquisitions, takeovers, buyouts
@@ -196,26 +215,33 @@ EVENT EXTRACTION GUIDELINES:
 - research: Scientific discoveries, studies, research findings
 - legal: Court decisions, lawsuits, legal proceedings, regulatory actions
 - election: Elections, political campaigns, voting events
-- conflict: Wars, military actions, diplomatic tensions
 - natural_disaster: Earthquakes, hurricanes, floods, natural events
 - cultural: Social movements, cultural events, entertainment news
-- sports: Sports competitions, tournaments, athletic events
 - other: Events that don't fit the above categories
 
-**Facts requirements:**
-- Extract 3-8 specific, verifiable facts per event
+**Abstract Requirements:**
+- BROAD events: Context and significance (≤120 words)
+- SPECIFIC events: Who, what, when, where, why (≤100 words)
+- Focus on information that helps cluster related articles
+
+**Facts Requirements:**
+- 3-6 specific, verifiable facts per event
 - Include dates, numbers, names, locations when available
 - Prioritize facts that help identify related coverage
-- Avoid opinions or speculation
-- Each fact should be a complete, standalone statement
+- Each fact should be complete and standalone
 
 **CRITICAL INSTRUCTIONS:**
-- Extract ALL significant events mentioned, not just the primary one
-- Events can be current, recent, or historical if prominently discussed
-- Ensure each event is distinct and newsworthy
-- If an article mentions multiple related developments, extract each as separate events
-- Skip minor details or background information that aren't events themselves
-- Maximum 5 events per article to maintain quality and relevance"""
+- Always extract EXACTLY 1 broad contextual event + 1-3 specific recent events per article
+- BROAD event: Think "What ongoing story does this belong to?" (for clustering)
+- SPECIFIC events: Think "What happened recently?" (for immediate news value)
+- Balance granularity: Not too broad ("World Events") nor too specific ("10:45 AM Meeting")
+- Include proper temporal specificity in specific events:
+  * Use the article's publication date as the timeframe reference
+  * Always include YEAR for events based on publication date
+  * Add MONTH when relevant based on publication date
+  * DO NOT make up or hallucinate dates - use the actual publication timeframe
+- MUST respond with valid JSON only - no additional text or explanation
+- Use the exact format shown in the example above"""
 
         return prompt
     
@@ -487,7 +513,20 @@ INSTRUCTIONS:
             Dict with 'success', 'data', and optional 'error' keys
         """
         try:
-            data = json.loads(output_text.strip())
+            # Debug log the raw output to see what GPT-4o is returning
+            logger.debug(f"Raw event output for validation: {output_text[:500]}...")
+            
+            # Try to extract JSON from the response (sometimes models wrap it in backticks)
+            clean_text = output_text.strip()
+            if clean_text.startswith('```json'):
+                clean_text = clean_text[7:]  # Remove ```json
+            if clean_text.startswith('```'):
+                clean_text = clean_text[3:]  # Remove ```
+            if clean_text.endswith('```'):
+                clean_text = clean_text[:-3]  # Remove closing ```
+            clean_text = clean_text.strip()
+            
+            data = json.loads(clean_text)
             
             if 'events' not in data:
                 return {'success': False, 'error': 'Missing events field'}
@@ -515,7 +554,7 @@ INSTRUCTIONS:
                 
                 # Validate event_type
                 valid_event_types = [
-                    'product_launch', 'earnings', 'policy_change', 'incident', 'meeting',
+                    'product_launch', 'earnings', 'policy_change', 'policy_debate', 'economic_crisis', 'incident', 'meeting',
                     'acquisition', 'partnership', 'research', 'legal', 'election',
                     'conflict', 'natural_disaster', 'cultural', 'sports', 'other'
                 ]

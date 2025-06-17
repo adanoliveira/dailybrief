@@ -697,8 +697,11 @@ class AnalyzerService:
         stage_start = time.time()
         
         try:
-            # Prepare event extraction prompt
-            event_prompt = self.prompts.event_detection_prompt(article.title, content)
+            # Format the published date for the prompt
+            published_date = article.published_at.strftime('%Y-%m-%d') if article.published_at else None
+            
+            # Prepare event extraction prompt with publication date
+            event_prompt = self.prompts.event_detection_prompt(article.title, content, published_date)
             
             ai_response = self.ai_service.call_llm(
                 prompt=event_prompt,
@@ -1299,7 +1302,7 @@ class AnalyzerService:
             # Generate embedding for the pure event content
             ai_response = self.ai_service.generate_embedding(
                 texts=[event_text],
-                operation='event_embedding_generation'
+                operation='embedding_generation'
             )
             
             if ai_response.success and ai_response.embeddings:

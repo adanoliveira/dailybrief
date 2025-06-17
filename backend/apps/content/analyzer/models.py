@@ -210,6 +210,8 @@ class Event(models.Model):
             ('product_launch', 'Product Launch'),
             ('earnings', 'Earnings/Financial'),
             ('policy_change', 'Policy Change'),
+            ('policy_debate', 'Policy Debate'),
+            ('economic_crisis', 'Economic Crisis'),
             ('incident', 'Incident/Crisis'),
             ('meeting', 'Meeting/Conference'),
             ('acquisition', 'Acquisition/Merger'),
