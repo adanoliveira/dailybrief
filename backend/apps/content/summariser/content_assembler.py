@@ -270,11 +270,22 @@ class MarkdownContentAssembler:
             # Select blocks to include based on scores and space constraints
             selected_blocks = self._select_blocks_with_flow(scored_blocks, available_chars)
             
-            # Build final content maintaining document order
+            # Build final content maintaining document order with proper spacing
             result_parts = []
-            for block_info in selected_blocks:
-                result_parts.append(block_info['markdown'])
+            prev_block_type = None
             
+            for block_info in selected_blocks:
+                block_type = block_info['block'].get('type', 'paragraph')
+                markdown_content = block_info['markdown']
+                
+                # Add extra spacing before headings if needed
+                if block_type in ['subtitle', 'heading'] and prev_block_type is not None:
+                    result_parts.append("")  # Add an extra empty line before headings
+                
+                result_parts.append(markdown_content.rstrip())
+                prev_block_type = block_type
+            
+            # Join with double newlines to ensure proper spacing
             result_content = "\n\n".join(result_parts)
             
             # Add title at the beginning if provided
@@ -542,7 +553,8 @@ class MarkdownContentAssembler:
         
         # Phase 1: Include all critical structural elements
         for block_info in blocks_by_score:
-            if block_info['block_type'] in ['subtitle', 'heading']:
+            block_type = block_info['block'].get('type', 'paragraph')
+            if block_type in ['subtitle', 'heading']:
                 if current_length + block_info['length'] <= available_chars:
                     selected_indices.add(block_info['position'])
                     current_length += block_info['length']
@@ -1067,13 +1079,14 @@ class MarkdownContentAssembler:
             excluded_analysis = []
             
             for block_info in scored_blocks:
+                block_type = block_info['block'].get('type', 'paragraph')
                 analysis_item = {
                     'position': block_info['position'],
-                    'type': block_info['block_type'],
+                    'type': block_type,
                     'score': block_info['score'],
                     'length': block_info['length'],
-                    'content_preview': block_info['content'][:100] + "..." if len(block_info['content']) > 100 else block_info['content'],
-                    'markdown_preview': block_info['markdown'][:100] + "..." if len(block_info['markdown']) > 100 else block_info['markdown']
+                    'content_preview': block_info['markdown'][:100] + "..." if len(block_info['markdown']) > 100 else block_info['markdown'],
+                    'final_score': block_info['score']
                 }
                 
                 if block_info['position'] in selected_indices:
