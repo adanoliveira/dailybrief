@@ -22,9 +22,6 @@ lxml==5.1.0
 html2text==2024.2.26
 brotli==1.1.0
 lxml==5.1.0
-<<<<<<< HEAD
-sumy==0.11.0
-=======
 gensim>=4.3.2
 
 # Analyzer service dependencies
@@ -36,4 +33,3 @@ scipy==1.12.0
 spacytextblob==4.0.0
 yake==0.4.8
 sentence-transformers>=4.1.0  # For entity embedding similarity
->>>>>>> main
