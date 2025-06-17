@@ -435,12 +435,11 @@ class ArticleEntity(models.Model):
 
 
 class ArticleEvent(models.Model):
-    """Links articles to their main event (one-to-one relationship)."""
-    article = models.OneToOneField(
+    """Links articles to their events (many-to-many relationship)."""
+    article = models.ForeignKey(
         'articles.Article', 
-        on_delete=models.CASCADE, 
-        primary_key=True,
-        related_name='main_event'
+        on_delete=models.CASCADE,
+        related_name='article_events'
     )
     event = models.ForeignKey(
         Event, 
@@ -448,14 +447,31 @@ class ArticleEvent(models.Model):
         related_name='articles'
     )
     
+    # Event relevance and ranking
+    relevance_score = models.FloatField(
+        default=1.0,
+        help_text="Relevance of this event to the article (0.0-1.0)"
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Whether this is the primary/main event for the article"
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'analyzer_article_event'
+        unique_together = ('article', 'event')
+        indexes = [
+            models.Index(fields=['article']),
+            models.Index(fields=['event']),
+            models.Index(fields=['is_primary']),
+        ]
     
     def __str__(self):
-        return f"{self.article.title[:30]}... → {self.event.title}"
+        primary_indicator = " (PRIMARY)" if self.is_primary else ""
+        return f"{self.article.title[:30]}... → {self.event.title}{primary_indicator}"
 
 
 class EventEntity(models.Model):

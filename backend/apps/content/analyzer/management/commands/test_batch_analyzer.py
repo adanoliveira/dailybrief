@@ -83,16 +83,21 @@ class Command(BaseCommand):
                     results['total_cost'] += float(result.get('cost_usd', 0))
                     results['total_time'] += result.get('duration_ms', 0)
                     
-                    # Show events for this article
-                    article_events = ArticleEvent.objects.filter(article=article).select_related('event')
+                    # Show all events for this article (including primary and non-primary)
+                    article_events = ArticleEvent.objects.filter(article=article).select_related('event').order_by('-relevance_score')
                     if article_events.exists():
+                        self.stdout.write(f"  → Events ({article_events.count()} total):")
                         for ae in article_events:
                             event = ae.event
-                            self.stdout.write(f"  → Event: {event.title}")
-                            self.stdout.write(f"      Type: {event.event_type}, Articles: {event.article_count}")
-                            self.stdout.write(f"      Abstract: {event.abstract}")
+                            primary_indicator = " (PRIMARY)" if ae.is_primary else ""
+                            self.stdout.write(f"      • {event.title}{primary_indicator}")
+                            self.stdout.write(f"        Type: {event.event_type} | Relevance: {ae.relevance_score} | Articles: {event.article_count}")
+                            self.stdout.write(f"        Abstract: {event.abstract[:100]}...")
                             if event.facts:
-                                self.stdout.write(f"      Facts: {event.facts[:2]}")  # First 2 facts
+                                facts_preview = ', '.join(event.facts[:2])  # First 2 facts
+                                self.stdout.write(f"        Facts: {facts_preview}")
+                    else:
+                        self.stdout.write("  → No events linked to this article")
                     
                     # Show entities for this article
                     article_entities = ArticleEntity.objects.filter(article=article).select_related('entity')[:5]  # First 5

@@ -230,12 +230,17 @@ class AIProviderService:
             # or letting OpenAI use model defaults for other operations
             api_params = {
                 "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature
+                "messages": [{"role": "user", "content": prompt}]
             }
             
+            # Skip temperature for reasoning models that don't support it
+            if model.lower() not in ['o3', 'o3-mini', 'o1-mini', 'o1-preview', 'o4-mini']:
+                api_params["temperature"] = temperature
+            
             if max_tokens is not None:
-                api_params["max_tokens"] = max_tokens
+                # Skip max_tokens for reasoning models that don't support it
+                if model.lower() not in ['o3', 'o3-mini', 'o1-mini', 'o1-preview', 'o4-mini']:
+                    api_params["max_tokens"] = max_tokens
             elif operation == "content_extraction":
                 # For content extraction, use a high token limit based on model capabilities
                 # Large articles can have 100+ blocks requiring 20k-30k+ output tokens

@@ -102,6 +102,10 @@ class AnalyzerService:
                 'reason': 'Article has no analyzable content'
             }
         
+        # Clean up old events if force re-analyzing
+        if force:
+            self._cleanup_article_events(article)
+        
         # Create analyzer request for tracking
         analyzer_request = AnalyzerRequest.objects.create(
             article=article,
@@ -212,8 +216,14 @@ class AnalyzerService:
             analyzer_request.mark_stage_completed('topic_processing')
             
             # STAGE 8: Event Resolution (CPU-only)
-            event_ids = self._stage_8_event_resolution(
+            # First, deduplicate the extracted events using embeddings
+            deduplicated_events = self._deduplicate_extracted_events(
                 event_result.get('events', []),
+                article
+            )
+            
+            event_ids = self._stage_8_event_resolution(
+                deduplicated_events,
                 entity_ids,
                 article
             )
@@ -989,11 +999,20 @@ class AnalyzerService:
                     existing_event.article_count += 1
                     existing_event.save(update_fields=['last_seen_at', 'article_count'])
                     
-                    # Link article to existing event
-                    ArticleEvent.objects.get_or_create(
+                    # Link article to existing event with AI-determined relevance
+                    article_event, created = ArticleEvent.objects.get_or_create(
                         article=article,
-                        defaults={'event': existing_event}
+                        event=existing_event,
+                        defaults={
+                            'relevance_score': event_data.get('relevance_score', 1.0),
+                            'is_primary': event_data.get('is_primary', False)
+                        }
                     )
+                    # Update relevance scores even if relationship exists (AI might have better assessment)
+                    if not created:
+                        article_event.relevance_score = event_data.get('relevance_score', article_event.relevance_score)
+                        article_event.is_primary = event_data.get('is_primary', article_event.is_primary)
+                        article_event.save(update_fields=['relevance_score', 'is_primary'])
                     
                     logger.info(f"Article {article.id} linked to existing event {existing_event.id} via hash match")
                     event_ids.append(existing_event.id)
@@ -1044,11 +1063,20 @@ class AnalyzerService:
                             event.article_count += 1
                             event.update_centroid(current_event_embedding)  # Updates running mean with event embedding
                             
-                            # Link article to event (use get_or_create to avoid duplicate key errors)
-                            ArticleEvent.objects.get_or_create(
+                            # Link article to event with AI-determined relevance
+                            article_event, created = ArticleEvent.objects.get_or_create(
                                 article=article,
-                                defaults={'event': event}
+                                event=event,
+                                defaults={
+                                    'relevance_score': event_data.get('relevance_score', 1.0),
+                                    'is_primary': event_data.get('is_primary', False)
+                                }
                             )
+                            # Update relevance scores even if relationship exists (AI might have better assessment)
+                            if not created:
+                                article_event.relevance_score = event_data.get('relevance_score', article_event.relevance_score)
+                                article_event.is_primary = event_data.get('is_primary', article_event.is_primary)
+                                article_event.save(update_fields=['relevance_score', 'is_primary'])
                             
                             # Link entities to event
                             for entity_id in entity_ids:
@@ -1083,10 +1111,12 @@ class AnalyzerService:
                         article_count=1
                     )
                     
-                    # Link article to new event (use get_or_create to avoid duplicate key errors)
-                    ArticleEvent.objects.get_or_create(
+                    # Link article to new event with AI-determined relevance
+                    ArticleEvent.objects.create(
                         article=article,
-                        defaults={'event': new_event}
+                        event=new_event,
+                        relevance_score=event_data.get('relevance_score', 1.0),
+                        is_primary=event_data.get('is_primary', False)
                     )
                     
                     # Link entities to event
@@ -1106,6 +1136,25 @@ class AnalyzerService:
             except Exception as e:
                 logger.error(f"Event resolution failed for event '{event_data.get('title', 'Unknown')}' in article {article.id}: {e}")
                 continue
+        
+        # Ensure exactly one primary event per article
+        article_events = ArticleEvent.objects.filter(article=article)
+        primary_events = article_events.filter(is_primary=True)
+        
+        if primary_events.count() == 0:
+            # No primary event - make the highest relevance event primary
+            highest_relevance = article_events.order_by('-relevance_score').first()
+            if highest_relevance:
+                highest_relevance.is_primary = True
+                highest_relevance.save(update_fields=['is_primary'])
+                logger.info(f"Made event {highest_relevance.event.id} primary for article {article.id} (highest relevance: {highest_relevance.relevance_score})")
+        
+        elif primary_events.count() > 1:
+            # Multiple primary events - keep only the highest relevance one
+            best_primary = primary_events.order_by('-relevance_score').first()
+            other_primaries = primary_events.exclude(id=best_primary.id)
+            other_primaries.update(is_primary=False)
+            logger.info(f"Fixed multiple primary events for article {article.id}: kept event {best_primary.event.id} (relevance: {best_primary.relevance_score}), demoted {other_primaries.count()} others")
         
         return event_ids
     
@@ -1317,4 +1366,182 @@ class AnalyzerService:
             return article_embedding
         else:
             logger.warning("Using zero vector as fallback for event embedding")
-            return [0.0] * 1536 
+            return [0.0] * 1536
+
+    def _cleanup_article_events(self, article: Article):
+        """
+        Clean up old events when force re-analyzing an article.
+        
+        This removes all existing ArticleEvent relationships for this article
+        and cleans up orphaned events that have no other articles.
+        """
+        from .models import ArticleEvent, Event
+        
+        # Get all events currently linked to this article
+        article_events = ArticleEvent.objects.filter(article=article).select_related('event')
+        
+        events_to_check = []
+        for article_event in article_events:
+            events_to_check.append(article_event.event)
+        
+        # Remove all ArticleEvent relationships for this article
+        deleted_count = ArticleEvent.objects.filter(article=article).delete()[0]
+        logger.info(f"Removed {deleted_count} existing event relationships for article {article.id}")
+        
+        # Clean up orphaned events (events with no articles)
+        orphaned_events = []
+        for event in events_to_check:
+            # Refresh the event to get updated article count
+            event.refresh_from_db()
+            remaining_articles = ArticleEvent.objects.filter(event=event).count()
+            
+            if remaining_articles == 0:
+                orphaned_events.append(event)
+        
+        if orphaned_events:
+            orphaned_count = len(orphaned_events)
+            Event.objects.filter(id__in=[e.id for e in orphaned_events]).delete()
+            logger.info(f"Cleaned up {orphaned_count} orphaned events with no remaining articles")
+        
+        logger.info(f"Event cleanup completed for article {article.id}")
+
+    def _deduplicate_extracted_events(self, extracted_events: List[Dict], article: Article) -> List[Dict]:
+        """
+        Deduplicate extracted events using embedding similarity and semantic analysis.
+        
+        This method compares events extracted by the AI and removes duplicates based on:
+        1. Embedding similarity (cosine distance < 0.1 for very similar events)
+        2. Title similarity (fuzzy matching)
+        3. Relevance score comparison (keep higher relevance event)
+        4. Primary event preference (keep primary over non-primary)
+        
+        Args:
+            extracted_events: List of event dictionaries from AI extraction
+            article: Article being analyzed
+            
+        Returns:
+            List of deduplicated events
+        """
+        if len(extracted_events) <= 1:
+            return extracted_events
+        
+        logger.info(f"Deduplicating {len(extracted_events)} extracted events for article {article.id}")
+        
+        # Generate embeddings for all events
+        events_with_embeddings = []
+        for i, event in enumerate(extracted_events):
+            try:
+                embedding = self._generate_event_embedding(event)
+                events_with_embeddings.append({
+                    'index': i,
+                    'event': event,
+                    'embedding': embedding
+                })
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding for event {i}: {e}")
+                # Include event without embedding (will be kept)
+                events_with_embeddings.append({
+                    'index': i,
+                    'event': event,
+                    'embedding': None
+                })
+        
+        # Find duplicate pairs using embedding similarity
+        duplicates_to_remove = set()
+        
+        for i in range(len(events_with_embeddings)):
+            if i in duplicates_to_remove:
+                continue
+                
+            event_i = events_with_embeddings[i]
+            
+            for j in range(i + 1, len(events_with_embeddings)):
+                if j in duplicates_to_remove:
+                    continue
+                    
+                event_j = events_with_embeddings[j]
+                
+                # Skip if either event doesn't have embedding
+                if event_i['embedding'] is None or event_j['embedding'] is None:
+                    continue
+                
+                # Calculate embedding similarity
+                from pgvector.django import CosineDistance
+                import numpy as np
+                
+                # Calculate cosine similarity manually since we're not querying DB
+                embedding_i = np.array(event_i['embedding'])
+                embedding_j = np.array(event_j['embedding'])
+                
+                # Cosine similarity = 1 - cosine distance
+                cosine_sim = np.dot(embedding_i, embedding_j) / (
+                    np.linalg.norm(embedding_i) * np.linalg.norm(embedding_j)
+                )
+                cosine_distance = 1 - cosine_sim
+                
+                # Check title similarity as well
+                import difflib
+                title_i = event_i['event'].get('title', '').lower()
+                title_j = event_j['event'].get('title', '').lower()
+                title_similarity = difflib.SequenceMatcher(None, title_i, title_j).ratio()
+                
+                # Consider events duplicates if:
+                # 1. Very high embedding similarity (< 0.1 distance) OR
+                # 2. High embedding similarity (< 0.15) AND high title similarity (> 0.8)
+                is_duplicate = (
+                    cosine_distance < 0.1 or
+                    (cosine_distance < 0.15 and title_similarity > 0.8)
+                )
+                
+                if is_duplicate:
+                    # Decide which event to keep based on quality criteria
+                    event_i_data = event_i['event']
+                    event_j_data = event_j['event']
+                    
+                    # Priority 1: Keep primary event over non-primary
+                    i_is_primary = event_i_data.get('is_primary', False)
+                    j_is_primary = event_j_data.get('is_primary', False)
+                    
+                    if i_is_primary and not j_is_primary:
+                        duplicates_to_remove.add(j)
+                        logger.info(f"Removing duplicate event {j} (kept primary event {i})")
+                        continue
+                    elif j_is_primary and not i_is_primary:
+                        duplicates_to_remove.add(i)
+                        logger.info(f"Removing duplicate event {i} (kept primary event {j})")
+                        continue
+                    
+                    # Priority 2: Keep higher relevance score
+                    i_relevance = event_i_data.get('relevance_score', 0.0)
+                    j_relevance = event_j_data.get('relevance_score', 0.0)
+                    
+                    if i_relevance > j_relevance:
+                        duplicates_to_remove.add(j)
+                        logger.info(f"Removing duplicate event {j} (lower relevance: {j_relevance} vs {i_relevance})")
+                    elif j_relevance > i_relevance:
+                        duplicates_to_remove.add(i)
+                        logger.info(f"Removing duplicate event {i} (lower relevance: {i_relevance} vs {j_relevance})")
+                    else:
+                        # Priority 3: Keep the one with more facts
+                        i_facts = len(event_i_data.get('facts', []))
+                        j_facts = len(event_j_data.get('facts', []))
+                        
+                        if i_facts >= j_facts:
+                            duplicates_to_remove.add(j)
+                            logger.info(f"Removing duplicate event {j} (fewer facts: {j_facts} vs {i_facts})")
+                        else:
+                            duplicates_to_remove.add(i)
+                            logger.info(f"Removing duplicate event {i} (fewer facts: {i_facts} vs {j_facts})")
+        
+        # Return deduplicated events
+        deduplicated_events = [
+            events_with_embeddings[i]['event'] 
+            for i in range(len(events_with_embeddings))
+            if i not in duplicates_to_remove
+        ]
+        
+        removed_count = len(extracted_events) - len(deduplicated_events)
+        if removed_count > 0:
+            logger.info(f"Removed {removed_count} duplicate events for article {article.id}. {len(deduplicated_events)} events remaining.")
+        
+        return deduplicated_events 

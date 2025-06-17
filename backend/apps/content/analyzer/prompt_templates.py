@@ -140,108 +140,183 @@ INSTRUCTIONS:
         # Format published date if provided
         published_info = f"\nPublished: {published_at}" if published_at else ""
         
-        prompt = f"""SYSTEM: You are an expert news analyst. Extract events from this article at TWO levels:
-1. BROAD CONTEXTUAL EVENTS: Major ongoing situations, conflicts, competitions, or developments
-2. SPECIFIC NEWS EVENTS: Particular developments, announcements, or incidents
+        prompt = f"""# REASONING TASK: Event Extraction & Analysis
 
-This dual approach enables both broad clustering (multiple articles about the same topic) and specific tracking (individual developments).
+You are an expert news analyst using advanced reasoning to extract and categorize events. Think step-by-step through this process.
 
-ARTICLE:
-Title: {title}{published_info}
-Content: {content}
+## INPUT ARTICLE
+**Title:** {title}{published_info}
+**Content:** {content}
 
-Extract events in this exact JSON format:
+## REASONING PROCESS
+
+### STEP 1: Article Comprehension
+First, analyze what this article is fundamentally about:
+- What is the ONE core event or story this article covers?
+- What broader ongoing story does this belong to?
+- What specific recent developments are being reported?
+
+### STEP 2: Event Identification Strategy
+Extract events at TWO levels:
+1. **BROAD ONGOING EVENT** (if applicable): The major ongoing story/situation this belongs to
+2. **SPECIFIC DEVELOPMENTS** (1-3): Recent specific events, announcements, or incidents
+
+**Examples:**
+- Russia-Ukraine War article → "Russia-Ukraine War" (broad) + "June 2025 Russia-Ukraine War Developments" (specific)
+- Sports game article → "NBA 2025 Season" (broad) + "Lakers vs Warriors Game 7 Victory" (specific)
+- Company earnings → "Tech Earnings Q2 2025" (broad) + "Apple Q2 2025 Earnings Report" (specific)
+
+### STEP 3: Event Naming Protocol
+**CRITICAL RULE:** Always name events as NOUNS (what happened), never as ACTIONS (who did what)
+
+**❌ FORBIDDEN PATTERNS:**
+- "[Person] launches [thing]" → ✅ "[Date] [Thing] Launch"
+- "[Person] announces [thing]" → ✅ "[Date] [Thing] Announcement"  
+- "[Person] dies at [age]" → ✅ "[Date] Death of [Person]"
+- "[Company] reports [results]" → ✅ "[Date] [Company] [Results] Report"
+
+**✅ CORRECT PATTERNS:**
+- "Russia-Ukraine War" (broad ongoing)
+- "June 2025 Russia-Ukraine War Developments" (specific)
+- "NBA 2025 Season" (broad ongoing)
+- "Lakers vs Warriors Game 7 Victory" (specific)
+
+### STEP 4: Relevance Scoring Rubric
+Use this precise scoring system:
+
+**1.0 - Central/Primary Event**
+- The main reason this article was written
+- Core newsworthy development being reported
+- Article would not exist without this event
+
+**0.9 - Highly Relevant Context**
+- Major ongoing story this article belongs to
+- Essential background for understanding the main event
+- Significant portion of article discusses this
+
+**0.8 - Important Supporting Event**
+- Substantial separate development mentioned
+- Adds significant newsworthy information
+- Could be its own news story
+
+**0.7 - Relevant Background**
+- Important context or related development
+- Mentioned prominently but not central
+- Helps explain the main story
+
+**0.6 and below - Exclude**
+- Minor mentions, general trends, or background information
+- Not substantial enough for separate tracking
+
+### STEP 5: Quality Filter for Events
+Include events that meet ALL criteria:
+1. **Relevance Score ≥ 0.7** (using rubric above)
+2. **Distinctiveness**: Describes genuinely different occurrence
+3. **Newsworthiness**: Significant enough to warrant tracking
+4. **Specificity**: Concrete event, not vague trends
+
+### STEP 6: Self-Correction Check
+Before finalizing, verify:
+1. Are ALL event titles nouns describing events (not actions)?
+2. Do all events have relevance_score ≥ 0.7?
+3. Are there any duplicates or near-duplicates?
+4. Is exactly one event marked as primary (highest relevance)?
+5. Do I have both broad and specific events where applicable?
+
+## EVENT TYPE CLASSIFICATION
+
+| Type | Definition | Examples |
+|------|------------|----------|
+| `conflict` | Wars, military actions, diplomatic tensions | Ukraine War, Gaza Conflict, Trade War |
+| `sports` | Athletic competitions, games, tournaments | NBA Finals, World Cup, Olympics |
+| `policy_change` | Government regulations, law changes | Fed Rate Decision, New Tax Law, Sanctions |
+| `product_launch` | Product announcements, releases | iPhone Launch, Tesla Model, Software Release |
+| `earnings` | Financial results, revenue reports | Q4 Earnings, Profit Report, Revenue Beat |
+| `incident` | Accidents, crises, emergencies, breaches | Data Breach, Natural Disaster, System Outage |
+| `meeting` | Conferences, summits, official gatherings | G7 Summit, Board Meeting, Peace Talks |
+| `acquisition` | Mergers, takeovers, buyouts | Company Merger, Acquisition Deal, Buyout |
+| `partnership` | Business collaborations, joint ventures | Strategic Partnership, Joint Venture, Alliance |
+| `research` | Scientific discoveries, studies | Medical Study, Research Findings, Discovery |
+| `legal` | Court decisions, lawsuits, proceedings | Supreme Court Ruling, Lawsuit, Legal Settlement |
+| `election` | Elections, campaigns, voting events | Presidential Election, Primary Vote, Referendum |
+| `natural_disaster` | Earthquakes, hurricanes, floods | Hurricane, Earthquake, Wildfire, Flood |
+| `cultural` | Social movements, entertainment news | Social Movement, Celebrity News, Cultural Event |
+| `other` | Events not fitting above categories | Miscellaneous events requiring classification |
+
+## REASONING EXAMPLE
+
+**Given article about:** "Russia-Ukraine war: List of key events, day 1,195"
+
+**Step 1 - Comprehension:**
+- Core story: Daily update on Russia-Ukraine war developments
+- Broader context: Ongoing Russia-Ukraine War
+- Specific developments: Day 1,195 specific events
+
+**Step 2 - Event Levels:**
+- BROAD: "Russia-Ukraine War" (ongoing conflict)
+- SPECIFIC: "June 2025 Russia-Ukraine War Developments" (this day's events)
+
+**Step 3 - Naming Check:**
+- ✅ "Russia-Ukraine War" (event noun)
+- ✅ "June 2025 Russia-Ukraine War Developments" (event noun)
+
+**Step 4 - Relevance Scoring:**
+- "Russia-Ukraine War": 0.9 (highly relevant context, ongoing story)
+- "June 2025 Russia-Ukraine War Developments": 1.0 (primary, main reason for article)
+
+**Step 5 - Quality Filter:**
+- Both events ≥ 0.8 relevance ✓
+- Distinct (broad vs specific) ✓
+- Newsworthy ✓
+
+## OUTPUT FORMAT
+
+Respond with ONLY this exact JSON structure:
+
+```json
 {{
     "events": [
         {{
             "title": "Russia-Ukraine War",
             "abstract": "Ongoing military conflict between Russia and Ukraine that began in February 2022, involving territorial disputes, international sanctions, and humanitarian concerns.",
             "event_type": "conflict",
+            "relevance_score": 0.9,
+            "is_primary": false,
             "facts": [
                 "Conflict began with Russian invasion in February 2022",
-                "Multiple countries providing military and humanitarian aid to Ukraine",
-                "Significant civilian casualties and refugee crisis",
-                "International sanctions imposed on Russia"
+                "Ongoing military operations and territorial disputes",
+                "International sanctions and humanitarian crisis",
+                "Multiple countries providing aid to Ukraine"
             ]
         }},
         {{
-            "title": "US Senate considers new sanctions against Russia",
-            "abstract": "The US Senate is contemplating additional sanctions against Russia as part of ongoing efforts to pressure for genuine peace negotiations in the Ukraine conflict.",
-            "event_type": "policy_change",
+            "title": "June 2025 Russia-Ukraine War Developments",
+            "abstract": "Specific developments on Day 1,195 of the Russia-Ukraine war, including fighting updates, diplomatic talks, and casualty reports from June 3, 2025.",
+            "event_type": "conflict",
+            "relevance_score": 1.0,
+            "is_primary": true,
             "facts": [
-                "US Senate considering new sanctions package",
-                "Sanctions aimed at compelling peace talks",
-                "Part of broader international response to conflict"
+                "Day 1,195 of the war occurred on June 3, 2025",
+                "At least five people killed in eastern Ukraine fighting",
+                "Diplomatic talks in Istanbul regarding prisoner swaps",
+                "Russia proposed new memorandum for ending the war"
             ]
         }}
     ]
 }}
+```
 
-EVENT EXTRACTION STRATEGY:
+## CRITICAL CONSTRAINTS
+- Extract both BROAD ongoing events (0.7-0.9 relevance) and SPECIFIC developments (0.9-1.0 relevance)
+- All events MUST have relevance_score ≥ 0.7 (use scoring rubric)
+- ALWAYS use event nouns, never action verbs in titles
+- Use article publication date as temporal reference (don't hallucinate dates)
+- MUST respond with valid JSON only - no reasoning text in output
+- Exactly ONE event must have `is_primary: true` (highest relevance score)
+- Include both generic ongoing stories AND specific developments where applicable
 
-**BROAD CONTEXTUAL EVENTS (Extract 1 per article):**
-- Major ongoing situations that span weeks/months: wars, pandemics, economic crises
-- Long-running competitions: sports seasons, election campaigns, trade disputes
-- Extended developments: ongoing investigations, merger processes, policy debates
-- Examples: "Russia-Ukraine War", "2024 US Presidential Election", "Climate Change", "MLB Season", "Tech Industry Layoffs"
-
-**SPECIFIC RECENT EVENTS (Extract 1-3 per article):**
-- Recent developments within the broader context (days/weeks timeframe)
-- Specific incidents, announcements, decisions, or battles
-- Particular games, meetings, or policy actions
-- Examples: "June 2023 Eastern Ukraine Fighting", "September 2023 Apple iPhone 15 Launch", "June 2023 Fed Rate Decision", "October 2023 Lakers Victory"
-
-**Event Title Guidelines:**
-- BROAD events: Use enduring, categorical names (≤50 characters)
-  - "Russia-Ukraine War" not "Day 1,195 of Ukraine War"
-  - "NBA Playoffs" not "Lakers vs Warriors Series"
-  - "Tech Layoffs 2024" not "Meta announces layoffs"
-
-- SPECIFIC events: Include timeframe + key details (≤70 characters)
-  - "June 2023 Eastern Ukraine Fighting" not "Ongoing fighting results in casualties"
-  - "October 2023 Angels Victory Over Red Sox" not "Mike Trout returns from injury"
-  - "September 2023 Apple iPhone 15 Launch" not "Apple announces new product"
-
-**Event Type Classification:**
-- conflict: Wars, military actions, diplomatic tensions
-- sports: Athletic competitions, games, tournaments, seasons
-- policy_change: Government regulations, policy updates, law changes
-- product_launch: Product announcements, releases, launches
-- earnings: Financial results, earnings reports, revenue announcements
-- incident: Accidents, crises, emergencies, security breaches
-- meeting: Conferences, summits, board meetings, official gatherings
-- acquisition: Mergers, acquisitions, takeovers, buyouts
-- partnership: Business partnerships, collaborations, joint ventures
-- research: Scientific discoveries, studies, research findings
-- legal: Court decisions, lawsuits, legal proceedings, regulatory actions
-- election: Elections, political campaigns, voting events
-- natural_disaster: Earthquakes, hurricanes, floods, natural events
-- cultural: Social movements, cultural events, entertainment news
-- other: Events that don't fit the above categories
-
-**Abstract Requirements:**
-- BROAD events: Context and significance (≤120 words)
-- SPECIFIC events: Who, what, when, where, why (≤100 words)
-- Focus on information that helps cluster related articles
-
-**Facts Requirements:**
-- 3-6 specific, verifiable facts per event
-- Include dates, numbers, names, locations when available
-- Prioritize facts that help identify related coverage
-- Each fact should be complete and standalone
-
-**CRITICAL INSTRUCTIONS:**
-- Always extract EXACTLY 1 broad contextual event + 1-3 specific recent events per article
-- BROAD event: Think "What ongoing story does this belong to?" (for clustering)
-- SPECIFIC events: Think "What happened recently?" (for immediate news value)
-- Balance granularity: Not too broad ("World Events") nor too specific ("10:45 AM Meeting")
-- Include proper temporal specificity in specific events:
-  * Use the article's publication date as the timeframe reference
-  * Always include YEAR for events based on publication date
-  * Add MONTH when relevant based on publication date
-  * DO NOT make up or hallucinate dates - use the actual publication timeframe
-- MUST respond with valid JSON only - no additional text or explanation
-- Use the exact format shown in the example above"""
+## FINAL INSTRUCTION
+Think through each step carefully, then provide only the final JSON output. Look for both the broad ongoing story AND the specific developments being reported. Use the relevance scoring rubric precisely. Your reasoning process should ensure perfect adherence to the event naming protocol and eliminate all action-based titles."""
 
         return prompt
     
@@ -369,7 +444,7 @@ INSTRUCTIONS:
                 'operation': 'event_detection',
                 'temperature': 0.1,
                 'max_tokens': 600,
-                'model_preference': 'gpt-4o-mini',
+                'model_preference': 'gpt-4.1-mini',
                 'template_version': f'{AnalyzerPrompts.TEMPLATE_VERSION}_events',
                 'description': 'Main event identification and fact extraction'
             },
@@ -539,7 +614,7 @@ INSTRUCTIONS:
                 if not isinstance(event, dict):
                     return {'success': False, 'error': f'Event {i} must be an object'}
                 
-                required_fields = ['title', 'abstract', 'event_type', 'facts']
+                required_fields = ['title', 'abstract', 'event_type', 'facts', 'relevance_score', 'is_primary']
                 for field in required_fields:
                     if field not in event:
                         return {'success': False, 'error': f'Event {i} missing field: {field}'}
@@ -547,6 +622,14 @@ INSTRUCTIONS:
                 # Validate title length
                 if len(event['title']) > 80:
                     return {'success': False, 'error': f'Event {i} title too long (max 80 chars)'}
+                
+                # Prevent using article title as event title (indicates lazy extraction)
+                event_title_lower = event['title'].lower().strip()
+                if event_title_lower in output_text.lower() and len(event_title_lower) > 30:
+                    # Check if this looks like an article title (contains source, publication info, etc.)
+                    article_title_indicators = ['- the', '| the', 'washington post', 'new york times', 'cnn', 'bbc', 'reuters']
+                    if any(indicator in event_title_lower for indicator in article_title_indicators):
+                        return {'success': False, 'error': f'Event {i} appears to use article title instead of event name: "{event["title"]}"'}
                 
                 # Validate abstract length
                 if len(event['abstract']) > 500:  # More generous limit than 150 words
@@ -575,6 +658,65 @@ INSTRUCTIONS:
                 for j, fact in enumerate(event['facts']):
                     if not isinstance(fact, str) or len(fact.strip()) < 10:
                         return {'success': False, 'error': f'Event {i} fact {j} must be a meaningful string (min 10 chars)'}
+                
+                # Validate relevance_score
+                if not isinstance(event['relevance_score'], (int, float)):
+                    return {'success': False, 'error': f'Event {i} relevance_score must be a number'}
+                if not (0.0 <= event['relevance_score'] <= 1.0):
+                    return {'success': False, 'error': f'Event {i} relevance_score must be between 0.0 and 1.0'}
+                
+                # Validate is_primary
+                if not isinstance(event['is_primary'], bool):
+                    return {'success': False, 'error': f'Event {i} is_primary must be a boolean'}
+                
+            
+            # Validate exactly one primary event
+            primary_events = [event for event in data['events'] if event.get('is_primary', False)]
+            if len(primary_events) != 1:
+                return {'success': False, 'error': f'Must have exactly 1 primary event, found {len(primary_events)}'}
+            
+            # Check for duplicate or very similar events
+            event_titles = [event['title'].lower().strip() for event in data['events']]
+            if len(event_titles) != len(set(event_titles)):
+                return {'success': False, 'error': 'Duplicate event titles detected'}
+            
+            # Check for very similar events (titles, abstracts, and semantic content)
+            import difflib
+            import re
+            
+            def extract_key_entities(text):
+                """Extract potential key entities/names from text"""
+                # Simple extraction of capitalized words and phrases
+                words = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
+                return set(word.lower() for word in words if len(word) > 2)
+            
+            for i, event1 in enumerate(data['events']):
+                for j, event2 in enumerate(data['events'][i+1:], i+1):
+                    # Check title similarity
+                    title_similarity = difflib.SequenceMatcher(None, event1['title'].lower(), event2['title'].lower()).ratio()
+                    
+                    # Check abstract similarity
+                    abstract_similarity = difflib.SequenceMatcher(None, event1['abstract'].lower(), event2['abstract'].lower()).ratio()
+                    
+                    # Extract key entities from both events
+                    entities1 = extract_key_entities(event1['title'] + ' ' + event1['abstract'])
+                    entities2 = extract_key_entities(event2['title'] + ' ' + event2['abstract'])
+                    
+                    # Calculate entity overlap
+                    if entities1 and entities2:
+                        entity_overlap = len(entities1.intersection(entities2)) / len(entities1.union(entities2))
+                    else:
+                        entity_overlap = 0
+                    
+                    # Flag as duplicate based on multiple criteria
+                    is_duplicate = (
+                        title_similarity > 0.85 or  # Very similar titles
+                        (title_similarity > 0.6 and abstract_similarity > 0.7) or  # Moderately similar titles + abstracts
+                        (entity_overlap > 0.7 and (title_similarity > 0.4 or abstract_similarity > 0.5))  # High entity overlap + some text similarity
+                    )
+                    
+                    if is_duplicate:
+                        return {'success': False, 'error': f'Events {i} and {j} appear to describe the same occurrence:\n  Event {i}: "{event1["title"]}" \n  Event {j}: "{event2["title"]}" \n  (Title sim: {title_similarity:.2f}, Abstract sim: {abstract_similarity:.2f}, Entity overlap: {entity_overlap:.2f})'}
             
             # Limit total number of events
             if len(data['events']) > 5:
