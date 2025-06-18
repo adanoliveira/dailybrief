@@ -226,7 +226,7 @@ def create_success_response(
         JsonResponse with success format and CORS headers
     """
     response_data = {
-        **data,
+        "data": data,
         "success": True
     }
     
