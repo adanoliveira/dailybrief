@@ -2,7 +2,11 @@
 
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 
-export function WorldNewsFeed() {
+interface WorldNewsFeedProps {
+  publicMode?: boolean; // New prop to enable public/unauthenticated mode
+}
+
+export function WorldNewsFeed({ publicMode = false }: WorldNewsFeedProps) {
   return (
     <section className="py-16 bg-muted/30">
       <div className="container max-w-4xl">
@@ -19,6 +23,7 @@ export function WorldNewsFeed() {
           <InfiniteNewsFeed 
             feedType="world" 
             sortOrder="newest"
+            publicMode={publicMode}
           />
         </div>
       </div>

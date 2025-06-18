@@ -265,6 +265,107 @@ def world_feed(request):
     )
 
 @api_view(['GET'], authenticate=False)
+def public_world_feed(request):
+    """
+    Get public world feed articles (top US headlines for unauthenticated users)
+    Limited to latest 20 articles from US publications for marketing page.
+    
+    Query parameters:
+    - page: page number (default: 1)
+    - page_size: number of articles per page (default: 10, max: 20)
+    - topic: filter by topic slug (optional)
+    - search: search term (optional)
+    """
+    # Parse query parameters
+    page = int(request.GET.get('page', 1))
+    page_size = min(int(request.GET.get('page_size', 10)), 20)  # Cap at 20 per page
+    topic_slug = request.GET.get('topic')
+    search_query = request.GET.get('search')
+    
+    # Base query - get top headlines from US publications only
+    queryset = Article.objects.filter(
+        is_top_headline=True,
+        publication__regions__code='us'  # Only US publications
+    ).select_related('language', 'publication').prefetch_related('topics').distinct()
+    
+    # Apply topic filter if specified
+    if topic_slug and topic_slug != 'all':
+        queryset = queryset.filter(topics__slug=topic_slug)
+    
+    # Apply search filter if specified
+    if search_query:
+        queryset = queryset.filter(
+            Q(title__icontains=search_query) | 
+            Q(description__icontains=search_query) |
+            Q(content__icontains=search_query) |
+            Q(clean_content__icontains=search_query) |
+            Q(basic_content__icontains=search_query)
+        )
+    
+    # Sort by published date (newest first) and limit to latest 20 articles
+    queryset = queryset.order_by('-published_at')[:20]
+    
+    # Convert to list for pagination (since we're limiting to 20 total)
+    all_articles = list(queryset)
+    
+    # Manual pagination for the limited set
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    page_articles = all_articles[start_index:end_index]
+    
+    # Calculate pagination metadata
+    total_items = len(all_articles)
+    total_pages = (total_items + page_size - 1) // page_size  # Ceiling division
+    has_next = end_index < total_items
+    has_previous = page > 1
+    
+    # Prepare the response
+    articles_data = []
+    for article in page_articles:
+        # Format the article data
+        # Get article topics
+        topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
+        
+        # Get publication details
+        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+        publication_logo = article.publication.logo_url if article.publication else None
+        
+        articles_data.append({
+            'id': str(article.public_id),
+            'title': article.title,
+            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
+            'description': article.description or '',
+            'source': {
+                'name': publication_name,
+                'logoUrl': publication_logo
+            },
+            'publishedAt': article.published_at.isoformat(),
+            'imageUrl': article.image_url,
+            'url': article.url,
+            'isTopHeadline': article.is_top_headline,
+            'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
+            'topics': topics,
+        })
+    
+    # Build response with pagination metadata
+    response_data = {
+        'articles': articles_data,
+        'pagination': {
+            'page': page,
+            'pageSize': page_size,
+            'totalPages': total_pages,
+            'totalItems': total_items,
+            'hasNext': has_next,
+            'hasPrevious': has_previous,
+        }
+    }
+    
+    return create_success_response(
+        response_data,
+        message=f"Retrieved {len(articles_data)} latest US headlines"
+    )
+
+@api_view(['GET'], authenticate=False)
 def article_detail(request, public_id):
     """
     Get details for a specific article

@@ -108,7 +108,7 @@ export default function HomePage() {
         </header>
 
         <HeroSection />
-        <WorldNewsFeed />
+        <WorldNewsFeed publicMode={true} />
       </main>
     )
   }

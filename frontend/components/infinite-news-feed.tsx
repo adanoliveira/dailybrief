@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Check, Coffee, Newspaper, AlertTriangle } from "lucide-react"
-import { getPersonalizedFeed, getWorldFeed, ArticleQueryParams } from "@/lib/api"
+import { getPersonalizedFeed, getWorldFeed, getPublicWorldFeed, ArticleQueryParams } from "@/lib/api"
 import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NewsCard, ArticlePreviewWithTopics } from "@/components/news-card"
@@ -14,9 +14,16 @@ interface InfiniteNewsFeedProps {
   topicSlug?: string;
   searchQuery?: string;
   sortOrder?: 'relevance' | 'newest' | 'oldest';
+  publicMode?: boolean; // New prop for public/unauthenticated mode
 }
 
-export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQuery, sortOrder = 'relevance' }: InfiniteNewsFeedProps) {
+export function InfiniteNewsFeed({ 
+  feedType = 'personalized', 
+  topicSlug, 
+  searchQuery, 
+  sortOrder = 'relevance',
+  publicMode = false 
+}: InfiniteNewsFeedProps) {
   const [articles, setArticles] = useState<ArticlePreviewWithTopics[]>([])
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true) // Start with loading
@@ -50,10 +57,17 @@ export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQ
         params.search = searchQuery
       }
       
-      // Choose the appropriate API based on feed type
-      const data = feedType === 'world' 
-        ? await getWorldFeed(params)
-        : await getPersonalizedFeed(params)
+      // Choose the appropriate API based on feed type and mode
+      let data;
+      if (feedType === 'world') {
+        if (publicMode) {
+          data = await getPublicWorldFeed(params);
+        } else {
+          data = await getWorldFeed(params);
+        }
+      } else {
+        data = await getPersonalizedFeed(params);
+      }
       
       if (reset) {
         setArticles(data.articles)
@@ -83,7 +97,7 @@ export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQ
       setLoading(false)
       setInitialLoading(false)
     }
-  }, [feedType, topicSlug, searchQuery, sortOrder])
+  }, [feedType, topicSlug, searchQuery, sortOrder, publicMode])
 
   // Handle search/filter changes
   useEffect(() => {
@@ -258,7 +272,7 @@ export function InfiniteNewsFeed({ feedType = 'personalized', topicSlug, searchQ
         </div>
       )}
 
-      {reachedEnd && (
+      {reachedEnd && !publicMode && (
         <Card className="bg-primary/5 border-primary/20 text-center">
           <CardContent className="pt-6 pb-4">
             <div className="flex justify-center mb-4">
