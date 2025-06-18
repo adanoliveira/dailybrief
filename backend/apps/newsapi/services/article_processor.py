@@ -162,7 +162,7 @@ class ArticleProcessor:
     
     def _get_or_create_article(self, article_data, is_top_headline=False, sync_log=None, category=None):
         """
-        Get an existing article or create a new one based on the URL.
+        Get an existing article or create a new one based on content hash first, then URL.
         
         Args:
             article_data (dict): Article data from NewsAPI
@@ -176,8 +176,88 @@ class ArticleProcessor:
         url = article_data.get('url')
         if not url:
             return None, None, False
-            
-        # Check if we already have a NewsAPIArticle with this URL
+        
+        # Extract content from API response for hash calculation
+        title = article_data.get('title', '')
+        description = article_data.get('description', '')
+        content = article_data.get('content', '')
+        
+        # Calculate content hash for duplicate detection
+        full_text = f"{title} {description} {content}".strip()
+        content_hash = hashlib.md5(full_text.encode('utf-8')).hexdigest() if full_text else None
+        
+        # First, check if we already have an article with this content hash
+        if content_hash:
+            try:
+                existing_article = Article.objects.get(content_hash=content_hash)
+                # Get the associated NewsAPIArticle
+                try:
+                    existing_newsapi_article = NewsAPIArticle.objects.get(article=existing_article)
+                except NewsAPIArticle.DoesNotExist:
+                    # Create NewsAPIArticle if it doesn't exist
+                    source_info = article_data.get('source', {})
+                    source_id = source_info.get('id', '').lower() if source_info.get('id') else None
+                    source_name = source_info.get('name', '')
+                    domain = extract_domain(url)
+                    
+                    existing_newsapi_article = NewsAPIArticle(
+                        article=existing_article,
+                        source_id=source_id,
+                        source_name=source_name,
+                        domain=domain,
+                        newsapi_id=f"{source_id}:{hashlib.md5(url.encode()).hexdigest()[:8]}",
+                        category=category or article_data.get('category'),
+                        raw_data=article_data,
+                        is_top_headline=is_top_headline,
+                        sync_log=sync_log
+                    )
+                    existing_newsapi_article.save()
+                
+                # Update is_top_headline status if needed
+                if is_top_headline and not existing_newsapi_article.is_top_headline:
+                    existing_newsapi_article.is_top_headline = True
+                    existing_newsapi_article.save(update_fields=['is_top_headline'])
+                
+                if is_top_headline and not existing_article.is_top_headline:
+                    existing_article.is_top_headline = True
+                    existing_article.save(update_fields=['is_top_headline'])
+                
+                logger.info(f"Found existing article by content hash: {title[:50]}...")
+                return existing_article, existing_newsapi_article, False
+                
+            except Article.DoesNotExist:
+                # No article with this content hash exists, continue to URL check
+                pass
+            except Article.MultipleObjectsReturned:
+                # Multiple articles with same content hash exist - this shouldn't happen
+                # but let's handle it gracefully by taking the first one
+                logger.warning(f"Multiple articles found with same content hash: {content_hash}")
+                existing_article = Article.objects.filter(content_hash=content_hash).first()
+                try:
+                    existing_newsapi_article = NewsAPIArticle.objects.get(article=existing_article)
+                except NewsAPIArticle.DoesNotExist:
+                    # Create NewsAPIArticle if it doesn't exist
+                    source_info = article_data.get('source', {})
+                    source_id = source_info.get('id', '').lower() if source_info.get('id') else None
+                    source_name = source_info.get('name', '')
+                    domain = extract_domain(url)
+                    
+                    existing_newsapi_article = NewsAPIArticle(
+                        article=existing_article,
+                        source_id=source_id,
+                        source_name=source_name,
+                        domain=domain,
+                        newsapi_id=f"{source_id}:{hashlib.md5(url.encode()).hexdigest()[:8]}",
+                        category=category or article_data.get('category'),
+                        raw_data=article_data,
+                        is_top_headline=is_top_headline,
+                        sync_log=sync_log
+                    )
+                    existing_newsapi_article.save()
+                
+                return existing_article, existing_newsapi_article, False
+        
+        # Second, check if we already have a NewsAPIArticle with this URL
         try:
             existing_newsapi_article = NewsAPIArticle.objects.select_related('article').get(
                 article__url=url
@@ -187,10 +267,16 @@ class ArticleProcessor:
                 existing_newsapi_article.is_top_headline = True
                 existing_newsapi_article.save(update_fields=['is_top_headline'])
             
+            if is_top_headline and not existing_newsapi_article.article.is_top_headline:
+                existing_newsapi_article.article.is_top_headline = True
+                existing_newsapi_article.article.save(update_fields=['is_top_headline'])
+            
+            logger.info(f"Found existing article by URL: {title[:50]}...")
             return existing_newsapi_article.article, existing_newsapi_article, False
             
         except NewsAPIArticle.DoesNotExist:
             # Create new article and NewsAPIArticle
+            logger.info(f"Creating new article: {title[:50]}...")
             article, newsapi_article = self._create_article_pair(article_data, is_top_headline, sync_log, category)
             return article, newsapi_article, True
     

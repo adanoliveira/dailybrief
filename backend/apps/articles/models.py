@@ -120,7 +120,7 @@ class Article(models.Model):
     word_count = models.IntegerField(null=True, blank=True)
     read_time_minutes = models.FloatField(null=True, blank=True)
     readability_score = models.FloatField(null=True, blank=True, help_text="Flesch readability score (0-100, higher = easier)")
-    content_hash = models.CharField(max_length=64, null=True, blank=True)
+    content_hash = models.CharField(max_length=64, null=True, blank=True, unique=True)
     sentiment_score = models.FloatField(null=True, blank=True)
     entities = models.JSONField(default=dict, blank=True)
     
