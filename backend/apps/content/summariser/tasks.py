@@ -114,30 +114,27 @@ def batch_summarize_articles(article_ids: List[int], force_regenerate: bool = Fa
     """
     logger.info(f"Starting batch summarization for {len(article_ids)} articles")
     
-    # Create parallel tasks for each article
-    job = group([
-        summarize_article_pipeline.s(article_id, force_regenerate) 
-        for article_id in article_ids
-    ])
+    # Queue individual summarization tasks asynchronously
+    queued_count = 0
+    failed_to_queue = 0
     
-    # Execute and collect results
-    result = job.apply_async()
-    results = result.get()
+    for article_id in article_ids:
+        try:
+            summarize_article_pipeline.delay(article_id, force_regenerate)
+            queued_count += 1
+        except Exception as e:
+            logger.error(f"Failed to queue summarization for article {article_id}: {str(e)}")
+            failed_to_queue += 1
     
-    # Aggregate results
-    successful = sum(1 for r in results if r.get('success', False))
-    failed = len(results) - successful
-    total_cost = sum(r.get('cost_usd', 0) for r in results if r.get('success', False))
-    
-    logger.info(f"Batch summarization completed: {successful} successful, {failed} failed, total cost: ${total_cost:.4f}")
+    logger.info(f"Batch summarization queued: {queued_count} successful, {failed_to_queue} failed to queue")
     
     return {
         'success': True,
         'articles_processed': len(article_ids),
-        'successful': successful,
-        'failed': failed,
-        'total_cost_usd': total_cost,
-        'results': results
+        'successful': queued_count,
+        'failed': failed_to_queue,
+        'total_cost_usd': 0,  # Will be calculated when individual tasks complete
+        'message': f'Queued {queued_count} articles for summarization'
     }
 
 

@@ -436,6 +436,7 @@ class ArticleEntity(models.Model):
 
 class ArticleEvent(models.Model):
     """Links articles to their events (many-to-many relationship)."""
+    id = models.AutoField(primary_key=True)  # Explicitly define the id field
     article = models.ForeignKey(
         'articles.Article', 
         on_delete=models.CASCADE,

@@ -59,6 +59,7 @@ class ProcessingResult:
     processing_time_ms: int = 0
     error_message: str = ""
     raw_response: str = ""  # For debugging - stores raw AI response
+    route_used: str = ""  # Track which processing route was actually used (including fallbacks)
     
     def __post_init__(self):
         if self.content_blocks is None:

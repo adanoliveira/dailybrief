@@ -150,6 +150,12 @@ class ContentProcessor:
             # Fallback to algorithmic mode
             logger.info(f"Falling back to algorithmic mode for article {article.id}")
             result = self._process_algorithmic_mode(article)
+            # Update route to reflect that we fell back to algorithmic mode
+            if hasattr(result, 'route_used'):
+                if result.success:
+                    result.route_used = "safari_mode_fallback"
+                else:
+                    result.route_used = "safari_mode_fallback_failed"
         
         return result
     
@@ -253,7 +259,8 @@ class ContentProcessor:
             content_blocks=content_blocks,
             extracted_metadata=merged_metadata,
             quality_score=merged_quality,
-            processing_time_ms=base_result.processing_time_ms + fallback_result.processing_time_ms
+            processing_time_ms=base_result.processing_time_ms + fallback_result.processing_time_ms,
+            route_used=f"hybrid_{base_result.route_used.replace('_failed', '')}"
         )
     
     def _store_processing_results(self, article: Article, result: ProcessingResult, route: str, cost: float):

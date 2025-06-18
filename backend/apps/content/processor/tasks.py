@@ -63,7 +63,7 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
                     'processing_time_ms': result.processing_time_ms
                 }
                 article.process_status = ProcessingStatus.COMPLETED
-                article.process_route = 'safari_mode'
+                article.process_route = getattr(result, 'route_used', 'llm_enhanced')  # Dynamic route tracking
                 article.process_duration_ms = result.processing_time_ms
                 article.save()
             
@@ -166,15 +166,48 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
         route_counts = {'safari_mode': 0, 'llm_enhanced': 0, 'hybrid': 0}
         
         for article in articles:
-            result = processor.process_article_content(article)
+            # Process and store the article, getting cost and route info
+            processing_result = processor.process_article_content(article)
+            
+            # Store results in database if successful
+            if processing_result.success:
+                with transaction.atomic():
+                    article.clean_content = processing_result.clean_content
+                    article.content_blocks = serialize_content_blocks(processing_result.content_blocks)
+                    article.extracted_metadata = processing_result.extracted_metadata
+                    article.content_quality_metrics = {
+                        'overall_score': processing_result.quality_score,
+                        'processing_time_ms': processing_result.processing_time_ms
+                    }
+                    article.process_status = ProcessingStatus.COMPLETED
+                    article.process_route = getattr(processing_result, 'route_used', 'llm_enhanced')
+                    article.process_duration_ms = processing_result.processing_time_ms
+                    article.process_cost_usd = 0.0001  # Estimated cost
+                    article.save()
+            else:
+                # Mark as failed
+                article.process_status = ProcessingStatus.FAILED
+                article.process_route = getattr(processing_result, 'route_used', 'llm_enhanced')  # Record the actual route even for failures
+                article.save(update_fields=['process_status', 'process_route'])
+            
+            # Create a ProcessResult-like object for consistency
+            result = {
+                'success': processing_result.success,
+                'article': article,
+                'processing_result': processing_result,
+                'route_used': getattr(processing_result, 'route_used', 'llm_enhanced'),  # Dynamic route tracking
+                'duration_ms': processing_result.processing_time_ms,
+                'cost_usd': 0.0001 if processing_result.success else 0.0,  # Estimated cost
+                'error_message': processing_result.error_message
+            }
             results.append(result)
             
-            if result.success:
-                total_cost += result.cost_usd
-                route_counts[result.route_used] = route_counts.get(result.route_used, 0) + 1
+            if result['success']:
+                total_cost += result['cost_usd']
+                route_counts[result['route_used']] = route_counts.get(result['route_used'], 0) + 1
         
         # Compile statistics
-        successful = sum(1 for r in results if r.success)
+        successful = sum(1 for r in results if r['success'])
         failed = len(results) - successful
         
         # Log batch results with cost analysis
@@ -191,13 +224,13 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
             'article_ids': article_ids,
             'results': [
                 {
-                    'article_id': r.article.id if r.article else None,
-                    'success': r.success,
-                    'route_used': r.route_used,
-                    'duration_ms': r.duration_ms,
-                    'cost_usd': r.cost_usd,
-                    'quality_score': r.processing_result.quality_score if r.processing_result else 0,
-                    'error_message': r.error_message
+                    'article_id': r['article'].id if r['article'] else None,
+                    'success': r['success'],
+                    'route_used': r['route_used'],
+                    'duration_ms': r['duration_ms'],
+                    'cost_usd': r['cost_usd'],
+                    'quality_score': r['processing_result'].quality_score if r['processing_result'] else 0,
+                    'error_message': r['error_message']
                 }
                 for r in results
             ]
