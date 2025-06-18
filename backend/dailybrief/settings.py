@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     
     # Content Domain
+    'apps.content',  # Main content package
     'apps.content.fetcher',
     'apps.content.processor',
     'apps.content.quality',

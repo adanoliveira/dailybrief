@@ -1,5 +1,5 @@
 # Content Domain Package
 # This package contains all content processing and enhancement services
 
-# Import tasks to ensure they're discovered by Celery
-from . import tasks 
+# Tasks will be autodiscovered by Celery via apps.py
+default_app_config = 'apps.content.apps.ContentConfig' 
