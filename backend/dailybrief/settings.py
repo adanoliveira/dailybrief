@@ -123,6 +123,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.accounts.middleware.JWTAuthenticationMiddleware',  # JWT auth middleware
 ]
 
 # CORS configuration
@@ -213,7 +214,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'apps.accounts.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -281,6 +284,58 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'content.cleanup_old_fetch_logs',
         'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday at 2:00 AM
         'kwargs': {'days_to_keep': 30},
+    },
+    
+    # ===== CONTENT ENRICHMENT PIPELINE FOR TOP HEADLINES =====
+    # Run after sync-top-headlines to process articles through the 4-stage pipeline
+    
+    # Content enrichment for morning headlines - 15 minutes after sync
+    'content-enrichment-morning': {
+        'task': 'content.process_top_headlines_pipeline',
+        'schedule': crontab(hour=5, minute=15),  # 5:15 AM (15 min after morning sync)
+        'kwargs': {'limit': 50},
+    },
+    
+    # Content enrichment for afternoon headlines - 15 minutes after sync  
+    'content-enrichment-afternoon': {
+        'task': 'content.process_top_headlines_pipeline',
+        'schedule': crontab(hour=14, minute=15),  # 2:15 PM (15 min after afternoon sync)
+        'kwargs': {'limit': 50},
+    },
+    
+    # Follow-up pipeline runs to catch any missed articles - 1 hour after initial run
+    'content-enrichment-followup-morning': {
+        'task': 'content.process_top_headlines_pipeline', 
+        'schedule': crontab(hour=6, minute=15),  # 6:15 AM (1 hour after first run)
+        'kwargs': {'limit': 30},
+    },
+    
+    'content-enrichment-followup-afternoon': {
+        'task': 'content.process_top_headlines_pipeline',
+        'schedule': crontab(hour=15, minute=15),  # 3:15 PM (1 hour after first run)
+        'kwargs': {'limit': 30},
+    },
+    
+    # Pipeline maintenance and monitoring tasks
+    
+    # Clean up failed articles that exceeded max retries - Daily at 1:00 AM
+    'cleanup-failed-pipeline-articles': {
+        'task': 'content.cleanup_failed_pipeline_articles',
+        'schedule': crontab(hour=1, minute=0),  # 1:00 AM daily
+        'kwargs': {'max_attempts': 3},
+    },
+    
+    # Retry previously failed articles - Every 6 hours
+    'retry-failed-pipeline-stages': {
+        'task': 'content.retry_failed_pipeline_stages', 
+        'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
+        'kwargs': {'stage': 'all', 'limit': 20},
+    },
+    
+    # Pipeline status monitoring - Every 2 hours for debugging
+    'pipeline-status-check': {
+        'task': 'content.get_pipeline_status',
+        'schedule': crontab(minute=30, hour='*/2'),  # Every 2 hours at :30
     },
 }
 
