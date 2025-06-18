@@ -357,6 +357,91 @@ class AnalyzerService:
         # Fallback to standard content
         logger.info(f"Using standard content for article {article.id} (no summary available)")
         return article.best_content_for_analysis
+
+    def _get_full_content_for_linguistic_analysis(self, article: Article) -> str:
+        """
+        Get full content for linguistic analysis using content assembler.
+        
+        This provides the complete article content assembled from content blocks
+        for accurate readability, word count, and reading time calculations.
+        
+        Args:
+            article: Article to get full content for
+            
+        Returns:
+            Full assembled content string
+        """
+        try:
+            # Import content assembler from summariser
+            from apps.content.summariser.content_assembler import get_markdown_assembler
+            
+            # Get content blocks if available
+            content_blocks = getattr(article, 'content_blocks', None)
+            if not content_blocks:
+                logger.warning(f"No content blocks found for article {article.id}, using raw content")
+                return article.content if article.content else article.title
+            
+            # Use content assembler with high character limit for full content
+            assembler = get_markdown_assembler(
+                max_chars=50000,  # High limit to get full content
+                use_intelligent_summarization=False,  # Don't summarize for linguistic analysis
+                summarization_mode="custom"
+            )
+            
+            # Assemble full content
+            full_content = assembler.assemble_content(content_blocks, article.title)
+            
+            logger.info(f"Full content assembled for article {article.id}: {len(full_content)} chars")
+            return full_content
+            
+        except Exception as e:
+            logger.error(f"Failed to get full content for article {article.id}: {str(e)}")
+            # Fallback to raw content
+            return article.content if article.content else article.title
+
+    def _get_truncated_content_for_analysis(self, article: Article, max_chars: int = 5000) -> str:
+        """
+        Get truncated content for analysis using content assembler.
+        
+        This provides intelligently truncated content for sentiment and style analysis
+        to optimize costs while maintaining content quality.
+        
+        Args:
+            article: Article to get truncated content for
+            max_chars: Maximum characters for truncated content
+            
+        Returns:
+            Truncated content string
+        """
+        try:
+            # Import content assembler from summariser
+            from apps.content.summariser.content_assembler import get_markdown_assembler
+            
+            # Get content blocks if available
+            content_blocks = getattr(article, 'content_blocks', None)
+            if not content_blocks:
+                logger.warning(f"No content blocks found for article {article.id}, using raw content")
+                content = article.content if article.content else article.title
+                return content[:max_chars] if len(content) > max_chars else content
+            
+            # Use content assembler with intelligent summarization for cost optimization
+            assembler = get_markdown_assembler(
+                max_chars=max_chars,
+                use_intelligent_summarization=True,
+                summarization_mode="hybrid"  # Best balance of quality and structure
+            )
+            
+            # Assemble truncated content
+            truncated_content = assembler.assemble_content(content_blocks, article.title)
+            
+            logger.info(f"Truncated content assembled for article {article.id}: {len(truncated_content)} chars")
+            return truncated_content
+            
+        except Exception as e:
+            logger.error(f"Failed to get truncated content for article {article.id}: {str(e)}")
+            # Fallback to simple truncation
+            content = article.content if article.content else article.title
+            return content[:max_chars] if len(content) > max_chars else content
     
     def _stage_1_language_detection(self, article: Article, content: str) -> Dict[str, Any]:
         """
@@ -447,29 +532,32 @@ class AnalyzerService:
         """
         Stage 2: Linguistic Analysis (FREE + minimal LLM).
         
-        Uses textstat for readability, word count, and reading time (FREE).
-        Only uses LLM for style_tone classification (minimal cost).
+        Uses full content for accurate readability, word count, and reading time (FREE).
+        Uses truncated content for sentiment and style/tone analysis (cost-optimized).
         
         Args:
             article: Article to analyze
-            content: Content to analyze
+            content: Content to analyze (unused - we get full content from assembler)
             analysis_record: Analysis record to update
             
         Returns:
             Dict with linguistic analysis results
         """
         try:
-            # 1. Calculate readability metrics (FREE - textstat)
+            # Get full content using content assembler for accurate metrics
+            full_content = self._get_full_content_for_linguistic_analysis(article)
+            
+            # 1. Calculate readability metrics (FREE - textstat) using FULL content
             readability_score = None
             word_count = None
             read_time = None
             
             try:
-                # Calculate readability score using textstat
-                readability_score = textstat.flesch_reading_ease(content)
+                # Calculate readability score using textstat on full content
+                readability_score = textstat.flesch_reading_ease(full_content)
                 
-                # Calculate word count
-                word_count = textstat.lexicon_count(content)
+                # Calculate word count on full content
+                word_count = textstat.lexicon_count(full_content)
                 
                 # Calculate reading time (average 200-250 wpm)
                 read_time = word_count / 225.0  # minutes
@@ -487,12 +575,15 @@ class AnalyzerService:
             except Exception as e:
                 logger.warning(f"Readability analysis failed for article {article.id}: {str(e)}")
             
-            # 2. Calculate sentiment score (FREE - spaCy)
+            # Get truncated content for sentiment and style analysis (cost optimization)
+            truncated_content = self._get_truncated_content_for_analysis(article, max_chars=2000)
+            
+            # 2. Calculate sentiment score (FREE - spaCy) using truncated content
             sentiment_score = None
             try:
                 if nlp:
-                    # Use spaCy for basic sentiment analysis
-                    doc = nlp(content[:1000])  # Limit to first 1000 chars for performance
+                    # Use spaCy for basic sentiment analysis on truncated content
+                    doc = nlp(truncated_content)
                     sentiment_score = sum(token.sentiment for token in doc) / len(doc)
                     
                     # Update article with sentiment score
@@ -503,12 +594,12 @@ class AnalyzerService:
             except Exception as e:
                 logger.warning(f"Sentiment analysis failed for article {article.id}: {str(e)}")
             
-            # 3. Analyze style and tone (LLM - GPT-4o-mini)
+            # 3. Analyze style and tone (LLM - GPT-4o-mini) using truncated content
             style_tone = "factual"  # Default
             
             try:
-                # Generate prompt for style/tone analysis
-                prompt = self.prompts.linguistic_analysis_prompt(article.title, content)
+                # Generate prompt for style/tone analysis using truncated content
+                prompt = self.prompts.linguistic_analysis_prompt(article.title, truncated_content)
                 
                 # Get response from AI provider
                 response = self.ai_service.call_llm(
