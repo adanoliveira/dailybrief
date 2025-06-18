@@ -23,5 +23,6 @@ urlpatterns = [
     path('api/feeds/', include('apps.feeds.urls')),
     path('api/core/', include('apps.core.urls')),
     path('api/newsapi/', include('apps.newsapi.urls')),
+    path('api/digest/', include('apps.content.digest.urls')),
     path('', include('apps.articles.urls')),  # Articles URLs don't have prefix as they're under api/articles/
 ]

@@ -113,6 +113,7 @@ INSTALLED_APPS = [
     'apps.content.quality',
     'apps.content.summariser',
     'apps.content.analyzer',
+    'apps.content.digest',  # Digest generation
 ]
 
 MIDDLEWARE = [
@@ -338,6 +339,27 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'content.get_pipeline_status',
         'schedule': crontab(minute=30, hour='*/2'),  # Every 2 hours at :30
     },
+    
+    # ===== DIGEST GENERATION TASKS =====
+    # Generate daily digests for all users - Daily at 7:00 AM
+    'generate-daily-digests': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(hour=7, minute=0),  # 7:00 AM daily
+        'kwargs': {'force_regenerate': False},
+    },
+    
+    # Regenerate failed digests - Daily at 8:00 AM (1 hour after main generation)
+    'regenerate-failed-digests': {
+        'task': 'apps.content.digest.tasks.regenerate_failed_digests',
+        'schedule': crontab(hour=8, minute=0),  # 8:00 AM daily
+    },
+    
+    # Cleanup old digests - Weekly on Sunday at 1:00 AM
+    'cleanup-old-digests': {
+        'task': 'apps.content.digest.tasks.cleanup_old_digests',
+        'schedule': crontab(hour=1, minute=0, day_of_week=0),  # Sunday at 1:00 AM
+        'kwargs': {'days_to_keep': 90},
+    },
 }
 
 # News API
@@ -352,3 +374,8 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 # Very conservative settings to avoid 200k TPM limit with content extraction (20k+ tokens per call)
 AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '8'))  # Very conservative: ~160k tokens/min
 AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '3'))  # Small burst capacity
+
+# Digest Generation Configuration
+DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch
+DIGEST_DEFAULT_TIMEZONE = os.getenv('DIGEST_DEFAULT_TIMEZONE', 'UTC')  # Default user timezone
+DIGEST_MAX_COST_PER_USER = float(os.getenv('DIGEST_MAX_COST_PER_USER', '0.50'))  # Max AI cost per user digest
