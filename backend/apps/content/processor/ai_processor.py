@@ -13,8 +13,10 @@ Following SOLID principles with clear separation of concerns:
 import json
 import time
 import logging
+import threading
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from django.conf import settings
 
 from apps.aiproviders.services import get_ai_service, LLMResponse
 from apps.content.quality.html_preprocessor import HTMLPreprocessor
@@ -24,6 +26,104 @@ from .models import ContentBlock, ProcessingResult, serialize_content_blocks
 
 
 logger = logging.getLogger(__name__)
+
+
+class AIRateLimiter:
+    """
+    Thread-safe rate limiter for AI API calls to prevent hitting rate limits.
+    
+    Uses a simple token bucket approach with configurable rate and burst capacity.
+    """
+    
+    def __init__(self, calls_per_minute: int = 20, burst_capacity: int = 5):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            calls_per_minute: Maximum calls allowed per minute
+            burst_capacity: Maximum burst calls allowed
+        """
+        self.calls_per_minute = calls_per_minute
+        self.burst_capacity = burst_capacity
+        self.tokens = burst_capacity
+        self.last_refill = time.time()
+        self.lock = threading.Lock()
+        
+        # Calculate refill rate (tokens per second)
+        self.refill_rate = calls_per_minute / 60.0
+        
+        logger.info(f"AI Rate limiter initialized: {calls_per_minute} calls/min, burst: {burst_capacity}")
+    
+    def acquire(self, timeout: float = 30.0) -> bool:
+        """
+        Acquire a token for making an AI call.
+        
+        Args:
+            timeout: Maximum time to wait for a token (seconds)
+            
+        Returns:
+            True if token acquired, False if timeout
+        """
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            with self.lock:
+                # Refill tokens based on time elapsed
+                now = time.time()
+                time_elapsed = now - self.last_refill
+                tokens_to_add = time_elapsed * self.refill_rate
+                
+                self.tokens = min(self.burst_capacity, self.tokens + tokens_to_add)
+                self.last_refill = now
+                
+                # Check if we have tokens available
+                if self.tokens >= 1.0:
+                    self.tokens -= 1.0
+                    return True
+            
+            # Wait a bit before trying again
+            time.sleep(0.1)
+        
+        logger.warning(f"Rate limiter timeout after {timeout}s")
+        return False
+    
+    def wait_if_needed(self) -> None:
+        """
+        Wait if rate limiting is needed. Blocks until a token is available.
+        """
+        if not self.acquire(timeout=60.0):  # Wait up to 1 minute
+            logger.error("Rate limiter failed to acquire token within 60 seconds")
+            # Continue anyway to avoid blocking the pipeline completely
+            
+    def get_status(self) -> Dict[str, Any]:
+        """Get current rate limiter status."""
+        with self.lock:
+            return {
+                'tokens_available': self.tokens,
+                'calls_per_minute': self.calls_per_minute,
+                'burst_capacity': self.burst_capacity,
+                'last_refill': self.last_refill
+            }
+
+
+# Global rate limiter instance
+_rate_limiter = None
+_rate_limiter_lock = threading.Lock()
+
+
+def get_rate_limiter() -> AIRateLimiter:
+    """Get or create the global rate limiter instance."""
+    global _rate_limiter
+    
+    if _rate_limiter is None:
+        with _rate_limiter_lock:
+            if _rate_limiter is None:
+                # Get rate limiting settings from Django settings or use defaults
+                calls_per_minute = getattr(settings, 'AI_RATE_LIMIT_CALLS_PER_MINUTE', 20)
+                burst_capacity = getattr(settings, 'AI_RATE_LIMIT_BURST_CAPACITY', 5)
+                _rate_limiter = AIRateLimiter(calls_per_minute, burst_capacity)
+    
+    return _rate_limiter
 
 
 @dataclass
@@ -71,6 +171,7 @@ class AIContentProcessor:
         self.html_preprocessor = HTMLPreprocessor()  # Reuse proven preprocessing  
         self.block_builder = ContentBlockBuilder()  # Convert JSON → ContentBlock
         self.template_id = template_id or "content_extraction_v2"
+        self.rate_limiter = get_rate_limiter()  # Rate limiting for AI calls
     
     def process_content(
         self, 
@@ -122,7 +223,16 @@ class AIContentProcessor:
                 article_metadata=article_metadata
             )
             
-            # 3. Call AI service following quality evaluation patterns
+            # 3. Apply rate limiting before AI call
+            logger.info(f"Applying rate limiting before AI call...")
+            rate_limit_start = time.time()
+            self.rate_limiter.wait_if_needed()
+            rate_limit_time = time.time() - rate_limit_start
+            
+            if rate_limit_time > 0.1:  # Log if we had to wait
+                logger.info(f"Rate limiting applied: waited {rate_limit_time:.2f}s")
+            
+            # 4. Call AI service following quality evaluation patterns
             # Use generous token limit to avoid truncation - let the AI complete the response
             # Large articles can require 20k-30k+ output tokens for complete JSON responses
             llm_response = self.ai_service.call_llm(
@@ -141,7 +251,7 @@ class AIContentProcessor:
                     time.time() - start_time
                 )
             
-            # 4. Parse and validate response using proven patterns
+            # 5. Parse and validate response using proven patterns
             result = self._create_extraction_result(
                 llm_response, 
                 time.time() - start_time,
@@ -149,7 +259,7 @@ class AIContentProcessor:
                 article_metadata
             )
             
-            # 5. Add template and preprocessing metadata
+            # 6. Add template and preprocessing metadata
             if hasattr(result, 'extracted_metadata'):
                 result.extracted_metadata.update({
                     "template_used": self.template.identifier,

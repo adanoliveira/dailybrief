@@ -19,6 +19,16 @@ from .ai_processor import AIContentProcessor
 logger = logging.getLogger(__name__)
 
 
+def _ensure_timezone_aware(dt):
+    """Ensure datetime is timezone-aware, converting naive datetimes to UTC."""
+    if dt is None:
+        return None
+    if timezone.is_naive(dt):
+        # Assume naive datetimes are in UTC
+        return timezone.make_aware(dt, timezone.utc)
+    return dt
+
+
 @dataclass
 class ProcessResult:
     """Result of content processing operation."""
@@ -96,7 +106,7 @@ class ContentProcessor:
         article_metadata = {
             'title': article.title,
             'author': article.author,
-            'published_date': article.published_at,
+            'published_date': _ensure_timezone_aware(article.published_at),
             'source_name': article.source_name,
             'url': article.url
         }
@@ -124,7 +134,7 @@ class ContentProcessor:
             'title': article.title,
             'author': article.author,
             'source_name': article.source_name,
-            'published_at': article.published_at.isoformat() if article.published_at else None,
+            'published_at': _ensure_timezone_aware(article.published_at).isoformat() if article.published_at else None,
             'paywall_detected': article.paywall_detected,
             'paywall_indicators': article.paywall_indicators
         }
@@ -189,7 +199,7 @@ class ContentProcessor:
                 'title': article.title,
                 'author': article.author,
                 'source_name': article.source_name,
-                'published_at': article.published_at.isoformat() if article.published_at else None,
+                'published_at': _ensure_timezone_aware(article.published_at).isoformat() if article.published_at else None,
                 'paywall_detected': article.paywall_detected,
                 'algorithmic_quality': algorithmic_result.quality_score,
                 'algorithmic_content_blocks': len(algorithmic_result.content_blocks),

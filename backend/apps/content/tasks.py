@@ -441,10 +441,11 @@ def retry_failed_pipeline_stages(stage: str = 'all', limit: int = 20) -> Dict[st
             }
             update_kwargs = {status_field: pending_status}
             
-            failed_articles = _get_base_queryset().filter(**filter_kwargs)[:limit]
+            # Get IDs first, then update without slicing
+            failed_article_ids = list(_get_base_queryset().filter(**filter_kwargs)[:limit].values_list('id', flat=True))
             
-            if failed_articles:
-                count = failed_articles.update(**update_kwargs)
+            if failed_article_ids:
+                count = _get_base_queryset().filter(id__in=failed_article_ids).update(**update_kwargs)
                 retry_results['retried'] += count
                 logger.info(f"Reset {count} failed {stage_name} articles to pending")
         

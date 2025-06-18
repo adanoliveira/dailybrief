@@ -346,3 +346,9 @@ NEWSAPI_API_KEY = os.getenv('NEWS_API_KEY', '')
 # AI Providers
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
+
+# AI Rate Limiting Configuration
+# Prevent hitting OpenAI TPM (Token Per Minute) limits during batch processing
+# Very conservative settings to avoid 200k TPM limit with content extraction (20k+ tokens per call)
+AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '8'))  # Very conservative: ~160k tokens/min
+AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '3'))  # Small burst capacity
