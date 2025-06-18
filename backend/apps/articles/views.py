@@ -9,7 +9,11 @@ import uuid
 import json
 import logging
 
-from apps.accounts.auth_helpers import authenticate_request, get_auth_response
+from apps.core.api_utils import (
+    authenticate_request, get_auth_response,
+    api_view, create_response, create_error_response, 
+    create_success_response, parse_request_body
+)
 from apps.feeds.models import UserTopic, UserRegion, UserPublication
 from .models import Article, UserArticleInteraction
 from apps.content.summariser.models import ArticleSummary
@@ -47,7 +51,7 @@ def get_best_content(article):
     # Priority 4: Description as final fallback
     return article.description or ''
 
-@require_http_methods(["GET", "OPTIONS"])
+@api_view(['GET'], authenticate=True)
 def personalized_feed(request):
     """
     Get personalized feed articles based on user preferences
@@ -59,18 +63,7 @@ def personalized_feed(request):
     - topic: filter by topic slug (optional)
     - search: search term (optional)
     """
-    # Handle OPTIONS request for CORS
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
-    # Authenticate user
-    is_authenticated, user, error_message = authenticate_request(request)
-    if not is_authenticated:
-        return get_auth_response(error_message)
+    user = request.user
     
     # Parse query parameters
     page = int(request.GET.get('page', 1))
@@ -171,12 +164,12 @@ def personalized_feed(request):
         }
     }
     
-    # Return the response
-    response = JsonResponse(response_data)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return create_success_response(
+        response_data,
+        message=f"Retrieved {len(articles_data)} personalized articles"
+    )
 
-@require_http_methods(["GET", "OPTIONS"])
+@api_view(['GET'], authenticate=True)
 def world_feed(request):
     """
     Get world feed articles (top headlines from user's preferred regions)
@@ -187,18 +180,7 @@ def world_feed(request):
     - topic: filter by topic slug (optional)
     - search: search term (optional)
     """
-    # Handle OPTIONS request for CORS
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS" 
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
-    # Authenticate user to get their region preferences
-    is_authenticated, user, error_message = authenticate_request(request)
-    if not is_authenticated:
-        return get_auth_response(error_message)
+    user = request.user
 
     # Parse query parameters
     page = int(request.GET.get('page', 1))
@@ -277,29 +259,26 @@ def world_feed(request):
         }
     }
     
-    # Return the response
-    response = JsonResponse(response_data)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return create_success_response(
+        response_data,
+        message=f"Retrieved {len(articles_data)} world headlines"
+    )
 
-@require_http_methods(["GET", "OPTIONS"])
+@api_view(['GET'], authenticate=False)
 def article_detail(request, public_id):
     """
     Get details for a specific article
     """
-    # Handle OPTIONS request for CORS
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
     try:
         # Try to parse the public_id as UUID
         article_uuid = uuid.UUID(public_id)
     except ValueError:
-        return JsonResponse({"error": "Invalid article ID"}, status=400)
+        return create_error_response(
+            "Invalid article ID",
+            status=400,
+            error_code="INVALID_ARTICLE_ID",
+            details={"public_id": public_id}
+        )
     
     try:
         # Get the article by public_id
@@ -309,7 +288,12 @@ def article_detail(request, public_id):
             'topics'
         ).get(public_id=article_uuid)
     except Article.DoesNotExist:
-        return JsonResponse({"error": "Article not found"}, status=404)
+        return create_error_response(
+            "Article not found",
+            status=404,
+            error_code="ARTICLE_NOT_FOUND",
+            details={"public_id": public_id}
+        )
     
     # Get summaries if available
     summary = None
@@ -389,53 +373,44 @@ def article_detail(request, public_id):
         'basicContent': article.basic_content or ''
     }
     
-    # Return the response
-    response = JsonResponse(article_data)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return create_success_response(
+        article_data,
+        message=f"Retrieved article details for {article.title[:50]}..."
+    )
 
-@csrf_exempt
-@require_http_methods(["POST", "OPTIONS"])
+@api_view(['POST'], authenticate=True)
 def generate_article_summary(request, public_id):
     """
     Generate or refresh the summary for a specific article.
     POST /articles/<public_id>/generate-summary/
     """
-    # Handle OPTIONS request for CORS
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
-    # Authenticate user
-    is_authenticated, user, error_message = authenticate_request(request)
-    if not is_authenticated:
-        return get_auth_response(error_message)
 
     try:
         article_uuid = uuid.UUID(public_id)
     except ValueError:
-        response = JsonResponse({"error": "Invalid article ID"}, status=400)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Invalid article ID",
+            status=400,
+            error_code="INVALID_ARTICLE_ID",
+            details={"public_id": public_id}
+        )
 
     try:
         article = Article.objects.get(public_id=article_uuid)
     except Article.DoesNotExist:
-        response = JsonResponse({"error": "Article not found"}, status=404)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Article not found",
+            status=404,
+            error_code="ARTICLE_NOT_FOUND",
+            details={"public_id": public_id}
+        )
 
     # Parse request body for options
-    try:
-        body = json.loads(request.body) if request.body else {}
-        force_regenerate = body.get('forceRegenerate', False)
-    except json.JSONDecodeError:
-        response = JsonResponse({"error": "Invalid JSON in request body"}, status=400)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+    body, parse_error = parse_request_body(request)
+    if parse_error:
+        return parse_error
+    
+    force_regenerate = body.get('forceRegenerate', False)
 
     # Validate article can be summarized
     from apps.articles.models import SummarizationStatus
@@ -464,25 +439,32 @@ def generate_article_summary(request, public_id):
     canGenerateSummary = not isStillProcessing and not isProcessingFailed and (hasRichContent or hasCleanContent or hasBasicContent)
     
     if not canGenerateSummary:
-        response = JsonResponse({
-            "error": "Article cannot be summarized",
-            "details": "Article is still being processed or has insufficient content",
-            "fetchStatus": article.fetch_status,
-            "processStatus": article.process_status,
-            "hasContent": bool(article.content and len(article.content) > 200)
-        }, status=422)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Article cannot be summarized",
+            status=422,
+            error_code="ARTICLE_NOT_READY",
+            details={
+                "reason": "Article is still being processed or has insufficient content",
+                "fetchStatus": article.fetch_status,
+                "processStatus": article.process_status,
+                "hasContent": bool(article.content and len(article.content) > 200),
+                "isStillProcessing": isStillProcessing,
+                "isProcessingFailed": isProcessingFailed
+            }
+        )
 
     # Check if already being processed
     if article.summarization_status == SummarizationStatus.PROCESSING:
-        response = JsonResponse({
-            "error": "Summary generation already in progress",
-            "status": "processing",
-            "message": "Please wait for the current summarization to complete"
-        }, status=409)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Summary generation already in progress",
+            status=409,
+            error_code="SUMMARY_IN_PROGRESS",
+            details={
+                "status": "processing",
+                "message": "Please wait for the current summarization to complete",
+                "article_id": public_id
+            }
+        )
 
     # Check if already completed and not forcing regeneration
     if (article.summarization_status == SummarizationStatus.COMPLETED and 
@@ -490,30 +472,29 @@ def generate_article_summary(request, public_id):
         not force_regenerate):
         
         summary = article.structured_summary
-        response_data = {
-            "success": True,
-            "message": "Summary already exists",
-            "summary": {
-                "headline": summary.headline,
-                "abstract": summary.abstract,
-                "facts": summary.facts,
-                "opinions": summary.opinions,
-                "impact": summary.impact,
-                # Legacy fields for compatibility
-                "keyPoints": summary.facts  # Map facts to keyPoints for backward compatibility
+        return create_success_response(
+            {
+                "summary": {
+                    "headline": summary.headline,
+                    "abstract": summary.abstract,
+                    "facts": summary.facts,
+                    "opinions": summary.opinions,
+                    "impact": summary.impact,
+                    # Legacy fields for compatibility
+                    "keyPoints": summary.facts  # Map facts to keyPoints for backward compatibility
+                },
+                "metadata": {
+                    "generatedAt": summary.created_at.isoformat(),
+                    "costUsd": float(summary.cost_usd),
+                    "processingTimeMs": summary.processing_time_ms,
+                    "aiModel": summary.ai_model_used,
+                    "contentSource": summary.content_source,
+                    "wasRepaired": summary.was_repaired
+                },
+                "article_id": public_id
             },
-            "metadata": {
-                "generatedAt": summary.created_at.isoformat(),
-                "costUsd": float(summary.cost_usd),
-                "processingTimeMs": summary.processing_time_ms,
-                "aiModel": summary.ai_model_used,
-                "contentSource": summary.content_source,
-                "wasRepaired": summary.was_repaired
-            }
-        }
-        response = JsonResponse(response_data)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+            message="Summary already exists"
+        )
 
     # Import and use the summarization service
     try:
@@ -527,97 +508,109 @@ def generate_article_summary(request, public_id):
             # Queue the summarization task
             task = summarize_article_pipeline.delay(article.id, force_regenerate=force_regenerate)
             
-            response_data = {
-                "success": True,
-                "message": "Summary generation started",
-                "status": "processing",
-                "taskId": task.id,
-                "estimatedTimeSeconds": 30,  # Rough estimate
-                "pollUrl": f"/api/articles/{public_id}/summary-status/"
-            }
+            return create_success_response(
+                {
+                    "status": "processing",
+                    "taskId": task.id,
+                    "estimatedTimeSeconds": 30,  # Rough estimate
+                    "pollUrl": f"/api/articles/{public_id}/summary-status/",
+                    "article_id": public_id
+                },
+                message="Summary generation started"
+            )
         else:
             # Process synchronously (for immediate feedback)
             service = get_summarization_service()
             result = service.summarize_article(article, force_regenerate=force_regenerate)
             
             if result.success:
-                response_data = {
-                    "success": True,
-                    "message": "Summary generated successfully",
-                    "summary": {
-                        "headline": result.headline,
-                        "abstract": result.abstract,
-                        "facts": result.facts,
-                        "opinions": result.opinions,
-                        "impact": result.impact,
-                        # Legacy fields for compatibility
-                        "keyPoints": result.facts
+                return create_success_response(
+                    {
+                        "summary": {
+                            "headline": result.headline,
+                            "abstract": result.abstract,
+                            "facts": result.facts,
+                            "opinions": result.opinions,
+                            "impact": result.impact,
+                            # Legacy fields for compatibility
+                            "keyPoints": result.facts
+                        },
+                        "metadata": {
+                            "generatedAt": timezone.now().isoformat(),
+                            "costUsd": float(result.total_cost_usd),
+                            "processingTimeMs": getattr(result, 'total_duration_ms', 0),
+                            "contentSource": result.content_source,
+                            "stagesCompleted": result.stages_completed,
+                            "requiredCritic": result.required_critic,
+                            "wasRepaired": result.was_repaired
+                        },
+                        "article_id": public_id
                     },
-                    "metadata": {
-                        "generatedAt": timezone.now().isoformat(),
-                        "costUsd": float(result.total_cost_usd),
-                        "processingTimeMs": getattr(result, 'total_duration_ms', 0),
-                        "contentSource": result.content_source,
-                        "stagesCompleted": result.stages_completed,
-                        "requiredCritic": result.required_critic,
-                        "wasRepaired": result.was_repaired
-                    }
-                }
+                    message="Summary generated successfully"
+                )
             else:
-                response_data = {
-                    "success": False,
-                    "error": "Summary generation failed",
-                    "details": result.error_message,
-                    "failedStage": result.failed_stage,
-                    "canRetry": result.failed_stage in ['rbc_compression', 'skeleton_summary']
-                }
+                return create_error_response(
+                    "Summary generation failed",
+                    status=500,
+                    error_code="SUMMARIZATION_FAILED",
+                    details={
+                        "error_message": result.error_message,
+                        "failedStage": result.failed_stage,
+                        "canRetry": result.failed_stage in ['rbc_compression', 'skeleton_summary'],
+                        "article_id": public_id
+                    }
+                )
                 
     except ImportError as e:
         logger.error(f"Summarization service not available: {e}")
-        response_data = {
-            "success": False,
-            "error": "Summarization service unavailable",
-            "details": "The summarization service is not properly configured"
-        }
+        return create_error_response(
+            "Summarization service unavailable",
+            status=503,
+            error_code="SERVICE_UNAVAILABLE",
+            details={
+                "reason": "The summarization service is not properly configured",
+                "service": "summarization",
+                "article_id": public_id
+            }
+        )
     except Exception as e:
         logger.error(f"Unexpected error during summarization: {e}")
-        response_data = {
-            "success": False,
-            "error": "Internal server error",
-            "details": "An unexpected error occurred during summary generation"
-        }
+        return create_error_response(
+            "Internal server error",
+            status=500,
+            error_code="INTERNAL_ERROR",
+            details={
+                "reason": "An unexpected error occurred during summary generation",
+                "error_type": type(e).__name__,
+                "article_id": public_id
+            }
+        )
 
-    response = JsonResponse(response_data)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
-
-@require_http_methods(["GET", "OPTIONS"])
+@api_view(['GET'], authenticate=False)
 def article_summary_status(request, public_id):
     """
     Check the status of summary generation for an article.
     GET /articles/<public_id>/summary-status/
     """
-    # Handle OPTIONS request for CORS
-    if request.method == "OPTIONS":
-        response = JsonResponse({})
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-
     try:
         article_uuid = uuid.UUID(public_id)
     except ValueError:
-        response = JsonResponse({"error": "Invalid article ID"}, status=400)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Invalid article ID",
+            status=400,
+            error_code="INVALID_ARTICLE_ID",
+            details={"public_id": public_id}
+        )
 
     try:
         article = Article.objects.get(public_id=article_uuid)
     except Article.DoesNotExist:
-        response = JsonResponse({"error": "Article not found"}, status=404)
-        response["Access-Control-Allow-Origin"] = "*"
-        return response
+        return create_error_response(
+            "Article not found",
+            status=404,
+            error_code="ARTICLE_NOT_FOUND",
+            details={"public_id": public_id}
+        )
 
     # Get current summarization status
     status_map = {
@@ -634,7 +627,8 @@ def article_summary_status(request, public_id):
         "summarizationStatus": article.summarization_status,
         "lastAttempt": article.last_summarization_attempt.isoformat() if article.last_summarization_attempt else None,
         "attempts": article.summarization_attempts,
-        "errorMessage": article.summarization_error_message if article.summarization_error_message else None
+        "errorMessage": article.summarization_error_message if article.summarization_error_message else None,
+        "article_id": public_id
     }
     
     # If completed, include the summary data
@@ -666,6 +660,7 @@ def article_summary_status(request, public_id):
             estimated_remaining = max(0, 30 - elapsed_seconds)  # Assume 30 seconds total
             response_data["estimatedRemainingSeconds"] = int(estimated_remaining)
     
-    response = JsonResponse(response_data)
-    response["Access-Control-Allow-Origin"] = "*"
-    return response
+    return create_success_response(
+        response_data,
+        message=f"Summary status: {current_status}"
+    )

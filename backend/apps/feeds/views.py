@@ -6,49 +6,47 @@ from .serializers import TopicSerializer, RegionSerializer, LanguageSerializer, 
 import json
 import logging
 import traceback
-from apps.accounts.auth_helpers import authenticate_request, get_auth_response
 from django.conf import settings
 from django.db.models import Q
-from utils.http import create_cors_response, handle_options_request, add_cors_headers
+
+# NEW: Import enhanced API utilities
+from apps.core.api_utils import (
+    api_view, create_response, create_error_response, 
+    paginate_response
+)
 
 logger = logging.getLogger(__name__)
 
 # Create your views here.
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def get_topics(request):
     """
     Get all available topics/categories.
+    Public endpoint - no authentication required.
     """
-    if request.method == 'OPTIONS':
-        return handle_options_request("GET, OPTIONS")
-        
     topics = Topic.objects.all().order_by('name').values('id', 'name', 'slug')
-    return create_cors_response({'topics': list(topics)})
+    return create_response({'topics': list(topics)})
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def get_regions(request):
     """
     Get all available regions.
+    Public endpoint - no authentication required.
     """
-    if request.method == 'OPTIONS':
-        return handle_options_request("GET, OPTIONS")
-        
     regions = Region.objects.all().order_by('name').values('id', 'code', 'name')
-    return create_cors_response({'regions': list(regions)})
+    return create_response({'regions': list(regions)})
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def get_languages(request):
     """
     Get all available languages.
+    Public endpoint - no authentication required.
     """
-    if request.method == 'OPTIONS':
-        return handle_options_request("GET, OPTIONS")
-        
     languages = Language.objects.all().order_by('name').values('id', 'iso_code', 'name')
-    return create_cors_response({'languages': list(languages)})
+    return create_response({'languages': list(languages)})
 
-@csrf_exempt
+@api_view(['GET'])
 def get_publications(request):
     """
     Get publications with pagination and flexible filtering.
@@ -64,15 +62,7 @@ def get_publications(request):
     - page: Page number (default: 1)
     - page_size: Results per page (default: 20)
     """
-    # For OPTIONS requests (preflight CORS)
-    if request.method == 'OPTIONS':
-        return handle_options_request("GET, OPTIONS")
-    
-    # Validate authentication for GET requests
-    if request.method == 'GET':
-        authenticated, user, error = authenticate_request(request)
-        if not authenticated:
-            return get_auth_response(error)
+    user = request.user  # Authenticated by @api_view
     
     # Get the filter mode (recommended or other)
     filter_mode = request.GET.get('filter_mode', 'recommended')
@@ -88,7 +78,7 @@ def get_publications(request):
     
     # Get pagination parameters
     page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 20))
+    page_size = min(int(request.GET.get('page_size', 20)), 100)  # Max 100 per page
     
     # Start with all publications - always order by authority DESC, then ID ASC
     # This ensures deterministic ordering and prevents pagination duplicates
@@ -130,17 +120,12 @@ def get_publications(request):
     logger.info(f"Publications query - Filter mode: {filter_mode}, Topics: {topic_ids}, Regions: {region_codes}")
     logger.info(f"Total matching publications: {publications.count()}")
     
-    # Manual pagination
-    total_count = publications.count()
-    total_pages = (total_count + page_size - 1) // page_size
-    start_index = (page - 1) * page_size
-    end_index = start_index + page_size
+    # Use enhanced pagination utility
+    result = paginate_response(publications, page, page_size, max_page_size=100)
     
-    paginated_publications = publications[start_index:end_index]
-    
-    # Add related entities to each publication
+    # Transform publications to expected format
     publications_list = []
-    for pub in paginated_publications:
+    for pub in result['items']:
         pub_data = {
             'id': pub.id,
             'name': pub.name,
@@ -156,154 +141,127 @@ def get_publications(request):
         }
         publications_list.append(pub_data)
     
-    # Create response with pagination metadata
-    response_data = {
-        'results': publications_list,
-        'pagination': {
-            'page': page,
-            'page_size': page_size,
-            'total_count': total_count,
-            'total_pages': total_pages
-        }
-    }
+    # Replace items with formatted data
+    result['results'] = publications_list
+    del result['items']  # Remove the raw items
     
-    return create_cors_response(response_data)
+    return create_response(result)
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def debug_endpoint(request):
     """
-    Debug endpoint to help isolate issues - returns hardcoded data
+    Debug endpoint to help isolate issues - returns hardcoded data.
+    Public endpoint for debugging purposes.
     """
-    try:
-        # Return hardcoded data without touching DB
-        result = {
-            "status": "ok",
-            "message": "Debug endpoint working",
-            "timestamp": "2025-05-02T22:30:00Z",
-            "sample_data": {
-                "name": "Test Item",
-                "value": 42,
-                "is_active": True
-            }
+    result = {
+        "status": "ok",
+        "message": "Debug endpoint working",
+        "timestamp": "2025-05-02T22:30:00Z",
+        "sample_data": {
+            "name": "Test Item",
+            "value": 42,
+            "is_active": True
         }
-        logger.info("Debug endpoint success")
-        return create_cors_response(result)
-    except Exception as e:
-        logger.error(f"Error in debug endpoint: {e}")
-        return create_cors_response({"error": str(e)}, status=500)
+    }
+    logger.info("Debug endpoint success")
+    return create_response(result)
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def basic_data(request):
     """
     Get all reference data for onboarding in a single request.
-    Uses Django's JsonResponse directly instead of DRF to avoid recursion issues.
+    Public endpoint - provides data needed before user authentication.
     """
-    try:
-        # For OPTIONS requests (preflight CORS)
-        if request.method == 'OPTIONS':
-            return handle_options_request("GET, OPTIONS")
-            
-        # Get data from the database
-        topics = list(Topic.objects.all().order_by('name').values('id', 'name', 'slug'))
-        regions = list(Region.objects.all().order_by('name').values('id', 'code', 'name'))
-        languages = list(Language.objects.all().order_by('name').values('id', 'iso_code', 'name'))
-        
-        # For publications, we need to handle the M2M relationships carefully
-        publications_list = []
-        publications = Publication.objects.all().order_by('-authority')[:20]
-        
-        for pub in publications:
-            pub_data = {
-                'id': pub.id,
-                'name': pub.name,
-                'website_url': pub.website_url,
-                'logo_url': pub.logo_url if pub.logo_url else '',
-                'description': pub.description if pub.description else '',
-                'authority': float(pub.authority) if pub.authority else 1.0,
-                'news_api_id': pub.news_api_id if pub.news_api_id else '',
-                # Get related IDs - use codes for regions and languages to be consistent with get_publications
-                'topic_ids': list(pub.topics.values_list('id', flat=True)),
-                'region_ids': list(pub.regions.values_list('code', flat=True)),
-                'language_ids': list(pub.languages.values_list('iso_code', flat=True)),
-            }
-            publications_list.append(pub_data)
-        
-        # Assemble the response
-        data = {
-            'topics': topics,
-            'regions': regions,
-            'languages': languages,
-            'publications': publications_list
+    # Get data from the database
+    topics = list(Topic.objects.all().order_by('name').values('id', 'name', 'slug'))
+    regions = list(Region.objects.all().order_by('name').values('id', 'code', 'name'))
+    languages = list(Language.objects.all().order_by('name').values('id', 'iso_code', 'name'))
+    
+    # For publications, we need to handle the M2M relationships carefully
+    publications_list = []
+    publications = Publication.objects.all().order_by('-authority')[:20]
+    
+    for pub in publications:
+        pub_data = {
+            'id': pub.id,
+            'name': pub.name,
+            'website_url': pub.website_url,
+            'logo_url': pub.logo_url if pub.logo_url else '',
+            'description': pub.description if pub.description else '',
+            'authority': float(pub.authority) if pub.authority else 1.0,
+            'news_api_id': pub.news_api_id if pub.news_api_id else '',
+            # Get related IDs - use codes for regions and languages to be consistent with get_publications
+            'topic_ids': list(pub.topics.values_list('id', flat=True)),
+            'region_ids': list(pub.regions.values_list('code', flat=True)),
+            'language_ids': list(pub.languages.values_list('iso_code', flat=True)),
         }
-        
-        # Return as JSON response with CORS headers
-        return create_cors_response(data)
-    except Exception as e:
-        logger.error(f"Error in basic_data view: {e}")
-        logger.error(traceback.format_exc())
-        return create_cors_response({}, status=500, error=str(e))
+        publications_list.append(pub_data)
+    
+    # Assemble the response
+    data = {
+        'topics': topics,
+        'regions': regions,
+        'languages': languages,
+        'publications': publications_list
+    }
+    
+    return create_response(data)
 
-@csrf_exempt
+@api_view(['GET'], authenticate=False)
 def get_reference_data(request):
     """
     Get all reference data for onboarding in a single request.
-    Note: This DRF-based view has issues with recursion.
-    Use basic_data() instead.
+    Legacy endpoint - use basic_data() instead.
+    Provides hardcoded sample data for debugging.
     """
-    try:
-        # Return sample data for now to debug the frontend connection
-        data = {
-            'topics': [
-                {'id': 1, 'name': 'Business', 'slug': 'business'},
-                {'id': 2, 'name': 'Entertainment', 'slug': 'entertainment'},
-                {'id': 3, 'name': 'General', 'slug': 'general'},
-                {'id': 4, 'name': 'Health', 'slug': 'health'},
-                {'id': 5, 'name': 'Science', 'slug': 'science'},
-                {'id': 6, 'name': 'Sports', 'slug': 'sports'},
-                {'id': 7, 'name': 'Technology', 'slug': 'technology'}
-            ],
-            'regions': [
-                {'id': 1, 'code': 'us', 'name': 'United States'},
-                {'id': 2, 'code': 'gb', 'name': 'United Kingdom'},
-                {'id': 3, 'code': 'ca', 'name': 'Canada'},
-                {'id': 4, 'code': 'au', 'name': 'Australia'}
-            ],
-            'languages': [
-                {'id': 1, 'iso_code': 'en', 'name': 'English'},
-                {'id': 2, 'iso_code': 'es', 'name': 'Spanish'},
-                {'id': 3, 'iso_code': 'fr', 'name': 'French'}
-            ],
-            'publications': [
-                {
-                    'id': 1,
-                    'name': 'BBC News',
-                    'website_url': 'https://www.bbc.co.uk/news',
-                    'logo_url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BBC_News_2019.svg/1200px-BBC_News_2019.svg.png',
-                    'description': 'BBC News is an operational business division of the British Broadcasting Corporation.',
-                    'authority': 9.5,
-                    'news_api_id': 'bbc-news',
-                    'topic_ids': [1, 3, 7],
-                    'region_ids': [2],
-                    'language_ids': [1]
-                },
-                {
-                    'id': 2,
-                    'name': 'CNN',
-                    'website_url': 'https://www.cnn.com',
-                    'logo_url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/1200px-CNN.svg.png',
-                    'description': 'Cable News Network is a multinational news-based pay television channel.',
-                    'authority': 9.0,
-                    'news_api_id': 'cnn',
-                    'topic_ids': [1, 2, 3],
-                    'region_ids': [1],
-                    'language_ids': [1]
-                }
-            ]
-        }
-        
-        logger.info("Returning hardcoded reference data successfully")
-        return create_cors_response(data)
-        
-    except Exception as e:
-        logger.error(f"Error in get_reference_data: {e}")
-        return create_cors_response({"error": str(e)}, status=500)
+    data = {
+        'topics': [
+            {'id': 1, 'name': 'Business', 'slug': 'business'},
+            {'id': 2, 'name': 'Entertainment', 'slug': 'entertainment'},
+            {'id': 3, 'name': 'General', 'slug': 'general'},
+            {'id': 4, 'name': 'Health', 'slug': 'health'},
+            {'id': 5, 'name': 'Science', 'slug': 'science'},
+            {'id': 6, 'name': 'Sports', 'slug': 'sports'},
+            {'id': 7, 'name': 'Technology', 'slug': 'technology'}
+        ],
+        'regions': [
+            {'id': 1, 'code': 'us', 'name': 'United States'},
+            {'id': 2, 'code': 'gb', 'name': 'United Kingdom'},
+            {'id': 3, 'code': 'ca', 'name': 'Canada'},
+            {'id': 4, 'code': 'au', 'name': 'Australia'}
+        ],
+        'languages': [
+            {'id': 1, 'iso_code': 'en', 'name': 'English'},
+            {'id': 2, 'iso_code': 'es', 'name': 'Spanish'},
+            {'id': 3, 'iso_code': 'fr', 'name': 'French'}
+        ],
+        'publications': [
+            {
+                'id': 1,
+                'name': 'BBC News',
+                'website_url': 'https://www.bbc.co.uk/news',
+                'logo_url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BBC_News_2019.svg/1200px-BBC_News_2019.svg.png',
+                'description': 'BBC News is an operational business division of the British Broadcasting Corporation.',
+                'authority': 9.5,
+                'news_api_id': 'bbc-news',
+                'topic_ids': [1, 3, 7],
+                'region_ids': [2],
+                'language_ids': [1]
+            },
+            {
+                'id': 2,
+                'name': 'CNN',
+                'website_url': 'https://www.cnn.com',
+                'logo_url': 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/1200px-CNN.svg.png',
+                'description': 'Cable News Network is a multinational news-based pay television channel.',
+                'authority': 9.0,
+                'news_api_id': 'cnn',
+                'topic_ids': [1, 2, 3],
+                'region_ids': [1],
+                'language_ids': [1]
+            }
+        ]
+    }
+    
+    logger.info("Returning hardcoded reference data successfully")
+    return create_response(data)

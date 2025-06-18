@@ -10,22 +10,26 @@ import jwt
 import uuid
 from .models import UserProfile
 from .serializers import OnboardingDataSerializer
-from apps.accounts.auth_helpers import authenticate_request, get_auth_response, create_jwt_token
-from utils.http import create_cors_response, handle_options_request
+
+# Import from consolidated API utilities
+from apps.core.api_utils import (
+    api_view, create_response, create_error_response, 
+    create_success_response, parse_request_body, create_jwt_token,
+    authenticate_request, get_auth_response
+)
 
 # Unified endpoint for user sync and status
-@csrf_exempt
+@api_view(['GET', 'POST'], authenticate=False)  # Handle auth manually for POST
 def user_sync_and_status(request):
     """
     Sync user status and get onboarding status.
     Used by frontend to check user state on app start.
+    
+    GET: Retrieve current user status (requires auth)
+    POST: Sync user from NextAuth (no auth required)
     """
-    # Handle OPTIONS requests (preflight CORS)
-    if request.method == 'OPTIONS':
-        return handle_options_request("GET, POST, OPTIONS")
-        
     if request.method == 'GET':
-        # Validate authentication - unpack 3 values, not 2
+        # For GET requests, we need authentication
         is_authenticated, user, error_message = authenticate_request(request)
         if not is_authenticated:
             return get_auth_response(error_message)
@@ -50,7 +54,7 @@ def user_sync_and_status(request):
                 topics_details = list(Topic.objects.filter(id__in=user_topic_ids).values('id', 'name', 'slug'))
             
             # Return user data and token
-            return create_cors_response({
+            return create_response({
                 'id': user.id,
                 'public_id': str(profile.public_id),
                 'email': user.email,
@@ -62,18 +66,17 @@ def user_sync_and_status(request):
             })
             
         except Exception as e:
-            return create_cors_response({'error': str(e)}, status=500)
+            return create_error_response(f'Failed to get user status: {str(e)}', status=500)
             
-    # Handle POST method (sync)
+    # Handle POST method (sync) - no auth required
     elif request.method == 'POST':
-        # Get the data from the request body
-        try:
-            data = json.loads(request.body.decode('utf-8'))
-        except json.JSONDecodeError:
-            return create_cors_response({'error': 'Invalid JSON'}, status=400)
+        # Parse request body
+        data, error = parse_request_body(request)
+        if error:
+            return error
 
         if not data.get('email'):
-            return create_cors_response({'error': 'Email is required'}, status=400)
+            return create_error_response('Email is required', status=400)
         
         # Find or create the user by email
         email = data.get('email')
@@ -108,7 +111,7 @@ def user_sync_and_status(request):
         has_completed_onboarding = UserTopic.objects.filter(user=user).exists()
         
         # Return user data and token
-        return create_cors_response({
+        return create_response({
             'id': user.id,
             'public_id': str(profile.public_id),
             'email': user.email,
@@ -116,168 +119,135 @@ def user_sync_and_status(request):
             'django_token': token,
             'has_completed_onboarding': has_completed_onboarding,
         })
-            
-    # If method not allowed
-    return create_cors_response({'error': 'Method not allowed'}, status=405)
 
 # Consolidated preferences handling
-@csrf_exempt
+@api_view(['GET', 'POST'])
 def user_preferences(request):
     """
     Unified endpoint for managing user preferences:
     - GET: Retrieves current user preferences
     - POST: Saves user preferences and marks onboarding as complete
     """
-    try:
-        # Handle OPTIONS requests (preflight CORS)
-        if request.method == 'OPTIONS':
-            return handle_options_request("GET, POST, OPTIONS")
+    user = request.user  # Automatically authenticated by @api_view
             
-        # Authenticate for both methods
-        authenticated, user, error = authenticate_request(request)
-        if not authenticated:
-            return create_cors_response({}, status=401, error=error)
-            
-        # Handle GET request
-        if request.method == 'GET':
-            # Import models from feeds app
-            from apps.feeds.models import (
-                UserTopic, UserRegion, UserLanguage, UserPublication
-            )
-            
-            # Get user preferences
-            user_topics = list(UserTopic.objects.filter(user=user).values_list('topic_id', flat=True))
-            user_regions = list(UserRegion.objects.filter(user=user).values_list('region__code', flat=True))
-            user_languages = list(UserLanguage.objects.filter(user=user).values_list('language__iso_code', flat=True))
-            user_publications = list(UserPublication.objects.filter(user=user).values_list('publication_id', flat=True))
-            
-            # Get topic details for the frontend
-            from apps.feeds.models import Topic
-            user_topics_details = list(
-                Topic.objects.filter(id__in=user_topics).values('id', 'name', 'slug')
-            )
-            
-            # Get profile
-            profile = UserProfile.objects.get(user=user)
-            
-            # Return preferences
-            return create_cors_response({
-                'topics': user_topics,
-                'topics_details': user_topics_details,
-                'regions': user_regions,
-                'languages': user_languages,
-                'publications': user_publications,
-                'has_completed_onboarding': profile.onboarding_completed,
-                'user_id': user.id,
-                'public_id': str(profile.public_id),
-                'email': user.email,
-                'name': user.first_name,
-            })
-                
-        # Handle POST request
-        elif request.method == 'POST':
-            # Parse request body
-            try:
-                data = json.loads(request.body)
-            except json.JSONDecodeError:
-                return create_cors_response(
-                    {}, 
-                    status=400, 
-                    error="Invalid JSON in request body"
-                )
-                
-            # Validate required data
-            if 'topics' not in data:
-                return create_cors_response(
-                    {}, 
-                    status=400, 
-                    error="Missing required field: topics"
-                )
-                
-            # Get validated data
-            topics_ids = data.get('topics', [])
-            regions_codes = data.get('regions', [])
-            languages_codes = data.get('languages', [])
-            publications_ids = data.get('publications', [])
-            
-            # Validate data types
-            if not isinstance(topics_ids, list):
-                return create_cors_response(
-                    {}, 
-                    status=400, 
-                    error="topics must be a list"
-                )
-            
-            # Import models from feeds app
-            from apps.feeds.models import (
-                Topic, Region, Language, Publication,
-                UserTopic, UserRegion, UserLanguage, UserPublication
-            )
-            
-            # Process the data in a transaction to ensure atomic operations
-            with transaction.atomic():
-                # Clear existing preferences
-                UserTopic.objects.filter(user=user).delete()
-                UserRegion.objects.filter(user=user).delete()
-                UserLanguage.objects.filter(user=user).delete()
-                UserPublication.objects.filter(user=user).delete()
-                
-                # Add topics
-                for topic_id in topics_ids:
-                    try:
-                        topic = Topic.objects.get(id=topic_id)
-                        UserTopic.objects.create(user=user, topic=topic)
-                    except Topic.DoesNotExist:
-                        pass  # Skip invalid topic
-                
-                # Add regions
-                for region_code in regions_codes:
-                    try:
-                        region = Region.objects.get(code=region_code)
-                        UserRegion.objects.create(user=user, region=region)
-                    except Region.DoesNotExist:
-                        pass  # Skip invalid region
-                
-                # Add languages
-                for language_code in languages_codes:
-                    try:
-                        language = Language.objects.get(iso_code=language_code)
-                        UserLanguage.objects.create(user=user, language=language)
-                    except Language.DoesNotExist:
-                        pass  # Skip invalid language
-                
-                # Add publications (optional)
-                for pub_id in publications_ids:
-                    try:
-                        publication = Publication.objects.get(id=pub_id)
-                        UserPublication.objects.create(user=user, publication=publication)
-                    except Publication.DoesNotExist:
-                        pass  # Skip invalid publication
-                
-                # Mark onboarding as completed
-                profile = UserProfile.objects.get(user=user)
-                profile.onboarding_completed = True
-                profile.save()
-            
-            # Return success response
-            return create_cors_response({
-                'message': 'Preferences saved successfully',
-                'has_completed_onboarding': True,
-            })
+    # Handle GET request
+    if request.method == 'GET':
+        # Import models from feeds app
+        from apps.feeds.models import (
+            UserTopic, UserRegion, UserLanguage, UserPublication
+        )
         
-        # Reject other methods
-        else:
-            return create_cors_response(
-                {}, 
-                status=405, 
-                error="Method not allowed, use GET or POST"
+        # Get user preferences
+        user_topics = list(UserTopic.objects.filter(user=user).values_list('topic_id', flat=True))
+        user_regions = list(UserRegion.objects.filter(user=user).values_list('region__code', flat=True))
+        user_languages = list(UserLanguage.objects.filter(user=user).values_list('language__iso_code', flat=True))
+        user_publications = list(UserPublication.objects.filter(user=user).values_list('publication_id', flat=True))
+        
+        # Get topic details for the frontend
+        from apps.feeds.models import Topic
+        user_topics_details = list(
+            Topic.objects.filter(id__in=user_topics).values('id', 'name', 'slug')
+        )
+        
+        # Get profile
+        profile = UserProfile.objects.get(user=user)
+        
+        # Return preferences
+        return create_response({
+            'topics': user_topics,
+            'topics_details': user_topics_details,
+            'regions': user_regions,
+            'languages': user_languages,
+            'publications': user_publications,
+            'has_completed_onboarding': profile.onboarding_completed,
+            'user_id': user.id,
+            'public_id': str(profile.public_id),
+            'email': user.email,
+            'name': user.first_name,
+        })
+            
+    # Handle POST request
+    elif request.method == 'POST':
+        # Parse request body
+        data, error = parse_request_body(request)
+        if error:
+            return error
+            
+        # Validate required data
+        if 'topics' not in data:
+            return create_error_response(
+                "Missing required field: topics", 
+                status=400,
+                error_code="MISSING_REQUIRED_FIELD"
             )
             
-    except Exception as e:
-        print(f"Error in user_preferences: {e}")
-        print(traceback.format_exc())
-        return create_cors_response(
-            {}, 
-            status=500, 
-            error=f"Failed to process preferences: {str(e)}"
+        # Get validated data
+        topics_ids = data.get('topics', [])
+        regions_codes = data.get('regions', [])
+        languages_codes = data.get('languages', [])
+        publications_ids = data.get('publications', [])
+        
+        # Validate data types
+        if not isinstance(topics_ids, list):
+            return create_error_response(
+                "topics must be a list", 
+                status=400,
+                error_code="INVALID_DATA_TYPE"
+            )
+        
+        # Import models from feeds app
+        from apps.feeds.models import (
+            Topic, Region, Language, Publication,
+            UserTopic, UserRegion, UserLanguage, UserPublication
+        )
+        
+        # Process the data in a transaction to ensure atomic operations
+        with transaction.atomic():
+            # Clear existing preferences
+            UserTopic.objects.filter(user=user).delete()
+            UserRegion.objects.filter(user=user).delete()
+            UserLanguage.objects.filter(user=user).delete()
+            UserPublication.objects.filter(user=user).delete()
+            
+            # Add topics
+            for topic_id in topics_ids:
+                try:
+                    topic = Topic.objects.get(id=topic_id)
+                    UserTopic.objects.create(user=user, topic=topic)
+                except Topic.DoesNotExist:
+                    pass  # Skip invalid topic
+            
+            # Add regions
+            for region_code in regions_codes:
+                try:
+                    region = Region.objects.get(code=region_code)
+                    UserRegion.objects.create(user=user, region=region)
+                except Region.DoesNotExist:
+                    pass  # Skip invalid region
+            
+            # Add languages
+            for language_code in languages_codes:
+                try:
+                    language = Language.objects.get(iso_code=language_code)
+                    UserLanguage.objects.create(user=user, language=language)
+                except Language.DoesNotExist:
+                    pass  # Skip invalid language
+            
+            # Add publications (optional)
+            for pub_id in publications_ids:
+                try:
+                    publication = Publication.objects.get(id=pub_id)
+                    UserPublication.objects.create(user=user, publication=publication)
+                except Publication.DoesNotExist:
+                    pass  # Skip invalid publication
+            
+            # Mark onboarding as completed
+            profile = UserProfile.objects.get(user=user)
+            profile.onboarding_completed = True
+            profile.save()
+        
+        # Return success response
+        return create_success_response(
+            {'has_completed_onboarding': True},
+            message='Preferences saved successfully'
         )
