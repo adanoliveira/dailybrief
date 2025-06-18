@@ -546,38 +546,99 @@ INSTRUCTIONS:
             valid_options: List of valid topic slugs or region codes
             
         Returns:
-            Dict with 'success', 'data', and optional 'error' keys
+            Dict with classification data (directly returns the parsed and validated data)
         """
         try:
-            data = json.loads(output_text.strip())
+            # Clean and parse JSON
+            clean_text = output_text.strip()
+            if clean_text.startswith('```json'):
+                clean_text = clean_text[7:]
+            if clean_text.startswith('```'):
+                clean_text = clean_text[3:]
+            if clean_text.endswith('```'):
+                clean_text = clean_text[:-3]
+            clean_text = clean_text.strip()
             
-            # Check primary classification
-            primary_key = 'primary_topic' if 'primary_topic' in output_text else 'primary_region'
+            data = json.loads(clean_text)
+            
+            # Determine if this is topic or region classification based on the parsed data
+            is_topic = 'primary_topic' in data
+            is_region = 'primary_region' in data
+            
+            if not is_topic and not is_region:
+                # Try to determine from valid_options format
+                # Topic slugs are typically lower_case, region codes are typically UPPER or mixed
+                sample_option = valid_options[0] if valid_options else ""
+                if len(sample_option) <= 3 and sample_option.isupper():
+                    is_region = True
+                    primary_key = 'primary_region'
+                else:
+                    is_topic = True
+                    primary_key = 'primary_topic'
+                
+                # Add missing field with None if not present
+                if primary_key not in data:
+                    data[primary_key] = None
+            else:
+                primary_key = 'primary_topic' if is_topic else 'primary_region'
+            
             confidence_key = f"{primary_key}_confidence"
             
-            if primary_key not in data:
-                return {'success': False, 'error': f'Missing {primary_key} field'}
+            # Get and validate primary value
+            primary_value = data.get(primary_key)
             
-            # Validate primary option is in valid list
-            primary_value = data[primary_key]
-            if primary_value not in valid_options:
-                return {'success': False, 'error': f'Invalid {primary_key}: {primary_value}'}
+            # Validate primary option is in valid list (only if not None)
+            if primary_value is not None and primary_value not in valid_options:
+                logger.warning(f"Invalid {primary_key}: {primary_value}, valid options: {valid_options}")
+                # Set to None instead of failing, with very low confidence
+                data[primary_key] = None
+                data[confidence_key] = 0.1
             
-            # Validate confidence (optional field with default)
-            confidence = data.get(confidence_key, 0.0)  # Default to 0.0 if missing
-            if not (0.0 <= confidence <= 1.0):
-                return {'success': False, 'error': f'{confidence_key} must be between 0.0 and 1.0'}
+            # Validate and set confidence
+            confidence = data.get(confidence_key, 0.7)  # Default to 0.7 if missing
+            if not isinstance(confidence, (int, float)) or not (0.0 <= confidence <= 1.0):
+                confidence = 0.7  # Default fallback
+            data[confidence_key] = confidence
             
-            # Add default confidence if missing
-            if confidence_key not in data:
-                data[confidence_key] = 0.0
+            # Ensure secondary fields exist
+            secondary_key = 'secondary_topics' if is_topic else 'secondary_regions'
+            relevance_key = 'topic_relevance' if is_topic else 'region_relevance'
             
-            return {'success': True, 'data': data}
+            if secondary_key not in data:
+                data[secondary_key] = []
+            if relevance_key not in data:
+                data[relevance_key] = {}
+            
+            return data
             
         except json.JSONDecodeError as e:
-            return {'success': False, 'error': f'Invalid JSON: {str(e)}'}
+            logger.error(f"Invalid JSON in classification output: {str(e)}")
+            logger.error(f"Raw output: {output_text[:500]}...")
+            # Return empty result with default confidence
+            return {
+                'primary_topic': None,
+                'primary_topic_confidence': 0.0,
+                'secondary_topics': [],
+                'topic_relevance': {},
+                'primary_region': None, 
+                'primary_region_confidence': 0.0,
+                'secondary_regions': [],
+                'region_relevance': {}
+            }
         except Exception as e:
-            return {'success': False, 'error': f'Validation error: {str(e)}'}
+            logger.error(f"Classification validation error: {str(e)}")
+            logger.error(f"Raw output: {output_text[:500]}...")
+            # Return empty result with default confidence
+            return {
+                'primary_topic': None,
+                'primary_topic_confidence': 0.0,
+                'secondary_topics': [],
+                'topic_relevance': {},
+                'primary_region': None,
+                'primary_region_confidence': 0.0,
+                'secondary_regions': [],
+                'region_relevance': {}
+            }
     
     @staticmethod
     def validate_event_output(output_text: str) -> Dict[str, Any]:
