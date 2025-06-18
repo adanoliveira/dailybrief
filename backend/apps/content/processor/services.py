@@ -14,6 +14,7 @@ from django.conf import settings
 from apps.articles.models import Article, ProcessingStatus
 from .routing import ProcessingRouter, ComplexityAnalysis
 from .algorithmic_processor import AlgorithmicProcessor, ProcessingResult
+from .ai_processor import AIContentProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class ContentProcessor:
     def __init__(self):
         self.router = ProcessingRouter()
         self.algorithmic_processor = AlgorithmicProcessor()
-        # self.llm_processor = LLMEnhancedProcessor()  # TODO: Implement
+        self.llm_processor = AIContentProcessor()  # Use the existing AI processor
         
         # Processing settings
         self.max_attempts = getattr(settings, 'CONTENT_PROCESS_MAX_ATTEMPTS', 3)
@@ -63,24 +64,25 @@ class ContentProcessor:
                 error_message="No raw HTML content available for processing"
             )
         
-        # Determine processing route
+        # Always use AI processor for now
         if not route:
-            complexity_analysis = self.router.analyze_content_complexity(article.raw_html, article)
-            route = complexity_analysis.recommended_route
-            logger.info(f"Auto-selected route '{route}' for article {article.id}")
+            route = 'llm_enhanced'
+            logger.info(f"Auto-selected AI processing route for article {article.id}")
         else:
             logger.info(f"Using specified route '{route}' for article {article.id}")
         
-        # Process based on route
+        # Process based on route (always use LLM enhanced for now)
         if route == 'algorithmic':
-            return self._process_algorithmic_mode(article)
+            logger.info(f"Overriding algorithmic route to use AI processing for article {article.id}")
+            return self._process_llm_enhanced_mode(article)
         elif route == 'llm_enhanced':
             return self._process_llm_enhanced_mode(article)
         elif route == 'hybrid':
-            return self._process_hybrid_mode(article)
+            logger.info(f"Overriding hybrid route to use AI processing for article {article.id}")
+            return self._process_llm_enhanced_mode(article)
         else:
-            logger.warning(f"Unknown route '{route}', falling back to algorithmic mode")
-            return self._process_algorithmic_mode(article)
+            logger.warning(f"Unknown route '{route}', using AI processing for article {article.id}")
+            return self._process_llm_enhanced_mode(article)
     
     def _process_algorithmic_mode(self, article) -> ProcessingResult:
         """
@@ -100,7 +102,7 @@ class ContentProcessor:
         }
         
         # Process with algorithmic processor
-        result = self.algorithmic_processor.process_content(article.raw_html, article_metadata, base_url=article.url)
+        result = self.algorithmic_processor.process_content(article.raw_html, article_metadata)
         
         if result.success:
             logger.info(f"Algorithmic processing successful for article {article.id}, "

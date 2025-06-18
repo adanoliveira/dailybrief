@@ -26,12 +26,67 @@ from datetime import timedelta
 from apps.articles.models import Article, FetchStatus, ProcessingStatus, SummarizationStatus, AnalyzerStatus
 
 # Import task functions from each stage
-from apps.content.fetcher.tasks import fetch_pending_articles, fetch_batch_articles
-from apps.content.processor.tasks import process_pending_articles, process_batch_articles
-from apps.content.summariser.tasks import process_pending_summarizations, batch_summarize_articles
-from apps.content.analyzer.tasks import process_pending_analysis, batch_analyze_articles
+from apps.content.fetcher.tasks import fetch_batch_articles
+from apps.content.processor.tasks import process_batch_articles
+from apps.content.summariser.tasks import batch_summarize_articles
+from apps.content.analyzer.tasks import batch_analyze_articles
 
 logger = logging.getLogger(__name__)
+
+# Constants
+PIPELINE_TIME_WINDOW_HOURS = 72
+MAX_RETRY_ATTEMPTS = 3
+
+
+def _get_time_threshold() -> timezone.datetime:
+    """Get the time threshold for pipeline processing (72 hours ago)."""
+    return timezone.now() - timedelta(hours=PIPELINE_TIME_WINDOW_HOURS)
+
+
+def _get_base_queryset():
+    """Get base queryset for top headlines within the time window."""
+    return Article.objects.filter(
+        is_top_headline=True,
+        published_at__gte=_get_time_threshold()
+    )
+
+
+def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[int]:
+    """
+    Get article IDs for a specific pipeline stage.
+    
+    Args:
+        stage_filters: Additional filters specific to the stage
+        limit: Maximum number of articles to return
+    
+    Returns:
+        List of article IDs
+    """
+    queryset = _get_base_queryset().filter(**stage_filters).order_by('published_at')[:limit]
+    return list(queryset.values_list('id', flat=True))
+
+
+def _queue_async_task(task_func, article_ids: List[int], stage_name: str) -> Dict[str, Any]:
+    """
+    Queue an async task and return immediate summary.
+    
+    Args:
+        task_func: The Celery task function to call
+        article_ids: List of article IDs to process
+        stage_name: Name of the stage for logging
+    
+    Returns:
+        Dict with processing summary
+    """
+    task_func.delay(article_ids, force_regenerate=False)
+    logger.info(f"{stage_name}: Queued {len(article_ids)} articles")
+    
+    return {
+        'processed': len(article_ids),
+        'successful': 0,  # Will be updated when task completes
+        'failed': 0,
+        'message': f'Queued {len(article_ids)} articles for {stage_name.lower()}'
+    }
 
 
 @shared_task
@@ -67,23 +122,19 @@ def process_top_headlines_pipeline(limit: int = 50) -> Dict[str, Any]:
     try:
         # STAGE 1: FETCH - Process articles needing content extraction
         logger.info("Pipeline Stage 1: Fetching content for top headlines")
-        stage1_result = _process_stage1_fetch_top_headlines(limit)
-        results['stage_1_fetch'] = stage1_result
+        results['stage_1_fetch'] = _process_stage1_fetch_top_headlines(limit)
         
         # STAGE 2: PROCESS - Process articles with fetched content 
         logger.info("Pipeline Stage 2: Processing content for top headlines")
-        stage2_result = _process_stage2_process_top_headlines(limit)
-        results['stage_2_process'] = stage2_result
+        results['stage_2_process'] = _process_stage2_process_top_headlines(limit)
         
         # STAGE 3: SUMMARIZE - Summarize articles with processed content
         logger.info("Pipeline Stage 3: Summarizing content for top headlines")
-        stage3_result = _process_stage3_summarize_top_headlines(limit)
-        results['stage_3_summarize'] = stage3_result
+        results['stage_3_summarize'] = _process_stage3_summarize_top_headlines(limit)
         
         # STAGE 4: ANALYZE - Analyze articles with summaries
         logger.info("Pipeline Stage 4: Analyzing content for top headlines")
-        stage4_result = _process_stage4_analyze_top_headlines(limit)
-        results['stage_4_analyze'] = stage4_result
+        results['stage_4_analyze'] = _process_stage4_analyze_top_headlines(limit)
         
         # Calculate pipeline summary
         pipeline_end = timezone.now()
@@ -91,10 +142,10 @@ def process_top_headlines_pipeline(limit: int = 50) -> Dict[str, Any]:
         
         # Count total articles that moved through pipeline
         total_processed = sum([
-            stage1_result.get('processed', 0),
-            stage2_result.get('processed', 0), 
-            stage3_result.get('processed', 0),
-            stage4_result.get('processed', 0)
+            results['stage_1_fetch'].get('processed', 0),
+            results['stage_2_process'].get('processed', 0), 
+            results['stage_3_summarize'].get('processed', 0),
+            results['stage_4_analyze'].get('processed', 0)
         ])
         
         # Count articles that completed the full pipeline
@@ -121,23 +172,17 @@ def process_top_headlines_pipeline(limit: int = 50) -> Dict[str, Any]:
 def _process_stage1_fetch_top_headlines(limit: int) -> Dict[str, Any]:
     """Stage 1: Fetch content for top headlines that need fetching."""
     
-    # Only process headlines from the last 72 hours
-    time_threshold = timezone.now() - timedelta(hours=72)
+    stage_filters = {
+        'fetch_status': FetchStatus.PENDING,
+        'fetch_attempts__lt': MAX_RETRY_ATTEMPTS
+    }
     
-    # Find top headlines that need fetching
-    pending_fetch = Article.objects.filter(
-        is_top_headline=True,
-        published_at__gte=time_threshold,  # Only last 72 hours
-        fetch_status=FetchStatus.PENDING,
-        fetch_attempts__lt=3  # Max retry limit
-    ).order_by('published_at')[:limit]
+    article_ids = _get_articles_for_stage(stage_filters, limit)
     
-    if not pending_fetch:
+    if not article_ids:
         logger.info("No top headlines need fetching")
         return {'processed': 0, 'successful': 0, 'failed': 0, 'message': 'No articles need fetching'}
     
-    # Process in batch for efficiency
-    article_ids = list(pending_fetch.values_list('id', flat=True))
     logger.info(f"Stage 1: Processing {len(article_ids)} top headlines for fetching")
     
     # Use existing batch fetch task - call directly for synchronous execution
@@ -148,28 +193,23 @@ def _process_stage1_fetch_top_headlines(limit: int) -> Dict[str, Any]:
 def _process_stage2_process_top_headlines(limit: int) -> Dict[str, Any]:
     """Stage 2: Process top headlines that have been fetched."""
     
-    # Only process headlines from the last 72 hours
-    time_threshold = timezone.now() - timedelta(hours=72)
-    
     # Find top headlines ready for processing 
-    ready_for_processing = Article.objects.filter(
-        is_top_headline=True,
-        published_at__gte=time_threshold,  # Only last 72 hours
+    ready_for_processing = _get_base_queryset().filter(
         fetch_status=FetchStatus.COMPLETED,
         process_status=ProcessingStatus.PENDING,
-        process_attempts__lt=3  # Max retry limit
+        process_attempts__lt=MAX_RETRY_ATTEMPTS
     ).filter(
         # Must have content from Stage 1
         models.Q(raw_html__isnull=False, raw_html__regex=r'.{100,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{50,}')
     ).order_by('published_at')[:limit]
     
-    if not ready_for_processing:
+    article_ids = list(ready_for_processing.values_list('id', flat=True))
+    
+    if not article_ids:
         logger.info("No top headlines ready for processing")
         return {'processed': 0, 'successful': 0, 'failed': 0, 'message': 'No articles ready for processing'}
     
-    # Process in batch with AI processing
-    article_ids = list(ready_for_processing.values_list('id', flat=True))
     logger.info(f"Stage 2: Processing {len(article_ids)} top headlines for AI processing")
     
     # Use existing batch process task - call directly for synchronous execution
@@ -180,89 +220,58 @@ def _process_stage2_process_top_headlines(limit: int) -> Dict[str, Any]:
 def _process_stage3_summarize_top_headlines(limit: int) -> Dict[str, Any]:
     """Stage 3: Summarize top headlines that have been processed."""
     
-    # Only process headlines from the last 72 hours
-    time_threshold = timezone.now() - timedelta(hours=72)
-    
     # Find top headlines ready for summarization
-    ready_for_summarization = Article.objects.filter(
-        is_top_headline=True,
-        published_at__gte=time_threshold,  # Only last 72 hours
+    ready_for_summarization = _get_base_queryset().filter(
         process_status=ProcessingStatus.COMPLETED,
         summarization_status=SummarizationStatus.PENDING,
-        summarization_attempts__lt=3  # Max retry limit
+        summarization_attempts__lt=MAX_RETRY_ATTEMPTS
     ).filter(
         # Must have processed content from Stage 2
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
     ).order_by('published_at')[:limit]
     
-    if not ready_for_summarization:
+    article_ids = list(ready_for_summarization.values_list('id', flat=True))
+    
+    if not article_ids:
         logger.info("No top headlines ready for summarization")
         return {'processed': 0, 'successful': 0, 'failed': 0, 'message': 'No articles ready for summarization'}
     
-    # Process in batch
-    article_ids = list(ready_for_summarization.values_list('id', flat=True))
     logger.info(f"Stage 3: Processing {len(article_ids)} top headlines for summarization")
     
     # Use existing batch summarize task - queue async and return summary
-    result = batch_summarize_articles.delay(article_ids, force_regenerate=False)
-    logger.info(f"Stage 3: Queued {len(article_ids)} articles for summarization")
-    
-    # Return immediate summary since we can't wait for async result
-    return {
-        'processed': len(article_ids),
-        'successful': 0,  # Will be updated when task completes
-        'failed': 0,
-        'message': f'Queued {len(article_ids)} articles for summarization'
-    }
+    return _queue_async_task(batch_summarize_articles, article_ids, "Stage 3")
 
 
 def _process_stage4_analyze_top_headlines(limit: int) -> Dict[str, Any]:
     """Stage 4: Analyze top headlines that have been summarized."""
     
-    # Only process headlines from the last 72 hours
-    time_threshold = timezone.now() - timedelta(hours=72)
-    
     # Find top headlines ready for analysis
-    ready_for_analysis = Article.objects.filter(
-        is_top_headline=True,
-        published_at__gte=time_threshold,  # Only last 72 hours
+    ready_for_analysis = _get_base_queryset().filter(
         summarization_status=SummarizationStatus.COMPLETED,
         analyzer_status=AnalyzerStatus.PENDING,
-        analyzer_attempts__lt=3  # Max retry limit
+        analyzer_attempts__lt=MAX_RETRY_ATTEMPTS
     ).filter(
         # Must have summarized content from Stage 3
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
     ).order_by('published_at')[:limit]
     
-    if not ready_for_analysis:
+    article_ids = list(ready_for_analysis.values_list('id', flat=True))
+    
+    if not article_ids:
         logger.info("No top headlines ready for analysis")
         return {'processed': 0, 'successful': 0, 'failed': 0, 'message': 'No articles ready for analysis'}
     
-    # Process in batch
-    article_ids = list(ready_for_analysis.values_list('id', flat=True))
     logger.info(f"Stage 4: Processing {len(article_ids)} top headlines for analysis")
     
     # Use existing batch analyze task - queue async and return summary
-    result = batch_analyze_articles.delay(article_ids, force_regenerate=False)
-    logger.info(f"Stage 4: Queued {len(article_ids)} articles for analysis")
-    
-    # Return immediate summary since we can't wait for async result
-    return {
-        'processed': len(article_ids),
-        'successful': 0,  # Will be updated when task completes
-        'failed': 0,
-        'message': f'Queued {len(article_ids)} articles for analysis'
-    }
+    return _queue_async_task(batch_analyze_articles, article_ids, "Stage 4")
 
 
 def _count_fully_processed_headlines() -> int:
     """Count top headlines from last 72h that have completed all 4 pipeline stages."""
-    time_threshold = timezone.now() - timedelta(hours=72)
-    return Article.objects.filter(
-        is_top_headline=True,
-        published_at__gte=time_threshold,  # Only last 72 hours
+    return _get_base_queryset().filter(
         fetch_status=FetchStatus.COMPLETED,
         process_status=ProcessingStatus.COMPLETED,
         summarization_status=SummarizationStatus.COMPLETED,
@@ -271,7 +280,7 @@ def _count_fully_processed_headlines() -> int:
 
 
 @shared_task
-def cleanup_failed_pipeline_articles(max_attempts: int = 3) -> Dict[str, Any]:
+def cleanup_failed_pipeline_articles(max_attempts: int = MAX_RETRY_ATTEMPTS) -> Dict[str, Any]:
     """
     Clean up articles that have exceeded max retry attempts in any pipeline stage.
     
@@ -286,9 +295,6 @@ def cleanup_failed_pipeline_articles(max_attempts: int = 3) -> Dict[str, Any]:
     """
     logger.info(f"Cleaning up failed pipeline articles (max_attempts: {max_attempts})")
     
-    # Only clean up recent headlines (last 72 hours)
-    time_threshold = timezone.now() - timedelta(hours=72)
-    
     cleanup_stats = {
         'fetch_failures': 0,
         'process_failures': 0,
@@ -297,48 +303,27 @@ def cleanup_failed_pipeline_articles(max_attempts: int = 3) -> Dict[str, Any]:
         'total_cleaned': 0
     }
     
+    # Define cleanup operations
+    cleanup_operations = [
+        ('fetch_failures', 'fetch_status', FetchStatus.PENDING, FetchStatus.FAILED, 'fetch_attempts'),
+        ('process_failures', 'process_status', ProcessingStatus.PENDING, ProcessingStatus.FAILED, 'process_attempts'),
+        ('summarization_failures', 'summarization_status', SummarizationStatus.PENDING, SummarizationStatus.FAILED, 'summarization_attempts'),
+        ('analyzer_failures', 'analyzer_status', AnalyzerStatus.PENDING, AnalyzerStatus.FAILED, 'analyzer_attempts'),
+    ]
+    
     try:
         with transaction.atomic():
-            # Clean up Stage 1 failures
-            fetch_failures = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                fetch_status=FetchStatus.PENDING,
-                fetch_attempts__gte=max_attempts
-            ).update(fetch_status=FetchStatus.FAILED)
-            cleanup_stats['fetch_failures'] = fetch_failures
+            for stat_key, status_field, pending_status, failed_status, attempts_field in cleanup_operations:
+                filter_kwargs = {
+                    status_field: pending_status,
+                    f'{attempts_field}__gte': max_attempts
+                }
+                update_kwargs = {status_field: failed_status}
+                
+                failures_count = _get_base_queryset().filter(**filter_kwargs).update(**update_kwargs)
+                cleanup_stats[stat_key] = failures_count
             
-            # Clean up Stage 2 failures  
-            process_failures = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                process_status=ProcessingStatus.PENDING,
-                process_attempts__gte=max_attempts
-            ).update(process_status=ProcessingStatus.FAILED)
-            cleanup_stats['process_failures'] = process_failures
-            
-            # Clean up Stage 3 failures
-            summarization_failures = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                summarization_status=SummarizationStatus.PENDING,
-                summarization_attempts__gte=max_attempts
-            ).update(summarization_status=SummarizationStatus.FAILED)
-            cleanup_stats['summarization_failures'] = summarization_failures
-            
-            # Clean up Stage 4 failures
-            analyzer_failures = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                analyzer_status=AnalyzerStatus.PENDING,
-                analyzer_attempts__gte=max_attempts
-            ).update(analyzer_status=AnalyzerStatus.FAILED)
-            cleanup_stats['analyzer_failures'] = analyzer_failures
-            
-            cleanup_stats['total_cleaned'] = sum([
-                fetch_failures, process_failures, 
-                summarization_failures, analyzer_failures
-            ])
+            cleanup_stats['total_cleaned'] = sum(cleanup_stats[key] for key in cleanup_stats if key != 'total_cleaned')
         
         logger.info(f"Cleanup completed: {cleanup_stats['total_cleaned']} articles marked as failed")
         return cleanup_stats
@@ -358,106 +343,42 @@ def get_pipeline_status() -> Dict[str, Any]:
     focusing on top headlines from the last 72 hours (pipeline scope).
     """
     try:
-        # Only track recent headlines (last 72 hours) - the pipeline scope
-        time_threshold = timezone.now() - timedelta(hours=72)
+        base_queryset = _get_base_queryset()
         
-        # Count articles in each pipeline stage
+        # Define status queries for each stage
+        status_queries = {
+            'stage_1_pending': {'fetch_status': FetchStatus.PENDING, 'fetch_attempts__lt': MAX_RETRY_ATTEMPTS},
+            'stage_1_processing': {'fetch_status': FetchStatus.FETCHING},
+            'stage_1_completed': {'fetch_status': FetchStatus.COMPLETED},
+            'stage_1_failed': {'fetch_status': FetchStatus.FAILED},
+            
+            'stage_2_pending': {'fetch_status': FetchStatus.COMPLETED, 'process_status': ProcessingStatus.PENDING, 'process_attempts__lt': MAX_RETRY_ATTEMPTS},
+            'stage_2_processing': {'process_status': ProcessingStatus.PROCESSING},
+            'stage_2_completed': {'process_status': ProcessingStatus.COMPLETED},
+            'stage_2_failed': {'process_status': ProcessingStatus.FAILED},
+            
+            'stage_3_pending': {'process_status': ProcessingStatus.COMPLETED, 'summarization_status': SummarizationStatus.PENDING, 'summarization_attempts__lt': MAX_RETRY_ATTEMPTS},
+            'stage_3_processing': {'summarization_status': SummarizationStatus.PROCESSING},
+            'stage_3_completed': {'summarization_status': SummarizationStatus.COMPLETED},
+            'stage_3_failed': {'summarization_status': SummarizationStatus.FAILED},
+            
+            'stage_4_pending': {'summarization_status': SummarizationStatus.COMPLETED, 'analyzer_status': AnalyzerStatus.PENDING, 'analyzer_attempts__lt': MAX_RETRY_ATTEMPTS},
+            'stage_4_processing': {'analyzer_status': AnalyzerStatus.PROCESSING},
+            'stage_4_completed': {'analyzer_status': AnalyzerStatus.COMPLETED},
+            'stage_4_failed': {'analyzer_status': AnalyzerStatus.FAILED},
+        }
+        
+        # Build pipeline status
         pipeline_status = {
             'timestamp': timezone.now().isoformat(),
-            'time_window': '72h',
-            'top_headlines_total': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold
-            ).count(),
-            'stage_1_pending': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                fetch_status=FetchStatus.PENDING,
-                fetch_attempts__lt=3
-            ).count(),
-            'stage_1_processing': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                fetch_status=FetchStatus.FETCHING
-            ).count(),
-            'stage_1_completed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                fetch_status=FetchStatus.COMPLETED
-            ).count(),
-            'stage_1_failed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                fetch_status=FetchStatus.FAILED
-            ).count(),
-            'stage_2_pending': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                fetch_status=FetchStatus.COMPLETED,
-                process_status=ProcessingStatus.PENDING,
-                process_attempts__lt=3
-            ).count(),
-            'stage_2_processing': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                process_status=ProcessingStatus.PROCESSING
-            ).count(),
-            'stage_2_completed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                process_status=ProcessingStatus.COMPLETED
-            ).count(),
-            'stage_2_failed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                process_status=ProcessingStatus.FAILED
-            ).count(),
-            'stage_3_pending': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                process_status=ProcessingStatus.COMPLETED,
-                summarization_status=SummarizationStatus.PENDING,
-                summarization_attempts__lt=3
-            ).count(),
-            'stage_3_processing': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                summarization_status=SummarizationStatus.PROCESSING
-            ).count(),
-            'stage_3_completed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                summarization_status=SummarizationStatus.COMPLETED
-            ).count(),
-            'stage_3_failed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                summarization_status=SummarizationStatus.FAILED
-            ).count(),
-            'stage_4_pending': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                summarization_status=SummarizationStatus.COMPLETED,
-                analyzer_status=AnalyzerStatus.PENDING,
-                analyzer_attempts__lt=3
-            ).count(),
-            'stage_4_processing': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                analyzer_status=AnalyzerStatus.PROCESSING
-            ).count(),
-            'stage_4_completed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                analyzer_status=AnalyzerStatus.COMPLETED
-            ).count(),
-            'stage_4_failed': Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,
-                analyzer_status=AnalyzerStatus.FAILED
-            ).count(),
+            'time_window': f'{PIPELINE_TIME_WINDOW_HOURS}h',
+            'top_headlines_total': base_queryset.count(),
             'fully_processed': _count_fully_processed_headlines()
         }
+        
+        # Add counts for each stage
+        for status_key, filters in status_queries.items():
+            pipeline_status[status_key] = base_queryset.filter(**filters).count()
         
         # Calculate pipeline efficiency
         total_headlines = pipeline_status['top_headlines_total']
@@ -490,9 +411,6 @@ def retry_failed_pipeline_stages(stage: str = 'all', limit: int = 20) -> Dict[st
     """
     logger.info(f"Retrying failed pipeline stage: {stage} (limit: {limit})")
     
-    # Only retry recent headlines (last 72 hours)
-    time_threshold = timezone.now() - timedelta(hours=72)
-    
     retry_results = {
         'stage': stage,
         'retried': 0,
@@ -500,63 +418,35 @@ def retry_failed_pipeline_stages(stage: str = 'all', limit: int = 20) -> Dict[st
         'failed': 0
     }
     
+    # Define retry operations
+    retry_operations = {
+        'fetch': ('fetch_status', FetchStatus.FAILED, FetchStatus.PENDING, 'fetch_attempts'),
+        'process': ('process_status', ProcessingStatus.FAILED, ProcessingStatus.PENDING, 'process_attempts'),
+        'summarize': ('summarization_status', SummarizationStatus.FAILED, SummarizationStatus.PENDING, 'summarization_attempts'),
+        'analyze': ('analyzer_status', AnalyzerStatus.FAILED, AnalyzerStatus.PENDING, 'analyzer_attempts'),
+    }
+    
     try:
-        if stage in ['fetch', 'all']:
-            # Retry failed fetches with attempts < 3
-            failed_fetch = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                fetch_status=FetchStatus.FAILED,
-                fetch_attempts__lt=3
-            )[:limit]
-            
-            if failed_fetch:
-                # Reset status to pending for retry
-                failed_fetch.update(fetch_status=FetchStatus.PENDING)
-                retry_results['retried'] += len(failed_fetch)
-                logger.info(f"Reset {len(failed_fetch)} failed fetch articles to pending")
+        stages_to_retry = retry_operations.keys() if stage == 'all' else [stage]
         
-        if stage in ['process', 'all']:
-            # Retry failed processing with attempts < 3
-            failed_process = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                process_status=ProcessingStatus.FAILED,
-                process_attempts__lt=3
-            )[:limit]
+        for stage_name in stages_to_retry:
+            if stage_name not in retry_operations:
+                continue
+                
+            status_field, failed_status, pending_status, attempts_field = retry_operations[stage_name]
             
-            if failed_process:
-                failed_process.update(process_status=ProcessingStatus.PENDING)
-                retry_results['retried'] += len(failed_process)
-                logger.info(f"Reset {len(failed_process)} failed process articles to pending")
-        
-        if stage in ['summarize', 'all']:
-            # Retry failed summarization with attempts < 3
-            failed_summarize = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                summarization_status=SummarizationStatus.FAILED,
-                summarization_attempts__lt=3
-            )[:limit]
+            filter_kwargs = {
+                status_field: failed_status,
+                f'{attempts_field}__lt': MAX_RETRY_ATTEMPTS
+            }
+            update_kwargs = {status_field: pending_status}
             
-            if failed_summarize:
-                failed_summarize.update(summarization_status=SummarizationStatus.PENDING)
-                retry_results['retried'] += len(failed_summarize)
-                logger.info(f"Reset {len(failed_summarize)} failed summarization articles to pending")
-        
-        if stage in ['analyze', 'all']:
-            # Retry failed analysis with attempts < 3
-            failed_analyze = Article.objects.filter(
-                is_top_headline=True,
-                published_at__gte=time_threshold,  # Only last 72 hours
-                analyzer_status=AnalyzerStatus.FAILED,
-                analyzer_attempts__lt=3
-            )[:limit]
+            failed_articles = _get_base_queryset().filter(**filter_kwargs)[:limit]
             
-            if failed_analyze:
-                failed_analyze.update(analyzer_status=AnalyzerStatus.PENDING)
-                retry_results['retried'] += len(failed_analyze)
-                logger.info(f"Reset {len(failed_analyze)} failed analysis articles to pending")
+            if failed_articles:
+                count = failed_articles.update(**update_kwargs)
+                retry_results['retried'] += count
+                logger.info(f"Reset {count} failed {stage_name} articles to pending")
         
         logger.info(f"Retry operation completed: {retry_results['retried']} articles reset to pending")
         return retry_results
