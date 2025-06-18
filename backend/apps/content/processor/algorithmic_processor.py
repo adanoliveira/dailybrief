@@ -123,7 +123,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message="Invalid HTML input",
                     processing_time_ms=int((time.time() - start_time) * 1000),
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             # Store raw HTML for quality assessment access
@@ -143,7 +143,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message="HTML content too short for processing",
                     processing_time_ms=int((time.time() - start_time) * 1000),
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             # Parse HTML with error handling
@@ -173,7 +173,7 @@ class AlgorithmicProcessor:
                             success=False,
                             error_message="Failed to parse HTML content",
                             processing_time_ms=int((time.time() - start_time) * 1000),
-                            route_used="safari_mode_failed"
+                            route_used="safari_mode_fail"
                         )
                 else:
                     logger.info("Successfully decoded and parsed HTML with entity decoding")
@@ -186,7 +186,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message=f"HTML parsing error: {str(e)}",
                     processing_time_ms=int((time.time() - start_time) * 1000),
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             # 1. Find candidate elements using Safari algorithm
@@ -197,7 +197,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message="No viable candidate elements found",
                     processing_time_ms=int((time.time() - start_time) * 1000),
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             # 2. Score candidates using Safari's scoring system
@@ -211,7 +211,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message="No candidate met minimum score requirements",
                     processing_time_ms=int((time.time() - start_time) * 1000),
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             # 4. Find prepended/appended content (Safari's approach)
@@ -276,7 +276,7 @@ class AlgorithmicProcessor:
                     success=False,
                     error_message="Extracted content too short or empty",
                     processing_time_ms=processing_time,
-                    route_used="safari_mode_failed"
+                    route_used="safari_mode_fail"
                 )
             
             return ProcessingResult(
@@ -295,7 +295,7 @@ class AlgorithmicProcessor:
                 success=False,
                 error_message=str(e),
                 processing_time_ms=int((time.time() - start_time) * 1000),
-                route_used="safari_mode_failed"
+                route_used="safari_mode_fail"
             )
     
     def _find_candidate_elements(self, soup: BeautifulSoup) -> List[Tag]:
