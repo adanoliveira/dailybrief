@@ -370,10 +370,10 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 
 # AI Rate Limiting Configuration
-# Prevent hitting OpenAI TPM (Token Per Minute) limits during batch processing
-# Very conservative settings to avoid 200k TPM limit with content extraction (20k+ tokens per call)
-AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '8'))  # Very conservative: ~160k tokens/min
-AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '3'))  # Small burst capacity
+# Updated for 2M TPM limit (10x increase from 200k TPM)
+# With content extraction averaging ~20k tokens per call
+AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '80'))  # ~1.6M tokens/min (80% of limit)
+AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '20'))  # Higher burst capacity for parallel processing
 
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch

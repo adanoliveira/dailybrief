@@ -60,12 +60,14 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("Invalid article IDs format. Use comma-separated integers."))
                 return
         else:
-            # Time-based query
+            # Time-based query - include articles with null timestamps for failed articles
             cutoff_time = timezone.now() - timedelta(hours=hours)
+            from django.db.models import Q
             articles_query = Article.objects.filter(
-                last_process_attempt__gte=cutoff_time
+                Q(last_process_attempt__gte=cutoff_time) | 
+                Q(last_process_attempt__isnull=True, process_status=ProcessingStatus.FAILED)
             )
-            self.stdout.write(f"   Time window: Last {hours} hours")
+            self.stdout.write(f"   Time window: Last {hours} hours (including failed articles with null timestamps)")
 
         # Filter for failed processing articles that haven't exceeded max attempts
         failed_articles = articles_query.filter(
