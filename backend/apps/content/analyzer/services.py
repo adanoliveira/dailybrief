@@ -1113,6 +1113,7 @@ class AnalyzerService:
                     pass
                 
                 # Step 2: Try semantic matching on recent events using event embeddings
+                # Updated criteria: distance < 0.25 + 1 shared entity (based on clustering analysis)
                 from django.utils import timezone
                 from datetime import timedelta
                 
@@ -1136,7 +1137,7 @@ class AnalyzerService:
                     ).annotate(
                         distance=CosineDistance('centroid_embed', current_event_embedding)
                     ).filter(
-                        distance__lt=0.15  # Lower threshold for event-to-event similarity
+                        distance__lt=0.25  # Relaxed threshold for better clustering (was 0.15)
                     ).order_by('distance')
                     
                     # Check entity overlap for each candidate
@@ -1148,7 +1149,7 @@ class AnalyzerService:
                         
                         shared_entities = len(event_entity_ids.intersection(entity_ids))
                         
-                        if shared_entities >= 2:
+                        if shared_entities >= 1:  # Reduced from 2 to 1 for better clustering
                             # Found matching event, update it
                             event.last_seen_at = article.published_at
                             event.article_count += 1
@@ -1180,7 +1181,7 @@ class AnalyzerService:
                                 except Entity.DoesNotExist:
                                     continue
                             
-                            logger.info(f"Article {article.id} linked to existing event {event.id} via semantic match")
+                            logger.info(f"Article {article.id} linked to existing event {event.id} via semantic match (distance: {event.distance:.3f}, shared entities: {shared_entities})")
                             event_ids.append(event.id)
                             semantic_match_found = True
                             break
