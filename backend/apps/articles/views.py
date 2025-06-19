@@ -511,7 +511,7 @@ def generate_article_summary(request, public_id):
     if parse_error:
         return parse_error
     
-    force_regenerate = body.get('forceRegenerate', False)
+        force_regenerate = body.get('forceRegenerate', False)
 
     # Validate article can be summarized
     from apps.articles.models import SummarizationStatus
@@ -546,8 +546,8 @@ def generate_article_summary(request, public_id):
             error_code="ARTICLE_NOT_READY",
             details={
                 "reason": "Article is still being processed or has insufficient content",
-                "fetchStatus": article.fetch_status,
-                "processStatus": article.process_status,
+            "fetchStatus": article.fetch_status,
+            "processStatus": article.process_status,
                 "hasContent": bool(article.content and len(article.content) > 200),
                 "isStillProcessing": isStillProcessing,
                 "isProcessingFailed": isProcessingFailed
@@ -561,7 +561,7 @@ def generate_article_summary(request, public_id):
             status=409,
             error_code="SUMMARY_IN_PROGRESS",
             details={
-                "status": "processing",
+            "status": "processing",
                 "message": "Please wait for the current summarization to complete",
                 "article_id": public_id
             }
@@ -575,22 +575,22 @@ def generate_article_summary(request, public_id):
         summary = article.structured_summary
         return create_success_response(
             {
-                "summary": {
-                    "headline": summary.headline,
-                    "abstract": summary.abstract,
-                    "facts": summary.facts,
-                    "opinions": summary.opinions,
-                    "impact": summary.impact,
-                    # Legacy fields for compatibility
-                    "keyPoints": summary.facts  # Map facts to keyPoints for backward compatibility
-                },
-                "metadata": {
-                    "generatedAt": summary.created_at.isoformat(),
-                    "costUsd": float(summary.cost_usd),
-                    "processingTimeMs": summary.processing_time_ms,
-                    "aiModel": summary.ai_model_used,
-                    "contentSource": summary.content_source,
-                    "wasRepaired": summary.was_repaired
+            "summary": {
+                "headline": summary.headline,
+                "abstract": summary.abstract,
+                "facts": summary.facts,
+                "opinions": summary.opinions,
+                "impact": summary.impact,
+                # Legacy fields for compatibility
+                "keyPoints": summary.facts  # Map facts to keyPoints for backward compatibility
+            },
+            "metadata": {
+                "generatedAt": summary.created_at.isoformat(),
+                "costUsd": float(summary.cost_usd),
+                "processingTimeMs": summary.processing_time_ms,
+                "aiModel": summary.ai_model_used,
+                "contentSource": summary.content_source,
+                "wasRepaired": summary.was_repaired
                 },
                 "article_id": public_id
             },
@@ -611,9 +611,9 @@ def generate_article_summary(request, public_id):
             
             return create_success_response(
                 {
-                    "status": "processing",
-                    "taskId": task.id,
-                    "estimatedTimeSeconds": 30,  # Rough estimate
+                "status": "processing",
+                "taskId": task.id,
+                "estimatedTimeSeconds": 30,  # Rough estimate
                     "pollUrl": f"/api/articles/{public_id}/summary-status/",
                     "article_id": public_id
                 },
@@ -627,23 +627,23 @@ def generate_article_summary(request, public_id):
             if result.success:
                 return create_success_response(
                     {
-                        "summary": {
-                            "headline": result.headline,
-                            "abstract": result.abstract,
-                            "facts": result.facts,
-                            "opinions": result.opinions,
-                            "impact": result.impact,
-                            # Legacy fields for compatibility
-                            "keyPoints": result.facts
-                        },
-                        "metadata": {
-                            "generatedAt": timezone.now().isoformat(),
-                            "costUsd": float(result.total_cost_usd),
-                            "processingTimeMs": getattr(result, 'total_duration_ms', 0),
-                            "contentSource": result.content_source,
-                            "stagesCompleted": result.stages_completed,
-                            "requiredCritic": result.required_critic,
-                            "wasRepaired": result.was_repaired
+                    "summary": {
+                        "headline": result.headline,
+                        "abstract": result.abstract,
+                        "facts": result.facts,
+                        "opinions": result.opinions,
+                        "impact": result.impact,
+                        # Legacy fields for compatibility
+                        "keyPoints": result.facts
+                    },
+                    "metadata": {
+                        "generatedAt": timezone.now().isoformat(),
+                        "costUsd": float(result.total_cost_usd),
+                        "processingTimeMs": getattr(result, 'total_duration_ms', 0),
+                        "contentSource": result.content_source,
+                        "stagesCompleted": result.stages_completed,
+                        "requiredCritic": result.required_critic,
+                        "wasRepaired": result.was_repaired
                         },
                         "article_id": public_id
                     },
@@ -656,10 +656,10 @@ def generate_article_summary(request, public_id):
                     error_code="SUMMARIZATION_FAILED",
                     details={
                         "error_message": result.error_message,
-                        "failedStage": result.failed_stage,
+                    "failedStage": result.failed_stage,
                         "canRetry": result.failed_stage in ['rbc_compression', 'skeleton_summary'],
                         "article_id": public_id
-                    }
+                }
                 )
                 
     except ImportError as e:
@@ -672,7 +672,7 @@ def generate_article_summary(request, public_id):
                 "reason": "The summarization service is not properly configured",
                 "service": "summarization",
                 "article_id": public_id
-            }
+        }
         )
     except Exception as e:
         logger.error(f"Unexpected error during summarization: {e}")

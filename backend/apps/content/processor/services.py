@@ -19,13 +19,25 @@ from .ai_processor import AIContentProcessor
 logger = logging.getLogger(__name__)
 
 
+def _truncate_route_name(route: str) -> str:
+    """
+    Truncate route name to 20 characters to fit DB field constraint.
+    
+    Args:
+        route: Route name string
+        
+    Returns:
+        Truncated route name (max 20 chars)
+    """
+    if not route:
+        return ""
+    return route[:20] if len(route) > 20 else route
+
+
 def _ensure_timezone_aware(dt):
-    """Ensure datetime is timezone-aware, converting naive datetimes to UTC."""
-    if dt is None:
-        return None
-    if timezone.is_naive(dt):
-        # Assume naive datetimes are in UTC
-        return timezone.make_aware(dt, timezone.utc)
+    """Ensure datetime is timezone-aware for proper storage."""
+    if dt and hasattr(timezone, 'is_aware') and not timezone.is_aware(dt):
+        return timezone.make_aware(dt)
     return dt
 
 
@@ -155,7 +167,7 @@ class ContentProcessor:
                 if result.success:
                     result.route_used = "safari_fallback"
                 else:
-                    result.route_used = "safari_fallback_fail"
+                    result.route_used = "safari_fb_fail"
         
         return result
     
@@ -253,6 +265,13 @@ class ContentProcessor:
         # Calculate merged quality score
         merged_quality = max(base_result.quality_score, fallback_result.quality_score)
         
+        # Create route name with length limit (20 chars max for DB field)
+        base_route = base_result.route_used.replace('_failed', '').replace('_fail', '').replace('safari_fallback', 'safari').replace('safari_fb', 'safari').replace('safari_mode', 'safari')
+        hybrid_route = f"hybrid_{base_route}"
+        # Truncate to 20 characters if needed
+        if len(hybrid_route) > 20:
+            hybrid_route = hybrid_route[:20]
+        
         return ProcessingResult(
             success=True,
             clean_content=base_result.clean_content,
@@ -260,7 +279,7 @@ class ContentProcessor:
             extracted_metadata=merged_metadata,
             quality_score=merged_quality,
             processing_time_ms=base_result.processing_time_ms + fallback_result.processing_time_ms,
-            route_used=f"hybrid_{base_result.route_used.replace('_failed', '').replace('_fail', '').replace('safari_fallback', 'safari').replace('safari_mode', 'safari')}"
+            route_used=_truncate_route_name(hybrid_route)
         )
     
     def _store_processing_results(self, article: Article, result: ProcessingResult, route: str, cost: float):
@@ -281,8 +300,8 @@ class ContentProcessor:
                 'route_used': route
             }
             
-            # Store processing metadata
-            article.process_route = route
+            # Store processing metadata (truncate to fit DB constraint)
+            article.process_route = _truncate_route_name(route)
             article.process_duration_ms = result.processing_time_ms
             article.process_cost_usd = cost
             

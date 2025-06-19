@@ -930,7 +930,7 @@ class AIContentProcessor:
             quality_score=0.0,
             processing_time_ms=int(processing_time * 1000),
             error_message=error_message,
-            route_used="llm_enhanced_fail"
+            route_used="llm_fail"
         )
 
 

@@ -72,7 +72,7 @@ def public_data(request):
 def admin_action(request):
     """Staff-only administrative action."""
     user = request.user  # Guaranteed to be staff
-    
+
     # Parse request body with validation
     data, error = parse_request_body(request)
     if error:

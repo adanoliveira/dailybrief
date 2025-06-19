@@ -1,19 +1,15 @@
 """
-DigestContentSelector Service
+Content Selection Service for Digest Generation.
 
-Handles content selection and filtering logic for digest generation.
-Responsible for:
-- Filtering articles based on user preferences and processing status
-- Grouping articles by topic and primary events
-- Ranking events by importance and user relevance
-- Selecting recommended articles for deep-dive reading
+Handles filtering articles by user preferences, grouping by topic and event,
+and ranking events by importance for digest inclusion.
 """
 
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
 from datetime import datetime, timedelta
-from django.db.models import QuerySet, Q
+from django.db.models import QuerySet, Q, Count, F, Sum, Case, When, IntegerField
 from django.contrib.auth.models import User
 from django.utils import timezone
 
@@ -26,75 +22,411 @@ logger = logging.getLogger(__name__)
 
 class DigestContentSelector:
     """
-    Service for selecting and organizing content for digest generation.
+    Service for selecting and ranking content for digest generation.
     
-    This service implements the core content selection algorithm that:
-    1. Filters articles based on user preferences and processing status
-    2. Groups articles by (topic, primary_event) combinations
-    3. Ranks events by importance within each topic
-    4. Selects the most relevant content for digest inclusion
+    Handles:
+    - Filtering articles by user preferences and timeframe
+    - Grouping articles by topic and primary events
+    - Ranking events by article count and relevance
+    - Content selection based on digest preferences
     """
     
     def __init__(self):
         self.logger = logger
     
-    def get_user_articles(self, user: User, date_range: Tuple[datetime, datetime]) -> QuerySet[Article]:
+    def get_top_events_for_topic(
+        self,
+        topic: Topic,
+        target_date: datetime.date,
+        max_events: int = 3,
+        user: Optional[User] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Get articles matching user's topics from specified date range.
+        Get top events for a specific topic based on article mentions.
         
-        Filters articles based on:
-        - Published in the specified date range
-        - Primary topic matches user's followed topics
-        - Analyzer status is COMPLETED (has events, entities, summaries)
-        - Summarization status is COMPLETED (has structured summaries)
-        - Has event data available
+        Args:
+            topic: Topic to get events for
+            target_date: Date to filter articles (last 24 hours)
+            max_events: Maximum number of events to return
+            user: User for personalization (optional)
+            
+        Returns:
+            List of event data dictionaries with articles and scores
+        """
+        logger.info(f"Getting top events for topic {topic.name} on {target_date}")
+        
+        # Calculate date range (last 24 hours from target date)
+        end_date = datetime.combine(target_date, datetime.max.time())
+        start_date = end_date - timedelta(days=1)
+        
+        # Get articles for this topic in the date range
+        articles_query = Article.objects.filter(
+            primary_topic=topic,  # Focus on articles where this is the primary topic
+            published_at__gte=start_date,
+            published_at__lte=end_date,
+            analyzer_status='completed'  # Only fully processed articles
+        ).select_related('primary_topic', 'primary_region', 'publication')
+        
+        # Filter by user's preferred regions if available
+        if user and hasattr(user, 'preferred_regions'):
+            user_region_relations = user.preferred_regions.all()
+            if user_region_relations.exists():
+                user_regions = [ur.region for ur in user_region_relations]
+                articles_query = articles_query.filter(regions__in=user_regions).distinct()
+        
+        articles = list(articles_query)
+        
+        if not articles:
+            logger.info(f"No articles found for topic {topic.name} on {target_date}")
+            return []
+        
+        logger.info(f"Found {len(articles)} articles for topic {topic.name}")
+        
+        # Group articles by their primary events
+        event_groups = self._group_articles_by_events(articles)
+        
+        if not event_groups:
+            logger.info(f"No events found for articles in topic {topic.name}")
+            return []
+        
+        # Score and rank events
+        scored_events = []
+        for event, event_articles in event_groups.items():
+            if not event:  # Skip articles without events
+                continue
+            
+            score_data = self._calculate_event_score(event, event_articles)
+            
+            scored_events.append({
+                'event': event,
+                'articles': event_articles,
+                'score': score_data['total_score'],
+                'primary_mentions': score_data['primary_mentions'],
+                'secondary_mentions': score_data['secondary_mentions']
+            })
+        
+        # Sort by score (highest first) and return top events
+        scored_events.sort(key=lambda x: x['score'], reverse=True)
+        top_events = scored_events[:max_events]
+        
+        logger.info(f"Selected {len(top_events)} top events for topic {topic.name}")
+        for i, event_data in enumerate(top_events):
+            logger.info(f"  {i+1}. {event_data['event'].title} (score: {event_data['score']})")
+        
+        return top_events
+    
+    def get_topic_articles_for_fallback_digest(
+        self,
+        topic: Topic,
+        target_date: datetime.date,
+        max_articles: int = 3,
+        user: Optional[User] = None
+    ) -> List[Article]:
+        """
+        Fallback method to get articles for a topic when no events are available.
+        
+        This is used when event-based digest generation fails, providing a 
+        simple article-based digest using article summaries.
+        
+        Args:
+            topic: Topic to get articles for
+            target_date: Date to filter articles (last 24 hours)
+            max_articles: Maximum number of articles to return
+            user: User for personalization (optional)
+            
+        Returns:
+            List of articles with summaries, ordered by relevance
+        """
+        logger.info(f"Fallback: Getting articles for topic {topic.name} on {target_date}")
+        
+        # Calculate date range (last 24 hours from target date)
+        end_date = datetime.combine(target_date, datetime.max.time())
+        start_date = end_date - timedelta(days=1)
+        
+        # Get articles for this topic in the date range
+        # Try primary_topic first, fallback to topics many-to-many if needed
+        articles_query = Article.objects.filter(
+            published_at__gte=start_date,
+            published_at__lte=end_date,
+            analyzer_status='completed',
+            summarization_status='completed'  # Only articles with summaries
+        ).select_related('primary_topic', 'primary_region', 'publication', 'structured_summary')
+        
+        # Filter by topic - try primary_topic first
+        primary_topic_articles = articles_query.filter(primary_topic=topic)
+        
+        if primary_topic_articles.exists():
+            articles_query = primary_topic_articles
+            logger.info(f"Using primary_topic filter for {topic.name}")
+        else:
+            # Fallback to many-to-many topics field
+            articles_query = articles_query.filter(topics=topic)
+            logger.info(f"Fallback to topics many-to-many for {topic.name}")
+        
+        # Filter by user's preferred regions if available
+        if user and hasattr(user, 'preferred_regions'):
+            user_region_relations = user.preferred_regions.all()
+            if user_region_relations.exists():
+                user_regions = [ur.region for ur in user_region_relations]
+                # Always use regions many-to-many field
+                articles_query = articles_query.filter(regions__in=user_regions).distinct()
+                logger.info(f"Filtered by user's preferred regions via regions field")
+        
+        # Filter by user's preferred languages if available
+        if user and hasattr(user, 'preferred_languages'):
+            user_language_relations = user.preferred_languages.all()
+            if user_language_relations.exists():
+                user_languages = [ul.language for ul in user_language_relations]
+                articles_query = articles_query.filter(language__in=user_languages)
+        
+        # Only include articles that have structured summaries
+        articles_query = articles_query.filter(structured_summary__isnull=False)
+        
+        # Order by published date (most recent first) and limit results
+        articles = list(articles_query.order_by('-published_at')[:max_articles])
+        
+        if not articles:
+            logger.info(f"No articles with summaries found for topic {topic.name} on {target_date}")
+            return []
+        
+        logger.info(f"Found {len(articles)} articles with summaries for topic {topic.name}")
+        for article in articles:
+            logger.info(f"  - {article.title[:50]}... ({article.published_at})")
+        
+        return articles
+    
+    def _group_articles_by_events(self, articles: List[Article]) -> Dict[Optional[Event], List[Article]]:
+        """
+        Group articles by their primary events.
+        
+        Args:
+            articles: List of articles to group
+            
+        Returns:
+            Dictionary mapping events to lists of articles
+        """
+        event_groups = {}
+        
+        for article in articles:
+            # Get the primary event for this article
+            try:
+                primary_event_link = ArticleEvent.objects.filter(
+                    article=article,
+                    is_primary=True
+                ).select_related('event').first()
+                
+                primary_event = primary_event_link.event if primary_event_link else None
+                
+            except Exception as e:
+                logger.warning(f"Error getting primary event for article {article.id}: {e}")
+                primary_event = None
+            
+            # Group by event (None for articles without events)
+            if primary_event not in event_groups:
+                event_groups[primary_event] = []
+            
+            event_groups[primary_event].append(article)
+        
+        # Remove None group if it exists (articles without events)
+        if None in event_groups:
+            orphaned_count = len(event_groups[None])
+            logger.info(f"Found {orphaned_count} articles without primary events")
+            del event_groups[None]
+        
+        return event_groups
+    
+    def _calculate_event_score(self, event: Event, articles: List[Article]) -> Dict[str, Any]:
+        """
+        Calculate importance score for an event based on article mentions.
+        
+        Score = primary_mentions * 2 + secondary_mentions * 1
+        
+        Args:
+            event: Event to score
+            articles: Articles that mention this event as primary
+            
+        Returns:
+            Dictionary with score breakdown
+        """
+        # Count primary mentions (articles where this is the primary event)
+        primary_mentions = len(articles)
+        
+        # Count secondary mentions (articles where this event is mentioned but not primary)
+        secondary_mentions = ArticleEvent.objects.filter(
+            event=event,
+            is_primary=False,
+            article__published_at__gte=timezone.now() - timedelta(days=1)
+        ).count()
+        
+        # Calculate total score (primary mentions weighted higher)
+        total_score = (primary_mentions * 2) + (secondary_mentions * 1)
+        
+        return {
+            'primary_mentions': primary_mentions,
+            'secondary_mentions': secondary_mentions,
+            'total_score': total_score
+        }
+    
+    def get_user_articles(
+        self,
+        user: User,
+        start_date: datetime,
+        end_date: datetime,
+        followed_topics_only: bool = True
+    ) -> List[Article]:
+        """
+        Get articles relevant to a user based on their preferences.
         
         Args:
             user: User to get articles for
-            date_range: Tuple of (start_time, end_time) for filtering
+            start_date: Start of date range
+            end_date: End of date range
+            followed_topics_only: Whether to filter by user's followed topics
             
         Returns:
-            QuerySet of filtered articles ready for digest processing
+            List of relevant articles
         """
-        start_time, end_time = date_range
+        query = Article.objects.filter(
+            published_at__gte=start_date,
+            published_at__lte=end_date,
+            analyzer_status='completed'
+        ).select_related('primary_topic', 'primary_region', 'publication')
         
-        # Get user's followed topics
-        user_topic_ids = list(
-            UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
-        )
+        # Filter by user's followed topics
+        if followed_topics_only:
+            user_topics = UserTopic.objects.filter(user=user).values_list('topic', flat=True)
+            if user_topics:
+                query = query.filter(primary_topic__in=user_topics)
+            else:
+                # User has no followed topics, return empty list
+                return []
         
-        if not user_topic_ids:
-            self.logger.info(f"User {user.id} has no followed topics")
-            return Article.objects.none()
+        # Filter by user's preferred regions if available
+        if hasattr(user, 'preferred_regions'):
+            user_region_relations = user.preferred_regions.all()
+            if user_region_relations.exists():
+                user_regions = [ur.region for ur in user_region_relations]
+                query = query.filter(regions__in=user_regions).distinct()
         
-        # Build the query
-        queryset = Article.objects.filter(
-            # Time range filter
+        # Filter by user's preferred languages if available
+        if hasattr(user, 'preferred_languages'):
+            user_language_relations = user.preferred_languages.all()
+            if user_language_relations.exists():
+                user_languages = [ul.language for ul in user_language_relations]
+                query = query.filter(language__in=user_languages)
+        
+        return list(query.order_by('-published_at'))
+    
+    def filter_articles_by_timeframe(
+        self,
+        target_date: datetime.date,
+        hours: int = 24
+    ) -> Q:
+        """
+        Create Q object for filtering articles by timeframe.
+        
+        Args:
+            target_date: Target date
+            hours: Number of hours to look back
+            
+        Returns:
+            Q object for filtering
+        """
+        end_time = datetime.combine(target_date, datetime.max.time())
+        start_time = end_time - timedelta(hours=hours)
+        
+        return Q(
             published_at__gte=start_time,
-            published_at__lt=end_time,
-            
-            # User preference filter
-            primary_topic_id__in=user_topic_ids,
-            
-            # Processing completion filter
-            analyzer_status=AnalyzerStatus.COMPLETED,
-            summarization_status=SummarizationStatus.COMPLETED,
-            
-            # Data availability filter
-            article_events__isnull=False,  # Has events
-        ).select_related(
-            'primary_topic', 'structured_summary', 'publication'
-        ).prefetch_related(
-            'article_events__event', 'topics'
-        ).distinct()
+            published_at__lte=end_time
+        )
+    
+    def get_event_article_mentions(self, event: Event, hours: int = 24) -> Dict[str, List[Article]]:
+        """
+        Get all articles that mention an event, separated by mention type.
         
-        article_count = queryset.count()
-        self.logger.info(
-            f"Found {article_count} articles for user {user.id} "
-            f"from {start_time.date()} to {end_time.date()}"
+        Args:
+            event: Event to get mentions for
+            hours: Hours to look back from now
+            
+        Returns:
+            Dictionary with 'primary' and 'secondary' article lists
+        """
+        cutoff_time = timezone.now() - timedelta(hours=hours)
+        
+        # Get primary mentions
+        primary_article_events = ArticleEvent.objects.filter(
+            event=event,
+            is_primary=True,
+            article__published_at__gte=cutoff_time
+        ).select_related('article')
+        
+        primary_articles = [ae.article for ae in primary_article_events]
+        
+        # Get secondary mentions
+        secondary_article_events = ArticleEvent.objects.filter(
+            event=event,
+            is_primary=False,
+            article__published_at__gte=cutoff_time
+        ).select_related('article')
+        
+        secondary_articles = [ae.article for ae in secondary_article_events]
+        
+        return {
+            'primary': primary_articles,
+            'secondary': secondary_articles
+        }
+    
+    def get_trending_events(
+        self,
+        topic: Optional[Topic] = None,
+        hours: int = 24,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Get trending events based on recent article mentions.
+        
+        Args:
+            topic: Optional topic filter
+            hours: Hours to look back
+            limit: Maximum number of events to return
+            
+        Returns:
+            List of event data with scores and article counts
+        """
+        cutoff_time = timezone.now() - timedelta(hours=hours)
+        
+        # Build base query
+        query = ArticleEvent.objects.filter(
+            article__published_at__gte=cutoff_time,
+            article__analyzer_status='completed'
         )
         
-        return queryset
+        # Filter by topic if specified
+        if topic:
+            query = query.filter(article__primary_topic=topic)
+        
+        # Aggregate mentions by event
+        event_stats = query.values('event').annotate(
+            primary_count=Count('id', filter=Q(is_primary=True)),
+            secondary_count=Count('id', filter=Q(is_primary=False)),
+            total_score=F('primary_count') * 2 + F('secondary_count')
+        ).order_by('-total_score')[:limit]
+        
+        # Get full event objects and format results
+        trending_events = []
+        for stats in event_stats:
+            try:
+                event = Event.objects.get(id=stats['event'])
+                trending_events.append({
+                    'event': event,
+                    'primary_mentions': stats['primary_count'],
+                    'secondary_mentions': stats['secondary_count'],
+                    'score': stats['total_score']
+                })
+            except Event.DoesNotExist:
+                continue
+        
+        return trending_events
     
     def group_articles_by_topic_and_event(self, articles: QuerySet[Article]) -> Dict[int, Dict[str, Any]]:
         """

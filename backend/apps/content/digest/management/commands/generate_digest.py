@@ -125,12 +125,12 @@ class Command(BaseCommand):
                     digest_service, user, target_date, options
                 )
                 
-                if result['skipped']:
+                if result.get('skipped', False):
                     skipped_count += 1
                     self.stdout.write(
-                        f"⏭️  Skipped {user.username} - {result['reason']}"
+                        f"⏭️  Skipped {user.username} - {result.get('reason', 'Unknown reason')}"
                     )
-                elif result['success']:
+                elif result.get('success', False):
                     success_count += 1
                     metrics = result.get('metrics', {})
                     self.stdout.write(
@@ -202,7 +202,7 @@ class Command(BaseCommand):
             # Get all active users who have followed topics
             queryset = User.objects.filter(
                 is_active=True,
-                user_topics__isnull=False  # Has followed topics
+                preferred_topics__isnull=False  # Has followed topics
             ).distinct()
             
             if options['skip_users_with_digests']:
@@ -242,7 +242,7 @@ class Command(BaseCommand):
             }
         
         # Check if user has followed topics
-        if not user.user_topics.exists():
+        if not user.preferred_topics.exists():
             return {
                 'success': False,
                 'skipped': True,
@@ -264,11 +264,28 @@ class Command(BaseCommand):
                 }
         
         # Generate digest
-        result = digest_service.generate_digest(
-            user=user,
-            target_date=target_date,
-            regenerate=options['regenerate']
-        )
+        try:
+            digest = digest_service.generate_user_digest(
+                user=user,
+                date=target_date.date(),
+                force_regenerate=options['regenerate']
+            )
+            
+            # Convert digest object to result dict for consistent handling
+            result = {
+                'success': True,
+                'digest': digest,
+                'metrics': {
+                    'topics_included': digest.digest_topics.count(),
+                    'total_events': sum(topic.stories.count() for topic in digest.digest_topics.all()),
+                    'total_cost_usd': float(digest.total_cost_usd),
+                }
+            }
+        except Exception as e:
+            result = {
+                'success': False,
+                'error': str(e)
+            }
         
         return result
     
@@ -294,7 +311,7 @@ class Command(BaseCommand):
                     continue
                 
                 # Check followed topics
-                if not user.user_topics.exists():
+                if not user.preferred_topics.exists():
                     self.stdout.write(f"⚠️  {user.username}: No followed topics")
                     continue
                 
@@ -303,12 +320,12 @@ class Command(BaseCommand):
                 date_range = selector.get_date_range_for_digest(
                     target_date, user.profile.timezone
                 )
-                articles = selector.get_user_articles(user, date_range)
+                articles = selector.get_user_articles(user, date_range[0], date_range[1])
                 
-                article_count = articles.count()
+                article_count = len(articles)
                 self.stdout.write(
                     f"✅ {user.username}: "
-                    f"{user.user_topics.count()} topics, "
+                    f"{user.preferred_topics.count()} topics, "
                     f"{article_count} articles available"
                 )
                 

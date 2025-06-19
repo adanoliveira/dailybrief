@@ -13,7 +13,7 @@ Use these endpoints to test the API utilities and as reference
 for implementing similar patterns in other apps.
 """
 from django.urls import path
-from . import example_view
+# from . import example_view  # Temporarily commented out due to syntax error
 
 # API Examples - organized by category
 urlpatterns = [
@@ -22,53 +22,53 @@ urlpatterns = [
     # =========================================================================
     
     # Basic public endpoints
-    path('examples/public/hello/', 
-         example_view.hello_world, 
-         name='example_hello'),
+    # path('examples/public/hello/', 
+    #      example_view.hello_world, 
+    #      name='example_hello'),
     
-    path('examples/public/echo/', 
-         example_view.echo_data, 
-         name='example_echo'),
+    # path('examples/public/echo/', 
+    #      example_view.echo_data, 
+    #      name='example_echo'),
     
     # =========================================================================
     # AUTHENTICATED USER ENDPOINTS
     # =========================================================================
     
     # User information and settings
-    path('examples/user/info/', 
-         example_view.get_user_info, 
-         name='example_user_info'),
+    # path('examples/user/info/', 
+    #      example_view.get_user_info, 
+    #      name='example_user_info'),
     
-    path('examples/user/settings/', 
-         example_view.manage_user_settings, 
-         name='example_user_settings'),
+    # path('examples/user/settings/', 
+    #      example_view.manage_user_settings, 
+    #      name='example_user_settings'),
     
     # Pagination example
-    path('examples/user/activities/', 
-         example_view.list_user_activities, 
-         name='example_user_activities'),
+    # path('examples/user/activities/', 
+    #      example_view.list_user_activities, 
+    #      name='example_user_activities'),
     
     # =========================================================================
     # STAFF-ONLY ADMINISTRATIVE ENDPOINTS
     # =========================================================================
     
     # Administrative dashboard and actions
-    path('examples/admin/stats/', 
-         example_view.admin_dashboard_stats, 
-         name='example_admin_stats'),
+    # path('examples/admin/stats/', 
+    #      example_view.admin_dashboard_stats, 
+    #      name='example_admin_stats'),
     
-    path('examples/admin/action/', 
-         example_view.admin_system_action, 
-         name='example_admin_action'),
+    # path('examples/admin/action/', 
+    #      example_view.admin_system_action, 
+    #      name='example_admin_action'),
     
     # =========================================================================
     # TESTING AND ERROR DEMONSTRATION
     # =========================================================================
     
     # Error response testing
-    path('examples/test/errors/', 
-         example_view.test_error_responses, 
-         name='example_test_errors'),
+    # path('examples/test/errors/', 
+    #      example_view.test_error_responses, 
+    #      name='example_test_errors'),
 ]
 
 # Alternative URL patterns with more semantic naming

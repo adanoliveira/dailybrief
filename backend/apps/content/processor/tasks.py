@@ -12,7 +12,7 @@ from django.db import transaction
 from django.conf import settings
 
 from apps.articles.models import Article, ProcessingStatus
-from .services import ContentProcessor, ProcessingManager
+from .services import ContentProcessor, ProcessingManager, _truncate_route_name
 from .models import serialize_content_blocks
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
                     'processing_time_ms': result.processing_time_ms
                 }
                 article.process_status = ProcessingStatus.COMPLETED
-                article.process_route = getattr(result, 'route_used', 'llm_enhanced')  # Dynamic route tracking
+                article.process_route = _truncate_route_name(getattr(result, 'route_used', 'llm_enhanced'))  # Dynamic route tracking
                 article.process_duration_ms = result.processing_time_ms
                 article.save()
             
@@ -180,14 +180,14 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
                         'processing_time_ms': processing_result.processing_time_ms
                     }
                     article.process_status = ProcessingStatus.COMPLETED
-                    article.process_route = getattr(processing_result, 'route_used', 'llm_enhanced')
+                    article.process_route = _truncate_route_name(getattr(processing_result, 'route_used', 'llm_enhanced'))
                     article.process_duration_ms = processing_result.processing_time_ms
                     article.process_cost_usd = 0.0001  # Estimated cost
                     article.save()
             else:
                 # Mark as failed
                 article.process_status = ProcessingStatus.FAILED
-                article.process_route = getattr(processing_result, 'route_used', 'llm_enhanced')  # Record the actual route even for failures
+                article.process_route = _truncate_route_name(getattr(processing_result, 'route_used', 'llm_enhanced'))  # Record the actual route even for failures
                 article.save(update_fields=['process_status', 'process_route'])
             
             # Create a ProcessResult-like object for consistency

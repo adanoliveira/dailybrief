@@ -14,7 +14,6 @@ class AIProviderUsage(models.Model):
     
     OPERATION_TYPES = (
         ('summarization', 'Article Summarization'),
-        ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
         ('content_extraction', 'Content Extraction'),
@@ -30,6 +29,12 @@ class AIProviderUsage(models.Model):
         ('event_detection', 'Event Detection'),
         ('topic_classification', 'Topic Classification'),
         ('region_classification', 'Region Classification'),
+        # Digester pipeline operations
+        ('digest_generation', 'Digest Generation'),
+        ('digest_introduction', 'Digest Introduction Generation'),
+        ('digest_topic_summary', 'Digest Topic Summary'),
+        ('digest_event_enhancement', 'Digest Event Enhancement'),
+        ('digest_fallback_topic', 'Digest Fallback Topic Summary'),
     )
     
     provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
@@ -77,7 +82,6 @@ class AIProviderConfig(models.Model):
     """
     OPERATION_TYPES = (
         ('summarization', 'Article Summarization'),
-        ('digest_generation', 'Digest Generation'),
         ('translation', 'Translation'),
         ('quality_assessment', 'Content Quality Assessment'),
         ('content_extraction', 'Content Extraction'),
@@ -93,6 +97,12 @@ class AIProviderConfig(models.Model):
         ('event_detection', 'Event Detection'),
         ('topic_classification', 'Topic Classification'),
         ('region_classification', 'Region Classification'),
+        # Digester pipeline operations
+        ('digest_generation', 'Digest Generation'),
+        ('digest_introduction', 'Digest Introduction Generation'),
+        ('digest_topic_summary', 'Digest Topic Summary'),
+        ('digest_event_enhancement', 'Digest Event Enhancement'),
+        ('digest_fallback_topic', 'Digest Fallback Topic Summary'),
     )
     
     PROVIDER_CHOICES = (

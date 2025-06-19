@@ -129,8 +129,8 @@ class Command(BaseCommand):
         """List users with followed topics."""
         users = User.objects.filter(
             is_active=True,
-            user_topics__isnull=False
-        ).distinct().prefetch_related('user_topics__topic')
+            preferred_topics__isnull=False
+        ).distinct().prefetch_related('preferred_topics')
         
         if not users:
             self.stdout.write("No active users with followed topics found")
@@ -140,7 +140,7 @@ class Command(BaseCommand):
         self.stdout.write("-" * 50)
         
         for user in users[:20]:  # Show first 20
-            topics = list(user.user_topics.values_list('topic__name', flat=True))
+            topics = list(user.preferred_topics.values_list('topic__name', flat=True))
             self.stdout.write(
                 f"ID: {user.id:3d} | {user.username:20s} | Topics: {', '.join(topics[:3])}"
                 + ("..." if len(topics) > 3 else "")
@@ -161,8 +161,8 @@ class Command(BaseCommand):
             self.stdout.write(f"📅 Date range: {date_range[0]} to {date_range[1]}")
             
             # Step 2: Get user articles
-            articles = selector.get_user_articles(user, date_range)
-            article_count = articles.count()
+            articles = selector.get_user_articles(user, date_range[0], date_range[1])
+            article_count = len(articles)
             self.stdout.write(f"📰 Found {article_count} articles")
             
             if article_count == 0:
@@ -172,7 +172,7 @@ class Command(BaseCommand):
             if verbose and article_count > 0:
                 self.stdout.write("\n📰 Sample articles:")
                 for article in articles[:5]:
-                    self.stdout.write(f"  - {article.headline[:60]}...")
+                    self.stdout.write(f"  - {article.title[:60]}...")
             
             # Step 3: Group by topic and event
             grouped_data = selector.group_articles_by_topic_and_event(articles)
@@ -218,9 +218,9 @@ class Command(BaseCommand):
             # First get some content to enhance
             selector = DigestContentSelector()
             date_range = selector.get_date_range_for_digest(target_date, user.profile.timezone)
-            articles = selector.get_user_articles(user, date_range)
+            articles = selector.get_user_articles(user, date_range[0], date_range[1])
             
-            if not articles.exists():
+            if not articles:
                 self.stdout.write("⚠️  No articles available for AI testing")
                 return
             
@@ -293,44 +293,37 @@ class Command(BaseCommand):
             digest_service = DigestService()
             
             # Generate digest
-            result = digest_service.generate_digest(
+            digest = digest_service.generate_user_digest(
                 user=user,
-                target_date=target_date,
-                regenerate=True  # Force regeneration for testing
+                date=target_date.date(),
+                force_regenerate=True  # Force regeneration for testing
             )
             
-            if result['success']:
-                digest = result['digest']
-                metrics = result.get('metrics', {})
-                
-                self.stdout.write(self.style.SUCCESS("✅ Full pipeline test successful!"))
-                self.stdout.write(
-                    f"📊 Digest created: {digest.public_id}\n"
-                    f"   Topics: {metrics.get('topics_included', 0)}\n"
-                    f"   Events: {metrics.get('total_events', 0)}\n"
-                    f"   Articles: {metrics.get('articles_processed', 0)}\n"
-                    f"   Cost: ${metrics.get('total_cost_usd', 0):.4f}\n"
-                    f"   Time: {metrics.get('generation_time_seconds', 0):.2f}s"
-                )
-                
-                if verbose:
-                    self.stdout.write(f"\n📖 Digest preview:")
-                    self.stdout.write(f"Title: {digest.title}")
+            self.stdout.write(self.style.SUCCESS("✅ Full pipeline test successful!"))
+            
+            # Get digest statistics
+            topics_count = digest.digest_topics.count()
+            total_stories = sum(topic.stories.count() for topic in digest.digest_topics.all())
+            
+            self.stdout.write(
+                f"📊 Digest created: {digest.public_id}\n"
+                f"   Status: {digest.generation_status}\n"
+                f"   Topics: {topics_count}\n"
+                f"   Stories: {total_stories}\n"
+                f"   Cost: ${digest.total_cost_usd:.4f}\n"
+                f"   Duration: {digest.generation_duration_ms}ms"
+            )
+            
+            if verbose:
+                self.stdout.write(f"\n📖 Digest preview:")
+                self.stdout.write(f"Title: {digest.title}")
+                if digest.introduction:
                     self.stdout.write(f"Introduction: {digest.introduction[:200]}...")
-                    
-                    # Show topic breakdown
-                    for digest_topic in digest.digest_topics.all():
-                        story_count = digest_topic.stories.count()
-                        self.stdout.write(f"  📝 {digest_topic.topic.name}: {story_count} stories")
                 
-            else:
-                error = result.get('error', 'Unknown error')
-                self.stdout.write(self.style.ERROR(f"❌ Pipeline test failed: {error}"))
-                
-                # Show any partial results
-                if 'digest' in result:
-                    digest = result['digest']
-                    self.stdout.write(f"⚠️  Partial digest created: {digest.public_id}")
+                # Show topic breakdown
+                for digest_topic in digest.digest_topics.all():
+                    story_count = digest_topic.stories.count()
+                    self.stdout.write(f"  📝 {digest_topic.topic.name}: {story_count} stories")
             
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"❌ Full pipeline test failed: {e}"))

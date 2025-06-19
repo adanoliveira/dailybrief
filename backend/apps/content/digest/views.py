@@ -210,7 +210,7 @@ def generate_digest_on_demand(request):
             return create_error_response('Invalid date format. Use YYYY-MM-DD.', status=400)
     
     # Check if user has followed topics
-    if not user.user_topics.exists():
+    if not user.preferred_topics.exists():
         return create_error_response('You must follow at least one topic to generate a digest.', status=400)
     
     # Check for existing digest if not regenerating

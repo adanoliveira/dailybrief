@@ -1,493 +1,537 @@
 """
-DigestService
+Main Digest Service for orchestrating personalized daily digest generation.
 
-Main orchestrator for digest generation that coordinates content selection,
-AI enhancement, and digest creation.
+This service coordinates the entire digest creation process:
+1. Content filtering and selection based on user preferences
+2. AI-powered content synthesis and enhancement
+3. Digest model creation and persistence
 """
 
 import logging
-from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from decimal import Decimal
-
+from typing import Dict, List, Optional, Any, Tuple
 from django.contrib.auth.models import User
-from django.db import transaction
 from django.utils import timezone
+from django.db import transaction
 
-from ..models import Digest, DigestTopic, DigestStory
-from .content_selector import DigestContentSelector
-from .ai_generator import DigestAIGenerator
+from apps.content.digest.models import Digest, DigestTopic, DigestStory
+from apps.content.digest.services.content_selector import DigestContentSelector
+from apps.content.digest.services.ai_generator import DigestAIGenerator
+from apps.feeds.models import Topic, UserTopic
+from apps.articles.models import Article
+
 
 logger = logging.getLogger(__name__)
 
 
 class DigestService:
     """
-    Main orchestrator service for digest generation.
+    Main service for generating personalized daily digests.
     
-    Coordinates the complete digest creation process:
-    1. Content selection and filtering (DigestContentSelector)
-    2. AI enhancement and synthesis (DigestAIGenerator)
-    3. Data persistence and HTML formatting
-    4. Error handling and performance tracking
+    Orchestrates the entire digest generation pipeline:
+    - Content filtering based on user preferences
+    - Event scoring and ranking
+    - AI-powered content synthesis
+    - Digest model creation and persistence
     """
     
     def __init__(self):
         self.content_selector = DigestContentSelector()
         self.ai_generator = DigestAIGenerator()
-        self.logger = logger
     
-    def generate_digest(
+    def generate_user_digest(
         self, 
         user: User, 
-        target_date: Optional[datetime] = None, 
-        regenerate: bool = False
-    ) -> Dict[str, Any]:
+        date: datetime.date,
+        force_regenerate: bool = False
+    ) -> Digest:
         """
-        Generate a complete daily digest for a user.
-        
-        Main orchestration method that coordinates the entire digest generation process.
+        Generate a personalized digest for a user on a specific date.
         
         Args:
             user: User to generate digest for
-            target_date: Date to generate digest for (defaults to today)
-            regenerate: Whether to regenerate existing digest
+            date: Date to generate digest for
+            force_regenerate: Whether to regenerate if digest already exists
             
         Returns:
-            Dict containing digest data and metrics
+            Digest: The generated or existing digest
+            
+        Raises:
+            ValueError: If user has no followed topics or insufficient content
         """
-        if target_date is None:
-            target_date = timezone.now()
+        logger.info(f"Starting digest generation for user {user.username} on {date}")
         
-        self.logger.info(f"Starting digest generation for user {user.id} on {target_date.date()}")
+        # Check if digest already exists
+        try:
+            existing_digest = Digest.objects.get(user=user, date=date)
+            if not force_regenerate:
+                logger.info(f"Digest already exists for {user.username} on {date}")
+                return existing_digest
+            logger.info(f"Force regenerating existing digest for {user.username} on {date}")
+        except Digest.DoesNotExist:
+            pass
         
-        # Check for existing digest
-        if not regenerate:
-            existing_digest = self._get_existing_digest(user, target_date)
-            if existing_digest:
-                self.logger.info(f"Found existing digest {existing_digest.public_id} for user {user.id}")
-                return {
-                    'digest': existing_digest,
-                    'content': self._extract_digest_content(existing_digest),
-                    'success': True,
-                    'regenerated': False
-                }
+        # Get user's digest preferences with defaults
+        digest_preferences = user.profile.get_digest_preferences()
         
+        # Get user's followed topics
+        followed_topics = self._get_user_followed_topics(user)
+        if not followed_topics:
+            raise ValueError(f"User {user.username} has no followed topics")
+        
+        # Start generation process
         start_time = timezone.now()
         
         try:
-            # Get user preferences
-            user_preferences = user.profile.get_digest_preferences()
-            
-            # Calculate date range
-            date_range = self.content_selector.get_date_range_for_digest(
-                target_date, user.profile.timezone
-            )
-            
-            # Step 1: Content Selection
-            self.logger.info("Step 1: Selecting content...")
-            articles = self.content_selector.get_user_articles(user, date_range)
-            
-            if not articles.exists():
-                self.logger.info(f"No articles found for user {user.id} in date range")
-                return self._create_empty_digest_response(user, target_date, "No articles found")
-            
-            # Group articles by topic and event
-            grouped_data = self.content_selector.group_articles_by_topic_and_event(articles)
-            
-            if not grouped_data:
-                self.logger.info(f"No events found in articles for user {user.id}")
-                return self._create_empty_digest_response(user, target_date, "No events found")
-            
-            # Select final content for digest
-            digest_content = self.content_selector.select_digest_content(grouped_data, user_preferences)
-            
-            if not digest_content:
-                self.logger.info(f"No content selected for digest for user {user.id}")
-                return self._create_empty_digest_response(user, target_date, "No content selected")
-            
-            # Step 2: AI Enhancement
-            self.logger.info("Step 2: Enhancing content with AI...")
-            enhanced_content = self._enhance_content_with_ai(digest_content)
-            
-            # Step 3: Create Digest Record
-            self.logger.info("Step 3: Creating digest record...")
-            digest = self._create_digest_record(
-                user, target_date, enhanced_content, user_preferences
-            )
-            
-            # Calculate metrics
-            generation_time = (timezone.now() - start_time).total_seconds()
-            ai_metrics = self.ai_generator.get_generation_metrics()
-            
-            metrics = {
-                'generation_time_seconds': generation_time,
-                'topics_included': len(digest_content),
-                'total_events': sum(len(topic_data['events']) for topic_data in digest_content.values()),
-                'articles_processed': articles.count(),
-                **ai_metrics
-            }
-            
-            self.logger.info(
-                f"Digest generation completed for user {user.id}: "
-                f"{metrics['topics_included']} topics, "
-                f"{metrics['total_events']} events in {generation_time:.2f}s"
-            )
-            
-            return {
-                'digest': digest,
-                'content': enhanced_content,
-                'metrics': metrics,
-                'success': True,
-                'regenerated': regenerate
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Digest generation failed for user {user.id}: {e}", exc_info=True)
-            
-            # Create error digest record
-            error_digest = self._create_error_digest_record(user, target_date, str(e))
-            
-            return {
-                'digest': error_digest,
-                'content': {},
-                'metrics': {'generation_time_seconds': (timezone.now() - start_time).total_seconds()},
-                'success': False,
-                'error': str(e)
-            }
-    
-    def _enhance_content_with_ai(self, digest_content: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhance digest content using AI services."""
-        enhanced_content = {
-            'topics': {},
-            'total_cost': Decimal('0.0'),
-            'total_tokens': 0
-        }
-        
-        # Generate digest introduction
-        intro_data = self.ai_generator.generate_digest_introduction(digest_content)
-        enhanced_content['introduction'] = intro_data['introduction']
-        enhanced_content['total_cost'] += intro_data['cost']
-        enhanced_content['total_tokens'] += intro_data['tokens_input'] + intro_data['tokens_output']
-        
-        # Process each topic
-        for topic_id, topic_data in digest_content.items():
-            self.logger.info(f"Enhancing topic: {topic_data['topic'].name}")
-            
-            # Generate topic summary
-            topic_summary = self.ai_generator.generate_topic_summary(topic_data)
-            enhanced_content['total_cost'] += topic_summary['cost']
-            enhanced_content['total_tokens'] += topic_summary['tokens_input'] + topic_summary['tokens_output']
-            
-            # Enhance individual events
-            enhanced_events = []
-            for event_data in topic_data['events']:
-                event_enhancement = self.ai_generator.enhance_event_summary(event_data)
-                enhanced_content['total_cost'] += event_enhancement['cost']
-                enhanced_content['total_tokens'] += event_enhancement['tokens_input'] + event_enhancement['tokens_output']
-                
-                enhanced_events.append({
-                    'event': event_data['event'],
-                    'score': event_data['score'],
-                    'recommended_articles': event_data['recommended_articles'],
-                    'enhanced_abstract': event_enhancement['enhanced_abstract'],
-                    'key_facts': event_enhancement['key_facts'],
-                    'perspectives': event_enhancement['perspectives'],
-                    'article_count': len(event_data['primary_articles']) + len(event_data['secondary_articles'])
-                })
-            
-            enhanced_content['topics'][topic_id] = {
-                'topic': topic_data['topic'],
-                'total_score': topic_data['total_score'],
-                'topic_abstract': topic_summary['topic_abstract'],
-                'main_facts': topic_summary['main_facts'],
-                'perspectives': topic_summary['perspectives'],
-                'events': enhanced_events
-            }
-        
-        self.logger.info(
-            f"AI enhancement completed: "
-            f"${enhanced_content['total_cost']:.4f} cost, "
-            f"{enhanced_content['total_tokens']} tokens"
-        )
-        
-        return enhanced_content
-    
-    def _create_digest_record(
-        self, 
-        user: User, 
-        target_date: datetime, 
-        enhanced_content: Dict[str, Any],
-        user_preferences: Dict[str, Any]
-    ) -> Digest:
-        """
-        Create and save digest record to database.
-        
-        Creates the main Digest record along with related DigestTopic and
-        DigestStory records in a single database transaction.
-        
-        Args:
-            user: User the digest is for
-            target_date: Date the digest covers
-            enhanced_content: AI-enhanced content structure
-            user_preferences: User's digest preferences
-            
-        Returns:
-            Created Digest instance
-        """
-        with transaction.atomic():
-            # Create main digest record
-            digest = Digest.objects.create(
-                user=user,
-                date=target_date.date(),
-                title=self._generate_digest_title(target_date, enhanced_content),
-                introduction=enhanced_content.get('introduction', ''),
-                html_content=self._format_digest_html(enhanced_content),
-                generation_status='COMPLETED',
-                articles_processed=sum(
-                    sum(len(event['recommended_articles']) for event in topic_data['events'])
-                    for topic_data in enhanced_content['topics'].values()
-                ),
-                events_included=sum(
-                    len(topic_data['events']) 
-                    for topic_data in enhanced_content['topics'].values()
-                ),
-                topics_included=len(enhanced_content['topics']),
-                generation_cost_usd=enhanced_content.get('total_cost', Decimal('0.0')),
-                generation_tokens_total=enhanced_content.get('total_tokens', 0),
-                user_preferences=user_preferences
-            )
-            
-            # Create topic records
-            for topic_id, topic_data in enhanced_content['topics'].items():
-                digest_topic = DigestTopic.objects.create(
-                    digest=digest,
-                    topic=topic_data['topic'],
-                    abstract=topic_data['topic_abstract'],
-                    main_facts=topic_data['main_facts'],
-                    perspectives=topic_data['perspectives'],
-                    event_count=len(topic_data['events']),
-                    topic_score=float(topic_data['total_score'])
+            with transaction.atomic():
+                # Create or update digest record
+                digest, created = Digest.objects.get_or_create(
+                    user=user,
+                    date=date,
+                    defaults={
+                        'title': f"Your Daily Brief for {date.strftime('%B %d, %Y')}",
+                        'generation_status': 'processing',
+                        'user_timezone': user.profile.timezone,
+                        'digest_preferences': digest_preferences,
+                    }
                 )
                 
-                # Create story records for each event
-                for event_data in topic_data['events']:
-                    DigestStory.objects.create(
+                if not created:
+                    # Update existing digest for regeneration
+                    digest.generation_status = 'processing'
+                    digest.error_message = ''
+                    digest.save()
+                
+                # Generate digest content
+                self._generate_digest_content(digest, followed_topics, digest_preferences)
+                
+                # Mark as completed
+                end_time = timezone.now()
+                duration_ms = int((end_time - start_time).total_seconds() * 1000)
+                
+                digest.generation_status = 'completed'
+                digest.generation_duration_ms = duration_ms
+                digest.is_published = True
+                digest.save()
+                
+                logger.info(f"Successfully generated digest for {user.username} on {date} in {duration_ms}ms")
+                return digest
+                
+        except Exception as e:
+            logger.error(f"Failed to generate digest for {user.username} on {date}: {str(e)}")
+            
+            # Update digest with error status
+            if 'digest' in locals():
+                digest.generation_status = 'failed'
+                digest.error_message = str(e)
+                digest.save()
+            
+            raise
+    
+    def _get_user_followed_topics(self, user: User) -> List[Topic]:
+        """Get list of topics the user follows."""
+        return [
+            user_topic.topic 
+            for user_topic in UserTopic.objects.filter(user=user).select_related('topic')
+        ]
+    
+    def _generate_digest_content(
+        self,
+        digest: Digest,
+        followed_topics: List[Topic],
+        preferences: Dict[str, Any]
+    ) -> None:
+        """
+        Generate the main digest content including topics and stories.
+        
+        Args:
+            digest: Digest instance to populate
+            followed_topics: Topics the user follows
+            preferences: User's digest preferences
+        """
+        logger.info(f"Generating content for digest {digest.id}")
+        
+        # Clear existing content for regeneration
+        DigestTopic.objects.filter(digest=digest).delete()
+        DigestStory.objects.filter(digest=digest).delete()
+        
+        # Step 1: Get content for each topic
+        max_topics = min(preferences.get('max_topics', 6), len(followed_topics))
+        max_events_per_topic = preferences.get('max_events_per_topic', 3)
+        
+        total_articles_processed = 0
+        total_events_included = 0
+        total_cost = Decimal('0.00')
+        total_input_tokens = 0
+        total_output_tokens = 0
+        
+        selected_topics_data = []
+        
+        for topic in followed_topics[:max_topics]:
+            logger.info(f"Processing topic: {topic.name}")
+            
+            # Get top events for this topic
+            topic_events = self.content_selector.get_top_events_for_topic(
+                topic=topic,
+                target_date=digest.date,
+                max_events=max_events_per_topic,
+                user=digest.user
+            )
+            
+            # If no events found, try fallback with article summaries
+            if not topic_events:
+                logger.info(f"No events found for topic {topic.name}, trying fallback...")
+                fallback_articles = self.content_selector.get_topic_articles_for_fallback_digest(
+                    topic=topic,
+                    target_date=digest.date,
+                    max_articles=max_events_per_topic,
+                    user=digest.user
+                )
+                
+                if not fallback_articles:
+                    logger.info(f"No articles found for topic {topic.name} in fallback mode")
+                    continue
+                    
+                # Process fallback articles
+                total_articles_processed += len(fallback_articles)
+                total_events_included += 1  # Count as one "event" per topic in fallback
+                
+                selected_topics_data.append({
+                    'topic': topic,
+                    'articles': fallback_articles,
+                    'fallback_mode': True
+                })
+                continue
+            
+            # Collect articles for topic-level summary
+            topic_articles = []
+            for event_data in topic_events:
+                topic_articles.extend(event_data['articles'])
+            
+            if not topic_articles:
+                logger.info(f"No articles found for topic {topic.name}")
+                continue
+            
+            total_articles_processed += len(topic_articles)
+            total_events_included += len(topic_events)
+            
+            selected_topics_data.append({
+                'topic': topic,
+                'events': topic_events,
+                'articles': topic_articles
+            })
+        
+        if not selected_topics_data:
+            raise ValueError("No content found for any followed topics")
+        
+        # Step 2: Generate AI-enhanced content
+        logger.info(f"Generating AI content for {len(selected_topics_data)} topics")
+        
+        for order, topic_data in enumerate(selected_topics_data):
+            topic = topic_data['topic']
+            fallback_mode = topic_data.get('fallback_mode', False)
+            
+            if fallback_mode:
+                # Handle fallback mode - create digest from article summaries with AI synthesis
+                articles = topic_data['articles']
+                
+                # Create DigestTopic with AI-generated fallback content
+                digest_topic = self._create_digest_topic_fallback(
+                    digest=digest,
+                    topic=topic,
+                    articles=articles,
+                    order=order
+                )
+                
+                # Create a single DigestStory from the AI-generated content
+                digest_story = self._create_digest_story_fallback(
+                    digest=digest,
+                    digest_topic=digest_topic,
+                    articles=articles,
+                    order=0
+                )
+                
+                # Track costs from AI-powered fallback generation
+                total_cost += digest_topic.generation_cost_usd + digest_story.generation_cost_usd
+                total_input_tokens += digest_topic.tokens_input + digest_story.tokens_input
+                total_output_tokens += digest_topic.tokens_output + digest_story.tokens_output
+            
+            else:
+                # Handle event-based mode
+                events = topic_data['events']
+                articles = topic_data['articles']
+                
+                # Create DigestTopic with AI-generated content
+                digest_topic = self._create_digest_topic(
+                    digest=digest,
+                    topic=topic,
+                    articles=articles,
+                    order=order
+                )
+                
+                # Create DigestStories for each event
+                for event_order, event_data in enumerate(events):
+                    digest_story = self._create_digest_story(
                         digest=digest,
                         digest_topic=digest_topic,
-                        event=event_data['event'],
-                        title=event_data['event'].title,
-                        enhanced_abstract=event_data['enhanced_abstract'],
-                        key_facts=event_data['key_facts'],
-                        perspectives=event_data['perspectives'],
-                        article_count=event_data['article_count'],
-                        event_score=event_data['score'],
-                        recommended_articles=[
-                            {
-                                'id': article.id,
-                                'public_id': str(article.public_id),
-                                'headline': article.headline,
-                                'source': article.publication.name if article.publication else article.source_name,
-                                'published_at': article.published_at.isoformat(),
-                                'url': article.url
-                            }
-                            for article in event_data['recommended_articles']
-                        ]
+                        event_data=event_data,
+                        order=event_order
                     )
-            
-            self.logger.info(f"Created digest record {digest.public_id} for user {user.id}")
-            return digest
-    
-    def _create_empty_digest_response(self, user: User, target_date: datetime, reason: str) -> Dict[str, Any]:
-        """Create response for when no digest content is available."""
-        digest = Digest.objects.create(
-            user=user,
-            date=target_date.date(),
-            title=f"Daily Brief - {target_date.strftime('%B %d, %Y')}",
-            introduction=f"No news found for your followed topics on {target_date.strftime('%B %d, %Y')}. Check back tomorrow for your personalized digest!",
-            html_content="<p>No content available for this date.</p>",
-            generation_status='COMPLETED',
-            articles_processed=0,
-            events_included=0,
-            topics_included=0,
-            generation_cost_usd=Decimal('0.0'),
-            generation_tokens_total=0,
-            error_message=reason
-        )
+                    
+                    # Track costs
+                    total_cost += digest_story.generation_cost_usd
+                    total_input_tokens += digest_story.tokens_input
+                    total_output_tokens += digest_story.tokens_output
+                
+                # Track topic costs
+                total_cost += digest_topic.generation_cost_usd
+                total_input_tokens += digest_topic.tokens_input
+                total_output_tokens += digest_topic.tokens_output
         
-        return {
-            'digest': digest,
-            'content': {},
-            'success': True,
-            'empty': True,
-            'reason': reason
-        }
-    
-    def _create_error_digest_record(self, user: User, target_date: datetime, error: str) -> Digest:
-        """Create digest record for failed generation."""
-        return Digest.objects.create(
-            user=user,
-            date=target_date.date(),
-            title=f"Daily Brief - {target_date.strftime('%B %d, %Y')} (Error)",
-            introduction="We encountered an issue generating your digest. Please try again later.",
-            html_content="<p>Error generating digest content.</p>",
-            generation_status='FAILED',
-            articles_processed=0,
-            events_included=0,
-            topics_included=0,
-            generation_cost_usd=Decimal('0.0'),
-            generation_tokens_total=0,
-            error_message=error
-        )
-    
-    def _get_existing_digest(self, user: User, target_date: datetime) -> Optional[Digest]:
-        """Check for existing digest for user and date."""
-        return Digest.objects.filter(
-            user=user,
-            date=target_date.date()
-        ).first()
-    
-    def _extract_digest_content(self, digest: Digest) -> Dict[str, Any]:
-        """Extract structured content from existing digest."""
-        content = {
-            'introduction': digest.introduction,
-            'topics': {}
-        }
-        
-        # Get related topic and story data
-        for digest_topic in digest.digest_topics.all():
-            topic_id = digest_topic.topic_id
-            
-            events = []
-            for story in digest_topic.stories.all():
-                events.append({
-                    'event': story.event,
-                    'enhanced_abstract': story.enhanced_abstract,
-                    'key_facts': story.key_facts,
-                    'perspectives': story.perspectives,
-                    'recommended_articles': story.recommended_articles,
-                    'score': story.event_score,
-                    'article_count': story.article_count
-                })
-            
-            content['topics'][topic_id] = {
-                'topic': digest_topic.topic,
-                'topic_abstract': digest_topic.abstract,
-                'main_facts': digest_topic.main_facts,
-                'perspectives': digest_topic.perspectives,
-                'events': events,
-                'total_score': digest_topic.topic_score
+        # Step 3: Generate digest introduction
+        introduction = self.ai_generator.generate_digest_introduction(
+            digest_data={
+                'digest': digest,
+                'topics_data': selected_topics_data
             }
+        )
         
-        return content
+        # Update digest metadata
+        digest.introduction = introduction['content']
+        digest.articles_processed = total_articles_processed
+        digest.events_included = total_events_included
+        digest.topics_included = len(selected_topics_data)
+        digest.generation_cost_usd = total_cost + Decimal(str(introduction['cost']))
+        digest.tokens_input = total_input_tokens + introduction['tokens_input']
+        digest.tokens_output = total_output_tokens + introduction['tokens_output']
+        digest.ai_model_used = introduction.get('model_used', 'gpt-4o-mini')
+        digest.save()
+        
+        logger.info(f"Digest content generated successfully. "
+                   f"Topics: {digest.topics_included}, Events: {digest.events_included}, "
+                   f"Articles: {digest.articles_processed}, Cost: ${digest.generation_cost_usd}")
     
-    def _generate_digest_title(self, target_date: datetime, enhanced_content: Dict[str, Any]) -> str:
-        """
-        Generate a descriptive title for the digest.
+    def _create_digest_topic(
+        self,
+        digest: Digest,
+        topic: Topic,
+        articles: List[Article],
+        order: int
+    ) -> DigestTopic:
+        """Create a DigestTopic with AI-generated content."""
         
-        Args:
-            target_date: Date the digest covers
-            enhanced_content: Enhanced content structure
-            
-        Returns:
-            Generated digest title
-        """
-        date_str = target_date.strftime('%B %d, %Y')
+        # Generate AI content for topic
+        topic_content = self.ai_generator.generate_topic_summary(
+            topic_data={
+                'topic': topic,
+                'articles': articles,
+                'include_opinions': digest.digest_preferences.get('include_opinions', True)
+            }
+        )
         
-        if not enhanced_content.get('topics'):
-            return f"Daily Brief - {date_str}"
+        digest_topic = DigestTopic.objects.create(
+            digest=digest,
+            topic=topic,
+            topic_abstract=topic_content['abstract'],
+            main_facts=topic_content['facts'],
+            perspectives=topic_content['perspectives'],
+            order=order,
+            event_count=0,  # Will be updated when stories are added
+            article_count=len(articles),
+            generation_cost_usd=Decimal(str(topic_content['cost'])),
+            tokens_input=topic_content['tokens_input'],
+            tokens_output=topic_content['tokens_output']
+        )
         
-        # Get top topic name for more descriptive title
-        topics = list(enhanced_content['topics'].values())
-        if topics:
-            top_topic = max(topics, key=lambda t: t['total_score'])
-            return f"Daily Brief - {date_str} (featuring {top_topic['topic'].name})"
-        
-        return f"Daily Brief - {date_str}"
+        return digest_topic
     
-    def _format_digest_html(self, enhanced_content: Dict[str, Any]) -> str:
+    def _create_digest_story(
+        self,
+        digest: Digest,
+        digest_topic: DigestTopic,
+        event_data: Dict[str, Any],
+        order: int
+    ) -> DigestStory:
+        """Create a DigestStory with AI-enhanced content."""
+        
+        event = event_data['event']
+        articles = event_data['articles']
+        score = event_data['score']
+        primary_mentions = event_data['primary_mentions']
+        secondary_mentions = event_data['secondary_mentions']
+        
+        # For now, use existing event data instead of AI generation
+        # This is a temporary solution until generate_story_summary is implemented
+        story_content = {
+            'enhanced_abstract': event.abstract if hasattr(event, 'abstract') else event.title,
+            'facts': [],
+            'perspectives': [],
+            'cost': 0.0,
+            'tokens_input': 0,
+            'tokens_output': 0
+        }
+        
+        # Extract facts and perspectives from article summaries
+        for article in articles:
+            try:
+                if hasattr(article, 'structured_summary') and article.structured_summary:
+                    summary = article.structured_summary
+                    if summary.facts:
+                        story_content['facts'].extend(summary.facts[:2])  # Limit per article
+                    if summary.opinions:
+                        story_content['perspectives'].extend(summary.opinions[:2])  # Limit per article
+            except Exception:
+                continue
+        
+        # Limit total facts and perspectives
+        story_content['facts'] = story_content['facts'][:6]
+        story_content['perspectives'] = story_content['perspectives'][:4]
+        
+        # Select top 3 most recent articles for recommendations
+        recommended_articles = sorted(
+            articles, 
+            key=lambda a: a.published_at, 
+            reverse=True
+        )[:3]
+        
+        digest_story = DigestStory.objects.create(
+            digest=digest,
+            digest_topic=digest_topic,
+            event=event,
+            title=event.title,
+            summary=event.abstract if hasattr(event, 'abstract') else event.title,
+            enhanced_abstract=story_content['enhanced_abstract'],
+            key_facts=story_content['facts'],
+            perspectives=story_content['perspectives'],
+            article_count=len(articles),
+            primary_mentions=primary_mentions,
+            secondary_mentions=secondary_mentions,
+            event_score=score,
+            order=order,
+            generation_cost_usd=Decimal(str(story_content['cost'])),
+            tokens_input=story_content['tokens_input'],
+            tokens_output=story_content['tokens_output'],
+            ai_model_used='basic-mode'  # Indicate no AI generation
+        )
+        
+        # Add recommended articles
+        digest_story.recommended_articles.set(recommended_articles)
+        
+        # Update digest topic event count
+        digest_topic.event_count += 1
+        digest_topic.save()
+        
+        return digest_story
+    
+    def _create_digest_topic_fallback(
+        self,
+        digest: Digest,
+        topic: Topic,
+        articles: List[Article],
+        order: int
+    ) -> DigestTopic:
         """
-        Format enhanced content as HTML for storage and display.
+        Create a DigestTopic using AI-powered topic summary from article summaries.
         
-        Args:
-            enhanced_content: Enhanced content structure
-            
-        Returns:
-            Formatted HTML string
+        This method uses AI to synthesize article summaries into a comprehensive
+        topic summary with the same structure as article summaries.
         """
-        html_parts = []
+        from apps.content.summariser.models import ArticleSummary
         
-        # Introduction
-        introduction = enhanced_content.get('introduction', '')
-        if introduction:
-            html_parts.append(f'<div class="digest-introduction">{introduction}</div>')
+        logger.info(f"Creating AI-powered fallback digest topic for {topic.name} with {len(articles)} articles")
         
-        # Topics
-        for topic_data in enhanced_content.get('topics', {}).values():
-            topic = topic_data['topic']
-            
-            html_parts.append(f'<section class="digest-topic" data-topic-id="{topic.id}">')
-            html_parts.append(f'<h2>{topic.name}</h2>')
-            
-            # Topic abstract
-            if topic_data.get('topic_abstract'):
-                html_parts.append(f'<p class="topic-abstract">{topic_data["topic_abstract"]}</p>')
-            
-            # Main facts
-            if topic_data.get('main_facts'):
-                html_parts.append('<div class="main-facts">')
-                html_parts.append('<h3>Key Facts</h3>')
-                html_parts.append('<ul>')
-                for fact in topic_data['main_facts']:
-                    html_parts.append(f'<li>{fact}</li>')
-                html_parts.append('</ul>')
-                html_parts.append('</div>')
-            
-            # Perspectives
-            if topic_data.get('perspectives'):
-                html_parts.append('<div class="perspectives">')
-                html_parts.append('<h3>Perspectives</h3>')
-                html_parts.append('<ul>')
-                for perspective in topic_data['perspectives']:
-                    html_parts.append(f'<li>{perspective}</li>')
-                html_parts.append('</ul>')
-                html_parts.append('</div>')
-            
-            # Events/Stories
-            for event_data in topic_data.get('events', []):
-                event = event_data['event']
-                
-                html_parts.append(f'<article class="digest-story" data-event-id="{event.id}">')
-                html_parts.append(f'<h4>{event.title}</h4>')
-                
-                if event_data.get('enhanced_abstract'):
-                    html_parts.append(f'<p class="story-abstract">{event_data["enhanced_abstract"]}</p>')
-                
-                # Key facts for event
-                if event_data.get('key_facts'):
-                    html_parts.append('<div class="event-facts">')
-                    html_parts.append('<h5>Key Facts</h5>')
-                    html_parts.append('<ul>')
-                    for fact in event_data['key_facts']:
-                        html_parts.append(f'<li>{fact}</li>')
-                    html_parts.append('</ul>')
-                    html_parts.append('</div>')
-                
-                # Recommended articles
-                if event_data.get('recommended_articles'):
-                    html_parts.append('<div class="recommended-articles">')
-                    html_parts.append('<h5>Read More</h5>')
-                    html_parts.append('<ul>')
-                    for article_data in event_data['recommended_articles']:
-                        html_parts.append(
-                            f'<li><a href="{article_data["url"]}" data-article-id="{article_data["public_id"]}">' +
-                            f'{article_data["headline"]} - {article_data["source"]}</a></li>'
-                        )
-                    html_parts.append('</ul>')
-                    html_parts.append('</div>')
-                
-                html_parts.append('</article>')
-            
-            html_parts.append('</section>')
+        # Generate AI-powered topic summary
+        topic_content = self.ai_generator.generate_fallback_topic_summary(
+            topic_data={
+                'topic': topic,
+                'articles': articles
+            }
+        )
         
-        return '\n'.join(html_parts) 
+        # Create the DigestTopic with AI-generated content
+        digest_topic = DigestTopic.objects.create(
+            digest=digest,
+            topic=topic,
+            title=topic_content.get('title', f"Latest in {topic.name}"),
+            topic_abstract=topic_content.get('abstract', f"Key developments in {topic.name} based on recent articles."),
+            main_facts=topic_content.get('facts', []),
+            perspectives=topic_content.get('opinions', []),
+            order=order,
+            articles_count=len(articles),
+            # AI generation costs
+            generation_cost_usd=topic_content.get('cost', Decimal('0.00')),
+            tokens_input=topic_content.get('tokens_input', 0),
+            tokens_output=topic_content.get('tokens_output', 0),
+            ai_model_used=topic_content.get('model_used', 'gpt-4o-mini')
+        )
+        
+        logger.info(f"Created AI-powered fallback digest topic {digest_topic.id} for {topic.name}")
+        return digest_topic
+    
+    def _create_digest_story_fallback(
+        self,
+        digest: Digest,
+        digest_topic: DigestTopic,
+        articles: List[Article],
+        order: int
+    ) -> DigestStory:
+        """
+        Create a DigestStory using AI-generated content from article summaries.
+        
+        This creates a single story per topic containing the most important articles
+        and their AI-synthesized information.
+        """
+        logger.info(f"Creating AI-powered fallback digest story for {digest_topic.topic.name} with {len(articles)} articles")
+        
+        # Generate AI-powered story content using the same method as topic summary
+        # but focused on story-level information
+        story_content = self.ai_generator.generate_fallback_topic_summary(
+            topic_data={
+                'topic': digest_topic.topic,
+                'articles': articles
+            }
+        )
+        
+        # Use AI-generated content for the story
+        story_title = story_content.get('title', f"Recent developments in {digest_topic.topic.name}")
+        story_summary = story_content.get('abstract', f"Multiple recent developments in {digest_topic.topic.name}.")
+        
+        # Create the DigestStory with AI-generated content
+        digest_story = DigestStory.objects.create(
+            digest=digest,
+            digest_topic=digest_topic,
+            title=story_title,
+            summary=story_summary,
+            enhanced_abstract=story_summary,  # Use AI-generated abstract
+            key_facts=story_content.get('facts', [])[:6],  # Limit to 6 facts
+            perspectives=story_content.get('opinions', [])[:4],  # Limit to 4 perspectives
+            order=order,
+            article_count=len(articles),
+            primary_mentions=len(articles),  # All articles are "primary" in fallback mode
+            # AI generation costs
+            generation_cost_usd=story_content.get('cost', Decimal('0.00')),
+            tokens_input=story_content.get('tokens_input', 0),
+            tokens_output=story_content.get('tokens_output', 0),
+            ai_model_used=story_content.get('model_used', 'gpt-4o-mini')
+        )
+        
+        # Add articles as recommendations (all of them since we only have 3 max)
+        digest_story.recommended_articles.set(articles)
+        
+        logger.info(f"Created AI-powered fallback digest story {digest_story.id} for {digest_topic.topic.name}")
+        return digest_story
+    
+    def get_user_digest(self, user: User, date: datetime.date) -> Optional[Digest]:
+        """Get existing digest for user and date."""
+        try:
+            return Digest.objects.get(user=user, date=date)
+        except Digest.DoesNotExist:
+            return None
+    
+    def get_recent_digests(self, user: User, limit: int = 7) -> List[Digest]:
+        """Get recent digests for a user."""
+        return list(
+            Digest.objects.filter(user=user, generation_status='completed')
+            .order_by('-date')[:limit]
+        ) 

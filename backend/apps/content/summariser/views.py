@@ -52,8 +52,8 @@ def similar_articles(request, article_id):
         
         # Get and validate query parameters
         try:
-            threshold = float(request.GET.get('threshold', 0.22))
-            limit = int(request.GET.get('limit', 5))
+        threshold = float(request.GET.get('threshold', 0.22))
+        limit = int(request.GET.get('limit', 5))
         except ValueError:
             return create_error_response(
                 "Invalid parameter format",
@@ -116,10 +116,10 @@ def similar_articles(request, article_id):
                 try:
                     days_int = int(days)
                     cutoff_date = datetime.now() - timedelta(days=days_int)
-                    enhanced_articles = [
-                        art for art in enhanced_articles 
-                        if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
-                    ]
+                enhanced_articles = [
+                    art for art in enhanced_articles 
+                    if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
+                ]
                 except ValueError:
                     return create_error_response(
                         "Days parameter must be an integer",
@@ -129,10 +129,10 @@ def similar_articles(request, article_id):
             
             return create_success_response(
                 {
-                    'article_id': article_id,
-                    'article_title': article.title,
-                    'similar_articles': enhanced_articles,
-                    'total_found': len(enhanced_articles),
+                'article_id': article_id,
+                'article_title': article.title,
+                'similar_articles': enhanced_articles,
+                'total_found': len(enhanced_articles),
                     'threshold_used': threshold,
                     'filters_applied': {
                         'threshold': threshold,
@@ -248,11 +248,11 @@ def embedding_stats(request):
         
         return create_success_response(
             {
-                'total_articles': total_articles,
-                'articles_with_summaries': articles_with_summaries,
-                'articles_with_embeddings': articles_with_embeddings,
-                'embedding_coverage': round(embedding_coverage, 3),
-                'recent_embeddings': recent_embeddings,
+            'total_articles': total_articles,
+            'articles_with_summaries': articles_with_summaries,
+            'articles_with_embeddings': articles_with_embeddings,
+            'embedding_coverage': round(embedding_coverage, 3),
+            'recent_embeddings': recent_embeddings,
                 'weekly_embeddings': weekly_embeddings,
                 'embedding_model': 'text-embedding-3-small',
                 'statistics_generated_at': datetime.now().isoformat()
