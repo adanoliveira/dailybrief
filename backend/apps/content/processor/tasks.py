@@ -18,7 +18,7 @@ from .models import serialize_content_blocks
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
 def process_article_content(self, article_id: int, route: str = None) -> Dict[str, Any]:
     """
     Process single article content using intelligent routing.
@@ -109,26 +109,35 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
         }
     
     except Exception as e:
-        logger.exception(f"Unexpected error processing article {article_id}: {str(e)}")
+        # Handle both regular exceptions and timeout exceptions
+        from celery.exceptions import SoftTimeLimitExceeded
+        
+        error_message = str(e)
+        if isinstance(e, SoftTimeLimitExceeded):
+            error_message = "Task timed out after 10 minutes"
+            logger.warning(f"Article {article_id} processing timed out")
+        else:
+            logger.exception(f"Unexpected error processing article {article_id}: {str(e)}")
         
         # Update article status
         try:
             article = Article.objects.get(id=article_id)
             article.process_status = ProcessingStatus.FAILED
             article.last_process_attempt = timezone.now()
-            article.save(update_fields=['process_status', 'last_process_attempt'])
+            article.process_error_message = error_message
+            article.save(update_fields=['process_status', 'last_process_attempt', 'process_error_message'])
         except:
             pass
         
-        # Retry if we haven't exceeded max attempts
-        if self.request.retries < self.max_retries:
+        # Don't retry timeout errors
+        if not isinstance(e, SoftTimeLimitExceeded) and self.request.retries < self.max_retries:
             logger.info(f"Retrying article {article_id} due to error (attempt {self.request.retries + 1})")
             raise self.retry(countdown=60 * (self.request.retries + 1))
         
         return {
             'success': False,
             'article_id': article_id,
-            'error_message': str(e)
+            'error_message': error_message
         }
 
 
@@ -400,9 +409,14 @@ def cleanup_processing_data() -> Dict[str, Any]:
         # Reset articles stuck in PROCESSING status for more than 2 hours
         stuck_threshold = timezone.now() - timedelta(hours=2)
         
+        from django.db.models import Q
+        
+        # Include both articles with old timestamps AND articles with null timestamps (stuck without proper tracking)
         stuck_articles = Article.objects.filter(
-            process_status=ProcessingStatus.PROCESSING,
-            last_process_attempt__lt=stuck_threshold
+            process_status=ProcessingStatus.PROCESSING
+        ).filter(
+            Q(last_process_attempt__lt=stuck_threshold) |
+            Q(last_process_attempt__isnull=True)
         )
         
         stuck_count = stuck_articles.count()

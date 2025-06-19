@@ -18,7 +18,7 @@ from .models import AnalyzerRequest
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+@shared_task(bind=True, max_retries=3, default_retry_delay=300, soft_time_limit=600, time_limit=900)
 def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = False):
     """
     Main analysis pipeline task.
@@ -537,6 +537,82 @@ def queue_analysis_after_summarization(article_id: int):
         logger.error(f"Article {article_id} not found for post-summarization analysis")
     except Exception as e:
         logger.error(f"Failed to queue analysis for article {article_id}: {str(e)}")
+
+
+@shared_task
+def cleanup_stuck_analyzer_articles() -> Dict[str, Any]:
+    """
+    Clean up articles stuck in PROCESSING status for analysis.
+    
+    Resets articles that have been stuck in PROCESSING status for more than 2 hours
+    back to PENDING status, including those with null timestamps.
+    """
+    
+    try:
+        # Reset articles stuck in PROCESSING status for more than 2 hours
+        stuck_threshold = timezone.now() - timezone.timedelta(hours=2)
+        
+        from django.db.models import Q
+        
+        # Include both articles with old timestamps AND articles with null timestamps (stuck without proper tracking)
+        stuck_articles = Article.objects.filter(
+            analyzer_status=AnalyzerStatus.PROCESSING
+        ).filter(
+            Q(last_analyzer_attempt__lt=stuck_threshold) |
+            Q(last_analyzer_attempt__isnull=True)
+        )
+        
+        stuck_count = stuck_articles.count()
+        
+        if stuck_count > 0:
+            stuck_articles.update(
+                analyzer_status=AnalyzerStatus.PENDING,
+                analyzer_error_message='Reset from stuck PROCESSING status'
+            )
+            
+            logger.info(f"Reset {stuck_count} articles stuck in analyzer PROCESSING status")
+        
+        # Clean up very old failed analysis attempts (older than 7 days)
+        old_threshold = timezone.now() - timezone.timedelta(days=7)
+        
+        old_failed = Article.objects.filter(
+            analyzer_status=AnalyzerStatus.FAILED,
+            last_analyzer_attempt__lt=old_threshold,
+            analyzer_attempts__gte=3
+        )
+        
+        old_count = old_failed.count()
+        
+        if old_count > 0:
+            # Don't reset these, just log for monitoring
+            logger.info(f"Found {old_count} articles with old failed analyzer attempts")
+        
+        # Calculate analyzer queue health
+        pending_count = Article.objects.filter(
+            analyzer_status=AnalyzerStatus.PENDING,
+            summarization_status=SummarizationStatus.COMPLETED  # Must have completed summarization first
+        ).count()
+        
+        processing_count = Article.objects.filter(
+            analyzer_status=AnalyzerStatus.PROCESSING
+        ).count()
+        
+        return {
+            'stuck_articles_reset': stuck_count,
+            'old_failed_articles': old_count,
+            'pending_articles': pending_count,
+            'processing_articles': processing_count,
+            'cleanup_completed': True
+        }
+        
+    except Exception as e:
+        logger.exception(f"Analyzer cleanup failed: {str(e)}")
+        return {
+            'stuck_articles_reset': 0,
+            'old_failed_articles': 0,
+            'cleanup_completed': False,
+            'error_message': str(e)
+        }
 
 
 def get_analysis_pipeline_status():

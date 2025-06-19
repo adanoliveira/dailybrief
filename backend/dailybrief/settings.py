@@ -232,6 +232,11 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
+# Task timeout settings to prevent stuck tasks
+CELERY_TASK_SOFT_TIME_LIMIT = 600  # 10 minutes soft limit
+CELERY_TASK_TIME_LIMIT = 900       # 15 minutes hard limit
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Don't prefetch too many tasks
+
 # Celery Beat Schedule
 from celery.schedules import crontab
 
@@ -359,6 +364,31 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.content.digest.tasks.cleanup_old_digests',
         'schedule': crontab(hour=1, minute=0, day_of_week=0),  # Sunday at 1:00 AM
         'kwargs': {'days_to_keep': 90},
+    },
+    
+    # ===== STUCK ARTICLE CLEANUP TASKS =====
+    # Clean up articles stuck in processing status - Every hour
+    'cleanup-stuck-processing-articles': {
+        'task': 'apps.content.processor.tasks.cleanup_processing_data',
+        'schedule': crontab(minute=15, hour='*'),  # Every hour at :15
+    },
+    
+    # Clean up articles stuck in fetching status - Every hour
+    'cleanup-stuck-fetching-articles': {
+        'task': 'apps.content.fetcher.tasks.cleanup_old_fetch_attempts',
+        'schedule': crontab(minute=45, hour='*'),  # Every hour at :45
+    },
+    
+    # Clean up articles stuck in summarization status - Every hour
+    'cleanup-stuck-summarization-articles': {
+        'task': 'apps.content.summariser.tasks.cleanup_stuck_summarization_articles',
+        'schedule': crontab(minute=25, hour='*'),  # Every hour at :25
+    },
+    
+    # Clean up articles stuck in analysis status - Every hour
+    'cleanup-stuck-analyzer-articles': {
+        'task': 'apps.content.analyzer.tasks.cleanup_stuck_analyzer_articles',
+        'schedule': crontab(minute=35, hour='*'),  # Every hour at :35
     },
 }
 

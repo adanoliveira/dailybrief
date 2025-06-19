@@ -15,7 +15,7 @@ from .fetcher import ContentFetcher, FetchManager
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True, max_retries=3, soft_time_limit=300, time_limit=450)
 def fetch_article_content(self, article_id: int) -> Dict[str, Any]:
     """
     Fetch content for a single article (Step 1 only).
@@ -215,9 +215,14 @@ def cleanup_old_fetch_attempts() -> Dict[str, Any]:
         # Reset articles stuck in FETCHING status for more than 1 hour
         stuck_threshold = timezone.now() - timedelta(hours=1)
         
+        from django.db.models import Q
+        
+        # Include both articles with old timestamps AND articles with null timestamps (stuck without proper tracking)
         stuck_articles = Article.objects.filter(
-            fetch_status=FetchStatus.FETCHING,
-            last_fetch_attempt__lt=stuck_threshold
+            fetch_status=FetchStatus.FETCHING
+        ).filter(
+            Q(last_fetch_attempt__lt=stuck_threshold) |
+            Q(last_fetch_attempt__isnull=True)
         )
         
         stuck_count = stuck_articles.count()
