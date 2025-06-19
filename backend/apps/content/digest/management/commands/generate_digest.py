@@ -278,7 +278,7 @@ class Command(BaseCommand):
                 'metrics': {
                     'topics_included': digest.digest_topics.count(),
                     'total_events': sum(topic.stories.count() for topic in digest.digest_topics.all()),
-                    'total_cost_usd': float(digest.total_cost_usd),
+                    'total_cost_usd': float(digest.generation_cost_usd),
                 }
             }
         except Exception as e:

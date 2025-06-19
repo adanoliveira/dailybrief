@@ -1,174 +1,233 @@
 """
-Comprehensive stuck article cleanup and monitoring command.
+Management command to identify and clean up articles stuck in processing.
 
-This command provides manual control over stuck article cleanup with detailed reporting.
+Handles articles stuck in PROCESSING status across all pipeline stages:
+- Fetching
+- Processing 
+- Summarization
+- Analysis
+
+Articles stuck for more than the specified timeout are reset to PENDING status.
 """
 
+import logging
+from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from datetime import timedelta
 from django.db.models import Q
+from apps.articles.models import Article, FetchStatus, ProcessingStatus, SummarizationStatus, AnalyzerStatus
 
-from apps.articles.models import Article, ProcessingStatus, FetchStatus
-from apps.content.processor.tasks import cleanup_processing_data
-from apps.content.fetcher.tasks import cleanup_old_fetch_attempts
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Cleanup stuck articles and monitor pipeline health'
+    help = 'Clean up articles stuck in processing status across all pipeline stages'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--check-only',
             action='store_true',
-            help='Only check status without making any changes'
+            help='Only check for stuck articles without fixing them',
         )
         parser.add_argument(
-            '--processing-timeout',
+            '--fetch-timeout',
             type=int,
             default=2,
-            help='Hours after which processing articles are considered stuck (default: 2)'
+            help='Hours after which fetching articles are considered stuck (default: 2)',
         )
         parser.add_argument(
-            '--fetching-timeout',
+            '--process-timeout',
             type=int,
-            default=1,
-            help='Hours after which fetching articles are considered stuck (default: 1)'
+            default=2,
+            help='Hours after which processing articles are considered stuck (default: 2)',
+        )
+        parser.add_argument(
+            '--summarization-timeout',
+            type=int,
+            default=2,
+            help='Hours after which summarization articles are considered stuck (default: 2)',
+        )
+        parser.add_argument(
+            '--analysis-timeout',
+            type=int,
+            default=2,
+            help='Hours after which analysis articles are considered stuck (default: 2)',
         )
         parser.add_argument(
             '--verbose',
             action='store_true',
-            help='Show detailed information about stuck articles'
+            help='Show detailed information about stuck articles',
         )
 
     def handle(self, *args, **options):
         check_only = options['check_only']
-        processing_timeout = options['processing_timeout']
-        fetching_timeout = options['fetching_timeout']
+        fetch_timeout = options['fetch_timeout']
+        process_timeout = options['process_timeout']
+        summarization_timeout = options['summarization_timeout']
+        analysis_timeout = options['analysis_timeout']
         verbose = options['verbose']
 
-        self.stdout.write("🔍 STUCK ARTICLE CLEANUP & MONITORING")
-        self.stdout.write("=" * 50)
-
-        # Check current status
-        stuck_processing, stuck_fetching = self._analyze_stuck_articles(
-            processing_timeout, fetching_timeout, verbose
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\n🔍 {'Checking' if check_only else 'Cleaning up'} stuck articles across all pipeline stages..."
+            )
         )
 
-        if check_only:
-            self.stdout.write(self.style.WARNING("\n🔍 CHECK-ONLY MODE - No changes made"))
-            return
+        total_stuck = 0
 
-        if stuck_processing == 0 and stuck_fetching == 0:
-            self.stdout.write(self.style.SUCCESS("\n✅ No stuck articles found - pipeline is healthy!"))
-            return
+        # 1. Check fetching stuck articles
+        stuck_fetching = self._check_stuck_articles(
+            status_field='fetch_status',
+            status_value=FetchStatus.FETCHING,
+            timestamp_field='last_fetch_attempt',
+            timeout_hours=fetch_timeout,
+            stage_name='Fetching'
+        )
+        total_stuck += len(stuck_fetching)
 
-        # Cleanup stuck articles
-        self.stdout.write(f"\n🧹 CLEANING UP STUCK ARTICLES")
-        self.stdout.write("-" * 30)
+        if verbose and stuck_fetching:
+            self._show_stuck_details(stuck_fetching, 'Fetching', 'last_fetch_attempt', 'fetch_attempts')
 
-        # Run cleanup tasks
-        if stuck_processing > 0:
-            self.stdout.write(f"🔄 Running processing cleanup...")
-            proc_result = cleanup_processing_data()
-            reset_count = proc_result.get('stuck_articles_reset', 0)
-            self.stdout.write(f"   ✅ Reset {reset_count} stuck processing articles")
-
-        if stuck_fetching > 0:
-            self.stdout.write(f"🔄 Running fetching cleanup...")
-            fetch_result = cleanup_old_fetch_attempts()
-            reset_count = fetch_result.get('stuck_articles_reset', 0)
+        if not check_only and stuck_fetching:
+            reset_count = self._reset_stuck_articles(
+                stuck_fetching,
+                'fetch_status',
+                FetchStatus.PENDING,
+                'fetch_error_message',
+                'Reset from stuck FETCHING status'
+            )
             self.stdout.write(f"   ✅ Reset {reset_count} stuck fetching articles")
 
-        # Verify cleanup
-        self.stdout.write(f"\n🔍 POST-CLEANUP VERIFICATION")
-        self.stdout.write("-" * 30)
-        self._analyze_stuck_articles(processing_timeout, fetching_timeout, False)
-        
-        self.stdout.write(f"\n💡 RECOMMENDATIONS")
-        self.stdout.write("-" * 20)
-        self.stdout.write("• Cleanup tasks now run automatically every hour")
-        self.stdout.write("• Processing timeout: 10 minutes soft / 15 minutes hard")
-        self.stdout.write("• Fetching timeout: 5 minutes soft / 7.5 minutes hard")
-        self.stdout.write("• Monitor Celery worker health in production")
+        # 2. Check processing stuck articles
+        stuck_processing = self._check_stuck_articles(
+            status_field='process_status',
+            status_value=ProcessingStatus.PROCESSING,
+            timestamp_field='last_process_attempt',
+            timeout_hours=process_timeout,
+            stage_name='Processing'
+        )
+        total_stuck += len(stuck_processing)
 
-    def _analyze_stuck_articles(self, processing_timeout: int, fetching_timeout: int, verbose: bool):
-        """Analyze and report stuck articles."""
-        
-        # Current stuck counts
-        current_stuck_processing = Article.objects.filter(
-            process_status=ProcessingStatus.PROCESSING
-        ).count()
-        
-        current_stuck_fetching = Article.objects.filter(
-            fetch_status=FetchStatus.FETCHING
-        ).count()
+        if verbose and stuck_processing:
+            self._show_stuck_details(stuck_processing, 'Processing', 'last_process_attempt', 'process_attempts')
 
-        self.stdout.write(f"📊 CURRENT STATUS")
-        self.stdout.write(f"   Processing: {current_stuck_processing} stuck")
-        self.stdout.write(f"   Fetching: {current_stuck_fetching} stuck")
-
-        if verbose and (current_stuck_processing > 0 or current_stuck_fetching > 0):
-            self._show_detailed_analysis(processing_timeout, fetching_timeout)
-
-        return current_stuck_processing, current_stuck_fetching
-
-    def _show_detailed_analysis(self, processing_timeout: int, fetching_timeout: int):
-        """Show detailed analysis of stuck articles."""
-        
-        processing_threshold = timezone.now() - timedelta(hours=processing_timeout)
-        fetching_threshold = timezone.now() - timedelta(hours=fetching_timeout)
-
-        # Detailed processing analysis
-        stuck_processing = Article.objects.filter(process_status=ProcessingStatus.PROCESSING)
-        if stuck_processing.exists():
-            self.stdout.write(f"\n🔍 STUCK PROCESSING ARTICLES:")
-            
-            # Articles with null timestamps (the bug we fixed)
-            null_timestamp = stuck_processing.filter(last_process_attempt__isnull=True)
-            if null_timestamp.exists():
-                self.stdout.write(f"   ⚠️  {null_timestamp.count()} articles with NULL timestamps (likely from old bug)")
-                for article in null_timestamp[:3]:
-                    self.stdout.write(f"      ID: {article.id}, attempts: {article.process_attempts}")
-
-            # Articles with old timestamps
-            old_timestamp = stuck_processing.filter(last_process_attempt__lt=processing_threshold)
-            if old_timestamp.exists():
-                self.stdout.write(f"   ⏰ {old_timestamp.count()} articles stuck > {processing_timeout}h")
-                for article in old_timestamp[:3]:
-                    self.stdout.write(f"      ID: {article.id}, last: {article.last_process_attempt}")
-
-            # Articles with recent timestamps (might be actively processing)
-            recent_timestamp = stuck_processing.filter(
-                last_process_attempt__gte=processing_threshold,
-                last_process_attempt__isnull=False
+        if not check_only and stuck_processing:
+            reset_count = self._reset_stuck_articles(
+                stuck_processing,
+                'process_status',
+                ProcessingStatus.PENDING,
+                'process_error_message',
+                'Reset from stuck PROCESSING status'
             )
-            if recent_timestamp.exists():
-                self.stdout.write(f"   🟡 {recent_timestamp.count()} articles processing < {processing_timeout}h (might be active)")
+            self.stdout.write(f"   ✅ Reset {reset_count} stuck processing articles")
 
-        # Detailed fetching analysis
-        stuck_fetching = Article.objects.filter(fetch_status=FetchStatus.FETCHING)
-        if stuck_fetching.exists():
-            self.stdout.write(f"\n🔍 STUCK FETCHING ARTICLES:")
-            
-            # Articles with null timestamps
-            null_timestamp = stuck_fetching.filter(last_fetch_attempt__isnull=True)
-            if null_timestamp.exists():
-                self.stdout.write(f"   ⚠️  {null_timestamp.count()} articles with NULL timestamps")
-                for article in null_timestamp[:3]:
-                    self.stdout.write(f"      ID: {article.id}, attempts: {article.fetch_attempts}")
+        # 3. Check summarization stuck articles  
+        stuck_summarization = self._check_stuck_articles(
+            status_field='summarization_status',
+            status_value=SummarizationStatus.PROCESSING,
+            timestamp_field='last_summarization_attempt',
+            timeout_hours=summarization_timeout,
+            stage_name='Summarization'
+        )
+        total_stuck += len(stuck_summarization)
 
-            # Articles with old timestamps
-            old_timestamp = stuck_fetching.filter(last_fetch_attempt__lt=fetching_threshold)
-            if old_timestamp.exists():
-                self.stdout.write(f"   ⏰ {old_timestamp.count()} articles stuck > {fetching_timeout}h")
-                for article in old_timestamp[:3]:
-                    self.stdout.write(f"      ID: {article.id}, last: {article.last_fetch_attempt}")
+        if verbose and stuck_summarization:
+            self._show_stuck_details(stuck_summarization, 'Summarization', 'last_summarization_attempt', 'summarization_attempts')
 
-            # Articles with recent timestamps
-            recent_timestamp = stuck_fetching.filter(
-                last_fetch_attempt__gte=fetching_threshold,
-                last_fetch_attempt__isnull=False
+        if not check_only and stuck_summarization:
+            reset_count = self._reset_stuck_articles(
+                stuck_summarization,
+                'summarization_status',
+                SummarizationStatus.PENDING,
+                'summarization_error_message',
+                'Reset from stuck PROCESSING status'
             )
-            if recent_timestamp.exists():
-                self.stdout.write(f"   🟡 {recent_timestamp.count()} articles fetching < {fetching_timeout}h (might be active)") 
+            self.stdout.write(f"   ✅ Reset {reset_count} stuck summarization articles")
+
+        # 4. Check analysis stuck articles
+        stuck_analysis = self._check_stuck_articles(
+            status_field='analyzer_status',
+            status_value=AnalyzerStatus.PROCESSING,
+            timestamp_field='last_analyzer_attempt',
+            timeout_hours=analysis_timeout,
+            stage_name='Analysis'
+        )
+        total_stuck += len(stuck_analysis)
+
+        if verbose and stuck_analysis:
+            self._show_stuck_details(stuck_analysis, 'Analysis', 'last_analyzer_attempt', 'analyzer_attempts')
+
+        if not check_only and stuck_analysis:
+            reset_count = self._reset_stuck_articles(
+                stuck_analysis,
+                'analyzer_status',
+                AnalyzerStatus.PENDING,
+                'analyzer_error_message',
+                'Reset from stuck PROCESSING status'
+            )
+            self.stdout.write(f"   ✅ Reset {reset_count} stuck analysis articles")
+
+        # Summary
+        if total_stuck == 0:
+            self.stdout.write(self.style.SUCCESS("\n✅ No stuck articles found across all pipeline stages!"))
+        else:
+            action = "would be reset" if check_only else "were reset"
+            self.stdout.write(
+                self.style.WARNING(f"\n📊 Summary: {total_stuck} stuck articles {action} across all stages")
+            )
+
+            if check_only:
+                self.stdout.write(
+                    self.style.WARNING("   💡 Run without --check-only to actually reset these articles")
+                )
+
+    def _check_stuck_articles(self, status_field, status_value, timestamp_field, timeout_hours, stage_name):
+        """Check for articles stuck in a specific status."""
+        stuck_threshold = timezone.now() - timedelta(hours=timeout_hours)
+
+        # Find articles stuck in the specified status
+        # Include both articles with old timestamps AND articles with null timestamps (stuck without proper tracking)
+        stuck_query = Q(**{status_field: status_value}) & (
+            Q(**{f'{timestamp_field}__lt': stuck_threshold}) |
+            Q(**{f'{timestamp_field}__isnull': True})
+        )
+
+        stuck_articles = list(Article.objects.filter(stuck_query))
+
+        count = len(stuck_articles)
+        if count > 0:
+            self.stdout.write(
+                self.style.WARNING(f"   ⚠️  Found {count} articles stuck in {stage_name} status")
+            )
+        else:
+            self.stdout.write(f"   ✅ No articles stuck in {stage_name} status")
+
+        return stuck_articles
+
+    def _show_stuck_details(self, stuck_articles, stage_name, timestamp_field, attempts_field):
+        """Show detailed information about stuck articles."""
+        self.stdout.write(f"\n   📋 Stuck {stage_name} Articles Details:")
+        
+        for article in stuck_articles[:5]:  # Show first 5
+            timestamp = getattr(article, timestamp_field)
+            attempts = getattr(article, attempts_field)
+            timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S') if timestamp else 'None'
+            
+            self.stdout.write(
+                f"      • ID: {article.id}, Attempts: {attempts}, Last: {timestamp_str}"
+            )
+        
+        if len(stuck_articles) > 5:
+            self.stdout.write(f"      ... and {len(stuck_articles) - 5} more")
+
+    def _reset_stuck_articles(self, stuck_articles, status_field, pending_status, error_field, error_message):
+        """Reset stuck articles to pending status."""
+        reset_count = 0
+        
+        for article in stuck_articles:
+            setattr(article, status_field, pending_status)
+            setattr(article, error_field, error_message)
+            article.save(update_fields=[status_field, error_field])
+            reset_count += 1
+        
+        return reset_count 

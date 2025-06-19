@@ -261,8 +261,34 @@ class DigestService:
             
             else:
                 # Handle event-based mode
-                events = topic_data['events']
+                events = topic_data.get('events', [])
                 articles = topic_data['articles']
+                
+                # If no events available, fall back to article summary mode
+                if not events:
+                    logger.info(f"No events found for topic {topic.name}, using fallback mode")
+                    
+                    # Create DigestTopic with AI-generated fallback content
+                    digest_topic = self._create_digest_topic_fallback(
+                        digest=digest,
+                        topic=topic,
+                        articles=articles,
+                        order=order
+                    )
+                    
+                    # Create a single DigestStory from the AI-generated content
+                    digest_story = self._create_digest_story_fallback(
+                        digest=digest,
+                        digest_topic=digest_topic,
+                        articles=articles,
+                        order=0
+                    )
+                    
+                    # Track costs from AI-powered fallback generation
+                    total_cost += digest_topic.generation_cost_usd + digest_story.generation_cost_usd
+                    total_input_tokens += digest_topic.tokens_input + digest_story.tokens_input
+                    total_output_tokens += digest_topic.tokens_output + digest_story.tokens_output
+                    continue
                 
                 # Create DigestTopic with AI-generated content
                 digest_topic = self._create_digest_topic(
@@ -335,15 +361,15 @@ class DigestService:
         digest_topic = DigestTopic.objects.create(
             digest=digest,
             topic=topic,
-            topic_abstract=topic_content['abstract'],
-            main_facts=topic_content['facts'],
-            perspectives=topic_content['perspectives'],
+            topic_abstract=topic_content.get('abstract', ''),
+            main_facts=topic_content.get('facts', []),
+            perspectives=topic_content.get('perspectives', topic_content.get('opinions', [])),
             order=order,
             event_count=0,  # Will be updated when stories are added
             article_count=len(articles),
-            generation_cost_usd=Decimal(str(topic_content['cost'])),
-            tokens_input=topic_content['tokens_input'],
-            tokens_output=topic_content['tokens_output']
+            generation_cost_usd=Decimal(str(topic_content.get('cost', 0))),
+            tokens_input=topic_content.get('tokens_input', 0),
+            tokens_output=topic_content.get('tokens_output', 0)
         )
         
         return digest_topic
@@ -413,8 +439,7 @@ class DigestService:
             order=order,
             generation_cost_usd=Decimal(str(story_content['cost'])),
             tokens_input=story_content['tokens_input'],
-            tokens_output=story_content['tokens_output'],
-            ai_model_used='basic-mode'  # Indicate no AI generation
+            tokens_output=story_content['tokens_output']
         )
         
         # Add recommended articles
@@ -455,17 +480,15 @@ class DigestService:
         digest_topic = DigestTopic.objects.create(
             digest=digest,
             topic=topic,
-            title=topic_content.get('title', f"Latest in {topic.name}"),
             topic_abstract=topic_content.get('abstract', f"Key developments in {topic.name} based on recent articles."),
             main_facts=topic_content.get('facts', []),
             perspectives=topic_content.get('opinions', []),
             order=order,
-            articles_count=len(articles),
+            article_count=len(articles),
             # AI generation costs
             generation_cost_usd=topic_content.get('cost', Decimal('0.00')),
             tokens_input=topic_content.get('tokens_input', 0),
-            tokens_output=topic_content.get('tokens_output', 0),
-            ai_model_used=topic_content.get('model_used', 'gpt-4o-mini')
+            tokens_output=topic_content.get('tokens_output', 0)
         )
         
         logger.info(f"Created AI-powered fallback digest topic {digest_topic.id} for {topic.name}")
@@ -514,8 +537,7 @@ class DigestService:
             # AI generation costs
             generation_cost_usd=story_content.get('cost', Decimal('0.00')),
             tokens_input=story_content.get('tokens_input', 0),
-            tokens_output=story_content.get('tokens_output', 0),
-            ai_model_used=story_content.get('model_used', 'gpt-4o-mini')
+            tokens_output=story_content.get('tokens_output', 0)
         )
         
         # Add articles as recommendations (all of them since we only have 3 max)

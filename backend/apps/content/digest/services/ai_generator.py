@@ -65,18 +65,33 @@ class DigestAIGenerator:
         topic_summaries = []
         total_events = 0
         
-        for topic_id, topic_content in digest_data.items():
-            topic = topic_content['topic']
-            events = topic_content['events']
-            total_events += len(events)
+        # Handle the new data structure
+        topics_data = digest_data.get('topics_data', [])
+        
+        for topic_data in topics_data:
+            topic = topic_data['topic']
+            events = topic_data.get('events', [])
+            fallback_mode = topic_data.get('fallback_mode', False)
             
-            # Create brief topic preview
-            event_titles = [event['event'].title for event in events[:2]]  # Top 2 events
-            topic_summaries.append({
-                'name': topic.name,
-                'event_count': len(events),
-                'top_events': event_titles
-            })
+            if fallback_mode:
+                # For fallback mode, we don't have events but we have the topic
+                topic_summaries.append({
+                    'name': topic.name,
+                    'event_count': 1,  # Represent as 1 story in fallback mode
+                    'top_events': ['Latest developments']
+                })
+                total_events += 1
+            else:
+                # Regular event-based mode
+                total_events += len(events)
+                
+                # Create brief topic preview
+                event_titles = [event['event'].title for event in events[:2]]  # Top 2 events
+                topic_summaries.append({
+                    'name': topic.name,
+                    'event_count': len(events),
+                    'top_events': event_titles
+                })
         
         # Create structured prompt
         prompt = self._build_introduction_prompt(topic_summaries, total_events)
@@ -101,7 +116,7 @@ class DigestAIGenerator:
             self.logger.info(f"Generated digest introduction ({len(introduction)} chars)")
             
             return {
-                'introduction': introduction,
+                'content': introduction,
                 'cost': Decimal(str(cost)),
                 'tokens_input': tokens_in,
                 'tokens_output': tokens_out
@@ -110,7 +125,7 @@ class DigestAIGenerator:
         except Exception as e:
             self.logger.error(f"Failed to generate digest introduction: {e}")
             return {
-                'introduction': self._get_fallback_introduction(topic_summaries, total_events),
+                'content': self._get_fallback_introduction(topic_summaries, total_events),
                 'cost': Decimal('0.0'),
                 'tokens_input': 0,
                 'tokens_output': 0,
@@ -133,7 +148,13 @@ class DigestAIGenerator:
             Dict with synthesized topic content and processing metadata
         """
         topic = topic_data['topic']
-        events = topic_data['events']
+        events = topic_data.get('events', [])
+        
+        # Check if this is fallback mode (no events)
+        if not events:
+            self.logger.info(f"Topic '{topic.name}' has no events, using fallback mode")
+            # Use the fallback topic summary generator instead
+            return self.generate_fallback_topic_summary(topic_data)
         
         self.logger.info(f"Generating summary for topic '{topic.name}' with {len(events)} events")
         
