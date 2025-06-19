@@ -46,7 +46,8 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
         # Update status to processing
         article.process_status = ProcessingStatus.PROCESSING
         article.process_attempts = (article.process_attempts or 0) + 1
-        article.save(update_fields=['process_status', 'process_attempts'])
+        article.last_process_attempt = timezone.now()
+        article.save(update_fields=['process_status', 'process_attempts', 'last_process_attempt'])
         
         # Process content
         processor = ContentProcessor()
@@ -65,6 +66,7 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
                 article.process_status = ProcessingStatus.COMPLETED
                 article.process_route = _truncate_route_name(getattr(result, 'route_used', 'llm_enhanced'))  # Dynamic route tracking
                 article.process_duration_ms = result.processing_time_ms
+                article.last_process_attempt = timezone.now()
                 article.save()
             
             logger.info(f"Successfully processed article {article_id} with quality {result.quality_score}")
@@ -81,7 +83,8 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
         else:
             # Handle processing failure
             article.process_status = ProcessingStatus.FAILED
-            article.save(update_fields=['process_status'])
+            article.last_process_attempt = timezone.now()
+            article.save(update_fields=['process_status', 'last_process_attempt'])
             
             logger.error(f"Failed to process article {article_id}: {result.error_message}")
             
@@ -112,7 +115,8 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
         try:
             article = Article.objects.get(id=article_id)
             article.process_status = ProcessingStatus.FAILED
-            article.save(update_fields=['process_status'])
+            article.last_process_attempt = timezone.now()
+            article.save(update_fields=['process_status', 'last_process_attempt'])
         except:
             pass
         
@@ -183,12 +187,16 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
                     article.process_route = _truncate_route_name(getattr(processing_result, 'route_used', 'llm_enhanced'))
                     article.process_duration_ms = processing_result.processing_time_ms
                     article.process_cost_usd = 0.0001  # Estimated cost
+                    article.process_attempts = (article.process_attempts or 0) + 1
+                    article.last_process_attempt = timezone.now()
                     article.save()
             else:
                 # Mark as failed
                 article.process_status = ProcessingStatus.FAILED
                 article.process_route = _truncate_route_name(getattr(processing_result, 'route_used', 'llm_enhanced'))  # Record the actual route even for failures
-                article.save(update_fields=['process_status', 'process_route'])
+                article.process_attempts = (article.process_attempts or 0) + 1
+                article.last_process_attempt = timezone.now()
+                article.save(update_fields=['process_status', 'process_route', 'process_attempts', 'last_process_attempt'])
             
             # Create a ProcessResult-like object for consistency
             result = {
