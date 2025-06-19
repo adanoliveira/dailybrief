@@ -32,7 +32,8 @@ class UserProfile(models.Model):
             "max_events_per_topic": 3,
             "include_opinions": True,
             "preferred_time": "08:00",
-            "enabled": True
+            "enabled": True,
+            "time_window": "48h"  # Options: "24h", "48h", "full_previous_day", "full_previous_2_days"
         }
         preferences = defaults.copy()
         preferences.update(self.digest_preferences or {})

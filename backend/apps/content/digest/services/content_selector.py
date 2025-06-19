@@ -34,30 +34,140 @@ class DigestContentSelector:
     def __init__(self):
         self.logger = logger
     
+    def _calculate_date_range_from_preferences(
+        self,
+        target_date: datetime.date,
+        preferences: Dict[str, Any],
+        user_timezone: str = 'UTC'
+    ) -> Tuple[datetime, datetime]:
+        """
+        Calculate date range based on user preferences.
+        
+        Args:
+            target_date: Target date for the digest
+            preferences: User's digest preferences containing time_window setting
+            user_timezone: User's timezone string
+            
+        Returns:
+            Tuple of (start_time, end_time) in UTC for database queries
+        """
+        import pytz
+        
+        time_window = preferences.get('time_window', '48h')
+        
+        try:
+            user_tz = pytz.timezone(user_timezone)
+        except pytz.UnknownTimeZoneError:
+            self.logger.warning(f"Unknown timezone {user_timezone}, using UTC")
+            user_tz = pytz.UTC
+        
+        if time_window == 'full_previous_day':
+            # Full previous day: 00:00 to 23:59:59 of the previous day in user's timezone
+            previous_date = target_date - timedelta(days=1)
+            start_time_local = user_tz.localize(
+                datetime.combine(previous_date, datetime.min.time())
+            )
+            end_time_local = user_tz.localize(
+                datetime.combine(previous_date, datetime.max.time())
+            )
+        elif time_window == 'full_previous_2_days':
+            # Full previous 2 days: 00:00 two days ago to 23:59:59 of the previous day
+            two_days_ago = target_date - timedelta(days=2)
+            previous_date = target_date - timedelta(days=1)
+            start_time_local = user_tz.localize(
+                datetime.combine(two_days_ago, datetime.min.time())
+            )
+            end_time_local = user_tz.localize(
+                datetime.combine(previous_date, datetime.max.time())
+            )
+        elif time_window == '24h':
+            # Last 24 hours from current time (when digest is being generated)
+            from django.utils import timezone as django_timezone
+            end_time_utc = django_timezone.now()
+            start_time_utc = end_time_utc - timedelta(hours=24)
+            # Convert to user timezone for logging, but return UTC
+            end_time_local = end_time_utc.astimezone(user_tz)
+            start_time_local = start_time_utc.astimezone(user_tz)
+            
+            self.logger.info(
+                f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
+                f"({start_time_local} to {end_time_local} in {user_timezone})"
+            )
+            return start_time_utc, end_time_utc
+        elif time_window == '48h':
+            # Last 48 hours from current time (when digest is being generated)
+            from django.utils import timezone as django_timezone
+            end_time_utc = django_timezone.now()
+            start_time_utc = end_time_utc - timedelta(hours=48)
+            # Convert to user timezone for logging, but return UTC
+            end_time_local = end_time_utc.astimezone(user_tz)
+            start_time_local = start_time_utc.astimezone(user_tz)
+            
+            self.logger.info(
+                f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
+                f"({start_time_local} to {end_time_local} in {user_timezone})"
+            )
+            return start_time_utc, end_time_utc
+        else:
+            # Default to 48h if unknown preference
+            self.logger.warning(f"Unknown time_window preference: {time_window}, defaulting to 48h")
+            from django.utils import timezone as django_timezone
+            end_time_utc = django_timezone.now()
+            start_time_utc = end_time_utc - timedelta(hours=48)
+            # Convert to user timezone for logging, but return UTC
+            end_time_local = end_time_utc.astimezone(user_tz)
+            start_time_local = start_time_utc.astimezone(user_tz)
+            
+            self.logger.info(
+                f"Date range for digest (default 48h): {start_time_utc} to {end_time_utc} "
+                f"({start_time_local} to {end_time_local} in {user_timezone})"
+            )
+            return start_time_utc, end_time_utc
+        
+        # Convert to UTC for database queries (for full day options)
+        start_time_utc = start_time_local.astimezone(pytz.UTC)
+        end_time_utc = end_time_local.astimezone(pytz.UTC)
+        
+        self.logger.info(
+            f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
+            f"({start_time_local} to {end_time_local} in {user_timezone})"
+        )
+        
+        return start_time_utc, end_time_utc
+    
     def get_top_events_for_topic(
         self,
         topic: Topic,
         target_date: datetime.date,
         max_events: int = 3,
-        user: Optional[User] = None
+        user: Optional[User] = None,
+        user_preferences: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get top events for a specific topic based on article mentions.
         
         Args:
             topic: Topic to get events for
-            target_date: Date to filter articles (last 24 hours)
+            target_date: Date to filter articles
             max_events: Maximum number of events to return
             user: User for personalization (optional)
+            user_preferences: User's digest preferences (optional)
             
         Returns:
             List of event data dictionaries with articles and scores
         """
         logger.info(f"Getting top events for topic {topic.name} on {target_date}")
         
-        # Calculate date range (last 24 hours from target date)
-        end_date = datetime.combine(target_date, datetime.max.time())
-        start_date = end_date - timedelta(days=1)
+        # Calculate date range based on user preferences
+        if user_preferences and user:
+            user_timezone = user.profile.timezone if hasattr(user, 'profile') else 'UTC'
+            start_date, end_date = self._calculate_date_range_from_preferences(
+                target_date, user_preferences, user_timezone
+            )
+        else:
+            # Fallback to default 48h window
+            end_date = datetime.combine(target_date, datetime.max.time())
+            start_date = end_date - timedelta(hours=48)
         
         # Get articles for this topic in the date range
         articles_query = Article.objects.filter(
@@ -120,7 +230,8 @@ class DigestContentSelector:
         topic: Topic,
         target_date: datetime.date,
         max_articles: int = 3,
-        user: Optional[User] = None
+        user: Optional[User] = None,
+        user_preferences: Optional[Dict[str, Any]] = None
     ) -> List[Article]:
         """
         Fallback method to get articles for a topic when no events are available.
@@ -130,18 +241,26 @@ class DigestContentSelector:
         
         Args:
             topic: Topic to get articles for
-            target_date: Date to filter articles (last 24 hours)
+            target_date: Date to filter articles
             max_articles: Maximum number of articles to return
             user: User for personalization (optional)
+            user_preferences: User's digest preferences (optional)
             
         Returns:
             List of articles with summaries, ordered by relevance
         """
         logger.info(f"Fallback: Getting articles for topic {topic.name} on {target_date}")
         
-        # Calculate date range (last 24 hours from target date)
-        end_date = datetime.combine(target_date, datetime.max.time())
-        start_date = end_date - timedelta(days=1)
+        # Calculate date range based on user preferences
+        if user_preferences and user:
+            user_timezone = user.profile.timezone if hasattr(user, 'profile') else 'UTC'
+            start_date, end_date = self._calculate_date_range_from_preferences(
+                target_date, user_preferences, user_timezone
+            )
+        else:
+            # Fallback to default 48h window
+            end_date = datetime.combine(target_date, datetime.max.time())
+            start_date = end_date - timedelta(hours=48)
         
         # Get articles for this topic in the date range
         # Try primary_topic first, fallback to topics many-to-many if needed
@@ -320,20 +439,35 @@ class DigestContentSelector:
     def filter_articles_by_timeframe(
         self,
         target_date: datetime.date,
-        hours: int = 24
+        hours: int = None,
+        user_preferences: Optional[Dict[str, Any]] = None,
+        user_timezone: str = 'UTC'
     ) -> Q:
         """
         Create Q object for filtering articles by timeframe.
         
         Args:
             target_date: Target date
-            hours: Number of hours to look back
+            hours: Number of hours to look back (legacy parameter)
+            user_preferences: User's digest preferences (optional)
+            user_timezone: User's timezone string
             
         Returns:
             Q object for filtering
         """
-        end_time = datetime.combine(target_date, datetime.max.time())
-        start_time = end_time - timedelta(hours=hours)
+        if user_preferences:
+            # Use preferences-based date range calculation
+            start_time, end_time = self._calculate_date_range_from_preferences(
+                target_date, user_preferences, user_timezone
+            )
+        elif hours is not None:
+            # Legacy hours-based calculation
+            end_time = datetime.combine(target_date, datetime.max.time())
+            start_time = end_time - timedelta(hours=hours)
+        else:
+            # Default to 48h window
+            end_time = datetime.combine(target_date, datetime.max.time())
+            start_time = end_time - timedelta(hours=48)
         
         return Q(
             published_at__gte=start_time,
@@ -681,19 +815,30 @@ class DigestContentSelector:
         
         return recommended[:count]
     
-    def get_date_range_for_digest(self, target_date: datetime, user_timezone: str = 'UTC') -> Tuple[datetime, datetime]:
+    def get_date_range_for_digest(
+        self, 
+        target_date: datetime, 
+        user_timezone: str = 'UTC',
+        user_preferences: Optional[Dict[str, Any]] = None
+    ) -> Tuple[datetime, datetime]:
         """
         Calculate the date range for digest content.
-        
-        Uses 24-hour window from 6 AM yesterday to 6 AM today in user's timezone.
         
         Args:
             target_date: The date the digest is for
             user_timezone: User's timezone string
+            user_preferences: User's digest preferences (optional)
             
         Returns:
             Tuple of (start_time, end_time) in UTC for database queries
         """
+        if user_preferences:
+            # Use new preferences-based approach
+            return self._calculate_date_range_from_preferences(
+                target_date.date(), user_preferences, user_timezone
+            )
+        
+        # Legacy fallback: 24-hour window from 6 AM yesterday to 6 AM today
         import pytz
         
         try:
@@ -715,7 +860,7 @@ class DigestContentSelector:
         end_time_utc = end_time_local.astimezone(pytz.UTC)
         
         self.logger.info(
-            f"Date range for digest: {start_time_utc} to {end_time_utc} "
+            f"Date range for digest (legacy): {start_time_utc} to {end_time_utc} "
             f"({start_time_local} to {end_time_local} in {user_timezone})"
         )
         

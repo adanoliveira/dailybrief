@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 
-from apps.articles.models import Article, ProcessingStatus
+from apps.articles.models import Article, ProcessingStatus, FetchStatus
 from .routing import ProcessingRouter, ComplexityAnalysis
 from .algorithmic_processor import AlgorithmicProcessor, ProcessingResult
 from .ai_processor import AIContentProcessor
@@ -159,15 +159,42 @@ class ContentProcessor:
                        f"quality: {result.quality_score:.3f}")
         else:
             logger.error(f"LLM processing failed for article {article.id}: {result.error_message}")
-            # Fallback to algorithmic mode
-            logger.info(f"Falling back to algorithmic mode for article {article.id}")
-            result = self._process_algorithmic_mode(article)
-            # Update route to reflect that we fell back to algorithmic mode
-            if hasattr(result, 'route_used'):
-                if result.success:
-                    result.route_used = "safari_fallback"
-                else:
-                    result.route_used = "safari_fb_fail"
+            
+            # Instead of falling back to algorithmic, move back to fetch pending for retry
+            # Only if we haven't exceeded max attempts
+            if article.process_attempts < self.max_attempts:
+                logger.info(f"Moving article {article.id} back to fetch pending for retry "
+                           f"(attempt {article.process_attempts}/{self.max_attempts})")
+                
+                # Reset to fetch pending for retry
+                article.fetch_status = FetchStatus.PENDING
+                article.fetch_attempts = 0  # Reset fetch attempts to allow re-fetching
+                article.fetch_error_message = ""  # Clear previous fetch errors
+                article.process_error_message = result.error_message  # Keep AI processing error for debugging
+                article.save(update_fields=[
+                    'fetch_status', 
+                    'fetch_attempts', 
+                    'fetch_error_message', 
+                    'process_error_message'
+                ])
+                
+                # Return a special result indicating retry is needed
+                return ProcessingResult(
+                    success=False,
+                    error_message=f"AI processing failed, moved to fetch pending for retry: {result.error_message}",
+                    route_used="llm_retry_fetch",
+                    processing_time_ms=result.processing_time_ms if hasattr(result, 'processing_time_ms') else 0
+                )
+            else:
+                logger.warning(f"Article {article.id} has exceeded max attempts ({self.max_attempts}), "
+                              f"marking as permanently failed")
+                # If we've exceeded max attempts, mark as permanently failed
+                return ProcessingResult(
+                    success=False,
+                    error_message=f"AI processing failed after {self.max_attempts} attempts: {result.error_message}",
+                    route_used="llm_max_retry",
+                    processing_time_ms=result.processing_time_ms if hasattr(result, 'processing_time_ms') else 0
+                )
         
         return result
     

@@ -176,7 +176,8 @@ class DigestService:
                 topic=topic,
                 target_date=digest.date,
                 max_events=max_events_per_topic,
-                user=digest.user
+                user=digest.user,
+                user_preferences=preferences
             )
             
             # If no events found, try fallback with article summaries
@@ -186,7 +187,8 @@ class DigestService:
                     topic=topic,
                     target_date=digest.date,
                     max_articles=max_events_per_topic,
-                    user=digest.user
+                    user=digest.user,
+                    user_preferences=preferences
                 )
                 
                 if not fallback_articles:

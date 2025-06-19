@@ -36,6 +36,11 @@ class Command(BaseCommand):
             help='Reset only failed articles to pending'
         )
         group.add_argument(
+            '--processing-only',
+            action='store_true',
+            help='Reset only stuck processing articles to pending'
+        )
+        group.add_argument(
             '--missing-primary-fields',
             action='store_true',
             help='Reset only articles missing primary_topic or primary_region'
@@ -156,6 +161,9 @@ class Command(BaseCommand):
         elif options.get('failed_only'):
             # Only failed articles
             queryset = queryset.filter(analyzer_status=AnalyzerStatus.FAILED)
+        elif options.get('processing_only'):
+            # Only articles stuck in processing status
+            queryset = queryset.filter(analyzer_status=AnalyzerStatus.PROCESSING)
         elif options.get('missing_primary_fields'):
             # Only completed articles missing primary fields
             queryset = queryset.filter(
