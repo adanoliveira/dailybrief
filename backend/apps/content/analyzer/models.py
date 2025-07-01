@@ -203,6 +203,37 @@ class Event(models.Model):
         help_text="Key facts extracted from related articles"
     )
     
+    # Enhanced AI-generated content (for digest generation)
+    enhanced_abstract = models.TextField(
+        blank=True,
+        help_text="AI-enhanced comprehensive event summary from multiple articles"
+    )
+    enhanced_facts = models.JSONField(
+        default=list,
+        help_text="Enhanced key facts synthesized from multiple article perspectives"
+    )
+    enhanced_perspectives = models.JSONField(
+        default=list,
+        help_text="Different viewpoints and opinions about this event from various sources"
+    )
+    
+    # Enhancement tracking
+    last_enhanced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the enhanced summary was last generated"
+    )
+    enhanced_article_ids = models.JSONField(
+        default=list,
+        help_text="List of article IDs used for the last enhancement (for cache invalidation)"
+    )
+    enhancement_cost_usd = models.DecimalField(
+        max_digits=6,
+        decimal_places=6,
+        default=0,
+        help_text="Cost of AI enhancement generation"
+    )
+    
     # Event classification
     event_type = models.CharField(
         max_length=20,

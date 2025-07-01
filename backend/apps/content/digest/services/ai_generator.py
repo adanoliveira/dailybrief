@@ -158,26 +158,37 @@ class DigestAIGenerator:
         
         self.logger.info(f"Generating summary for topic '{topic.name}' with {len(events)} events")
         
-        # Collect all facts and opinions from article summaries
+        # Collect enhanced content from events and article summaries
         all_facts = []
         all_opinions = []
         event_abstracts = []
         
         for event_info in events:
             event = event_info['event']
+            
+            # Use enhanced content if available, otherwise fall back to original
+            enhanced_abstract = event_info.get('enhanced_abstract', event.enhanced_abstract or event.abstract)
+            enhanced_facts = event_info.get('enhanced_facts', event.enhanced_facts or [])
+            enhanced_perspectives = event_info.get('enhanced_perspectives', event.enhanced_perspectives or [])
+            
+            # Add enhanced event abstract
+            if enhanced_abstract:
+                event_abstracts.append(f"Event: {event.title} - {enhanced_abstract}")
+            
+            # Use enhanced facts and perspectives
+            if enhanced_facts:
+                all_facts.extend(enhanced_facts)
+            if enhanced_perspectives:
+                all_opinions.extend(enhanced_perspectives)
+            
+            # Also collect from article summaries as backup
             articles = event_info['primary_articles'] + event_info['secondary_articles']
-            
-            # Add event abstract
-            if event.abstract:
-                event_abstracts.append(f"Event: {event.title} - {event.abstract}")
-            
-            # Collect facts and opinions from article summaries
             for article in articles:
                 if hasattr(article, 'structured_summary') and article.structured_summary:
                     summary = article.structured_summary
-                    if summary.facts:
+                    if summary.facts and not enhanced_facts:  # Only use if no enhanced facts
                         all_facts.extend(summary.facts)
-                    if summary.opinions:
+                    if summary.opinions and not enhanced_perspectives:  # Only use if no enhanced perspectives
                         all_opinions.extend(summary.opinions)
         
         # Deduplicate and limit content for prompt
@@ -313,6 +324,139 @@ class DigestAIGenerator:
             self.logger.error(f"Failed to enhance event summary for '{event.title}': {e}")
             return self._get_fallback_event_summary(event, unique_facts, unique_opinions, str(e))
     
+    def enhance_event_summary_with_related(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create enhanced event summary from primary, secondary, and related articles.
+        
+        Synthesizes multiple article perspectives with importance weighting:
+        - Primary articles: Core to the event (highest weight)
+        - Secondary articles: Mention the event (medium weight)  
+        - Related articles: From semantically similar events (lower weight)
+        
+        Args:
+            event_data: Event data with primary, secondary, and related articles
+            
+        Returns:
+            Dict with enhanced event content and processing metadata
+        """
+        event = event_data['event']
+        primary_articles = event_data.get('primary_articles', [])
+        secondary_articles = event_data.get('secondary_articles', [])
+        related_articles = event_data.get('related_articles', [])
+        
+        total_articles = len(primary_articles) + len(secondary_articles) + len(related_articles)
+        
+        self.logger.info(
+            f"Enhancing summary for event '{event.title}' with {total_articles} articles "
+            f"(primary: {len(primary_articles)}, secondary: {len(secondary_articles)}, "
+            f"related: {len(related_articles)})"
+        )
+        
+        # Collect article summaries with importance weighting
+        article_summaries = []
+        facts = []
+        opinions = []
+        
+        # Process primary articles (highest importance)
+        for article in primary_articles:
+            if hasattr(article, 'structured_summary') and article.structured_summary:
+                summary = article.structured_summary
+                article_summaries.append({
+                    'headline': summary.headline,
+                    'abstract': summary.abstract,
+                    'source': article.publication.name if article.publication else article.source_name,
+                    'importance': 'PRIMARY',
+                    'weight_description': 'Core event coverage'
+                })
+                
+                if summary.facts:
+                    facts.extend(summary.facts)
+                if summary.opinions:
+                    opinions.extend(summary.opinions)
+        
+        # Process secondary articles (medium importance)
+        for article in secondary_articles:
+            if hasattr(article, 'structured_summary') and article.structured_summary:
+                summary = article.structured_summary
+                article_summaries.append({
+                    'headline': summary.headline,
+                    'abstract': summary.abstract,
+                    'source': article.publication.name if article.publication else article.source_name,
+                    'importance': 'SECONDARY',
+                    'weight_description': 'Event mentioned in broader context'
+                })
+                
+                if summary.facts:
+                    facts.extend(summary.facts)
+                if summary.opinions:
+                    opinions.extend(summary.opinions)
+        
+        # Process related articles (lower importance)
+        for article in related_articles:
+            if hasattr(article, 'structured_summary') and article.structured_summary:
+                summary = article.structured_summary
+                article_summaries.append({
+                    'headline': summary.headline,
+                    'abstract': summary.abstract,
+                    'source': article.publication.name if article.publication else article.source_name,
+                    'importance': 'RELATED',
+                    'weight_description': 'Related story providing context'
+                })
+                
+                # Use fewer facts/opinions from related articles to avoid noise
+                if summary.facts:
+                    facts.extend(summary.facts[:2])  # Limit to 2 facts from related
+                if summary.opinions:
+                    opinions.extend(summary.opinions[:1])  # Limit to 1 opinion from related
+        
+        if not article_summaries:
+            self.logger.warning(f"No article summaries available for event '{event.title}'")
+            return self._get_fallback_event_summary(event)
+        
+        # Deduplicate content
+        unique_facts = list(dict.fromkeys(facts))
+        unique_opinions = list(dict.fromkeys(opinions))
+        
+        # Create AI prompt with importance weighting
+        prompt = self._build_event_enhancement_prompt_with_weighting(
+            event, article_summaries, unique_facts, unique_opinions
+        )
+        
+        try:
+            response = self.ai_service.call_llm(
+                operation='digest_event_enhancement',
+                prompt=prompt,
+                max_tokens=700,  # Slightly more tokens for comprehensive summary
+                temperature=0.2  # More factual, less creative
+            )
+            
+            # Track costs
+            cost = response.usage.get('total_cost', 0)
+            tokens_in = response.usage.get('prompt_tokens', 0)
+            tokens_out = response.usage.get('completion_tokens', 0)
+            
+            self._update_costs(cost, tokens_in, tokens_out)
+            
+            # Parse structured response
+            parsed_content = self._parse_event_summary_response(response.content)
+            
+            self.logger.info(f"Enhanced event summary for '{event.title}' with {total_articles} articles")
+            
+            return {
+                **parsed_content,
+                'cost': Decimal(str(cost)),
+                'tokens_input': tokens_in,
+                'tokens_output': tokens_out,
+                'articles_used': total_articles,
+                'primary_count': len(primary_articles),
+                'secondary_count': len(secondary_articles),
+                'related_count': len(related_articles)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Failed to enhance event summary for '{event.title}': {e}")
+            return self._get_fallback_event_summary(event, unique_facts, unique_opinions, str(e))
+    
     def get_generation_metrics(self) -> Dict[str, Any]:
         """
         Get total metrics for the current generation session.
@@ -434,6 +578,77 @@ Requirements:
 - key_facts: 3-4 most important factual points from multiple sources
 - perspectives: 2-3 different viewpoints from various sources
 - Focus on accuracy and representing multiple perspectives fairly
+- Ensure JSON is valid and properly formatted"""
+    
+    def _build_event_enhancement_prompt_with_weighting(
+        self, 
+        event: Event, 
+        article_summaries: List[Dict], 
+        facts: List[str], 
+        opinions: List[str]
+    ) -> str:
+        """Build prompt for event enhancement with importance weighting."""
+        
+        # Group articles by importance for better prompt structure
+        primary_articles = [a for a in article_summaries if a['importance'] == 'PRIMARY']
+        secondary_articles = [a for a in article_summaries if a['importance'] == 'SECONDARY']
+        related_articles = [a for a in article_summaries if a['importance'] == 'RELATED']
+        
+        # Build structured article context
+        article_context = []
+        
+        if primary_articles:
+            article_context.append("PRIMARY COVERAGE (Core event articles):")
+            for i, summary in enumerate(primary_articles, 1):
+                article_context.append(
+                    f"  {i}. {summary['source']}: {summary['headline']}\n"
+                    f"     {summary['abstract'][:150]}{'...' if len(summary['abstract']) > 150 else ''}"
+                )
+        
+        if secondary_articles:
+            article_context.append("\nSECONDARY MENTIONS (Event mentioned in broader context):")
+            for i, summary in enumerate(secondary_articles, 1):
+                article_context.append(
+                    f"  {i}. {summary['source']}: {summary['headline']}\n"
+                    f"     {summary['abstract'][:120]}{'...' if len(summary['abstract']) > 120 else ''}"
+                )
+        
+        if related_articles:
+            article_context.append("\nRELATED STORIES (Providing additional context):")
+            for i, summary in enumerate(related_articles, 1):
+                article_context.append(
+                    f"  {i}. {summary['source']}: {summary['headline']}\n"
+                    f"     {summary['abstract'][:100]}{'...' if len(summary['abstract']) > 100 else ''}"
+                )
+        
+        return f"""Enhance this event summary by synthesizing multiple article perspectives with importance weighting:
+
+Event: {event.title}
+Original Abstract: {event.abstract or "No original abstract"}
+
+ARTICLE SOURCES (by importance):
+{chr(10).join(article_context)}
+
+AVAILABLE FACTS (from all sources):
+{chr(10).join(f"• {fact}" for fact in facts[:12]) if facts else "• No facts available"}
+
+AVAILABLE OPINIONS (from all sources):
+{chr(10).join(f"• {opinion}" for opinion in opinions[:10]) if opinions else "• No opinions available"}
+
+Generate exactly the following in JSON format:
+{{
+    "enhanced_abstract": "4-5 sentence comprehensive event overview",
+    "key_facts": ["fact 1", "fact 2", "fact 3", "fact 4", "fact 5"],
+    "perspectives": ["perspective 1", "perspective 2", "perspective 3", "perspective 4"]
+}}
+
+REQUIREMENTS:
+- enhanced_abstract: 4-5 sentences providing comprehensive overview that synthesizes all perspectives
+- key_facts: 4-5 most important factual points, prioritizing PRIMARY sources but incorporating all perspectives
+- perspectives: 3-4 different viewpoints from various sources, showing the range of opinions
+- Weight PRIMARY articles most heavily, then SECONDARY, then RELATED for context
+- Focus on accuracy and representing multiple perspectives fairly
+- Synthesize information rather than just listing facts from individual articles
 - Ensure JSON is valid and properly formatted"""
     
     def _parse_topic_summary_response(self, response_content: str) -> Dict[str, Any]:

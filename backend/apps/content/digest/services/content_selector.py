@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from django.db.models import QuerySet, Q, Count, F, Sum, Case, When, IntegerField
 from django.contrib.auth.models import User
 from django.utils import timezone
+import numpy as np
 
 from apps.articles.models import Article, AnalyzerStatus, SummarizationStatus
 from apps.feeds.models import UserTopic, Topic
@@ -146,6 +147,9 @@ class DigestContentSelector:
         """
         Get top events for a specific topic based on article mentions.
         
+        Now includes both primary events (from articles where this is the primary topic)
+        and secondary events (mentioned in articles from this topic but not as primary).
+        
         Args:
             topic: Topic to get events for
             target_date: Date to filter articles
@@ -192,8 +196,8 @@ class DigestContentSelector:
         
         logger.info(f"Found {len(articles)} articles for topic {topic.name}")
         
-        # Group articles by their primary events
-        event_groups = self._group_articles_by_events(articles)
+        # Group articles by both primary and secondary events
+        event_groups = self._group_articles_by_primary_and_secondary_events(articles)
         
         if not event_groups:
             logger.info(f"No events found for articles in topic {topic.name}")
@@ -201,18 +205,18 @@ class DigestContentSelector:
         
         # Score and rank events
         scored_events = []
-        for event, event_articles in event_groups.items():
-            if not event:  # Skip articles without events
+        for event_id, event_data in event_groups.items():
+            if not event_data['event']:  # Skip if no event
                 continue
             
-            score_data = self._calculate_event_score(event, event_articles)
+            score = self._calculate_comprehensive_event_score_with_clusters(event_data, event_groups)
             
             scored_events.append({
-                'event': event,
-                'articles': event_articles,
-                'score': score_data['total_score'],
-                'primary_mentions': score_data['primary_mentions'],
-                'secondary_mentions': score_data['secondary_mentions']
+                'event': event_data['event'],
+                'articles': event_data['primary_articles'] + event_data['secondary_articles'],
+                'score': score,
+                'primary_mentions': len(event_data['primary_articles']),
+                'secondary_mentions': len(event_data['secondary_articles'])
             })
         
         # Sort by score (highest first) and return top events
@@ -314,77 +318,209 @@ class DigestContentSelector:
         
         return articles
     
-    def _group_articles_by_events(self, articles: List[Article]) -> Dict[Optional[Event], List[Article]]:
+    def _group_articles_by_primary_and_secondary_events(self, articles: List[Article]) -> Dict[int, Dict[str, Any]]:
         """
-        Group articles by their primary events.
+        Group articles by both their primary and secondary events.
         
         Args:
             articles: List of articles to group
             
         Returns:
-            Dictionary mapping events to lists of articles
+            Dictionary mapping event_id to event data with primary and secondary articles
         """
-        event_groups = {}
+        event_groups = defaultdict(lambda: {
+            'event': None,
+            'primary_articles': [],
+            'secondary_articles': []
+        })
         
         for article in articles:
-            # Get the primary event for this article
+            # Process primary event
             try:
                 primary_event_link = ArticleEvent.objects.filter(
                     article=article,
                     is_primary=True
                 ).select_related('event').first()
                 
-                primary_event = primary_event_link.event if primary_event_link else None
+                if primary_event_link:
+                    event_id = primary_event_link.event.id
+                    if not event_groups[event_id]['event']:
+                        event_groups[event_id]['event'] = primary_event_link.event
+                    event_groups[event_id]['primary_articles'].append(article)
                 
             except Exception as e:
                 logger.warning(f"Error getting primary event for article {article.id}: {e}")
-                primary_event = None
             
-            # Group by event (None for articles without events)
-            if primary_event not in event_groups:
-                event_groups[primary_event] = []
-            
-            event_groups[primary_event].append(article)
+            # Process secondary events
+            try:
+                secondary_event_links = ArticleEvent.objects.filter(
+                    article=article,
+                    is_primary=False
+                ).select_related('event')
+                
+                for secondary_link in secondary_event_links:
+                    event_id = secondary_link.event.id
+                    if not event_groups[event_id]['event']:
+                        event_groups[event_id]['event'] = secondary_link.event
+                    
+                    # Only add to secondary if not already in primary for this event
+                    if article not in event_groups[event_id]['primary_articles']:
+                        event_groups[event_id]['secondary_articles'].append(article)
+                
+            except Exception as e:
+                logger.warning(f"Error getting secondary events for article {article.id}: {e}")
         
-        # Remove None group if it exists (articles without events)
-        if None in event_groups:
-            orphaned_count = len(event_groups[None])
-            logger.info(f"Found {orphaned_count} articles without primary events")
-            del event_groups[None]
+        # Remove events with no articles
+        filtered_groups = {
+            event_id: event_data 
+            for event_id, event_data in event_groups.items() 
+            if event_data['primary_articles'] or event_data['secondary_articles']
+        }
         
-        return event_groups
+        logger.info(f"Found {len(filtered_groups)} events (primary + secondary) from {len(articles)} articles")
+        
+        return filtered_groups
     
-    def _calculate_event_score(self, event: Event, articles: List[Article]) -> Dict[str, Any]:
+    def _calculate_comprehensive_event_score(self, event_data: Dict[str, Any]) -> int:
         """
-        Calculate importance score for an event based on article mentions.
+        Calculate importance score for an event based on both primary and secondary mentions.
         
         Score = primary_mentions * 2 + secondary_mentions * 1
         
         Args:
-            event: Event to score
-            articles: Articles that mention this event as primary
+            event_data: Event data with primary and secondary articles
             
         Returns:
-            Dictionary with score breakdown
+            Calculated score
         """
-        # Count primary mentions (articles where this is the primary event)
-        primary_mentions = len(articles)
+        primary_count = len(event_data['primary_articles'])
+        secondary_count = len(event_data['secondary_articles'])
         
-        # Count secondary mentions (articles where this event is mentioned but not primary)
-        secondary_mentions = ArticleEvent.objects.filter(
-            event=event,
-            is_primary=False,
-            article__published_at__gte=timezone.now() - timedelta(days=1)
-        ).count()
+        # Same scoring as before: primary mentions weighted higher
+        total_score = (primary_count * 2) + (secondary_count * 1)
         
-        # Calculate total score (primary mentions weighted higher)
-        total_score = (primary_mentions * 2) + (secondary_mentions * 1)
+        return total_score
+
+    def _calculate_comprehensive_event_score_with_clusters(
+        self, 
+        event_data: Dict[str, Any], 
+        all_events_data: Dict[int, Dict[str, Any]],
+        cluster_distance_threshold: float = 0.30
+    ) -> float:
+        """
+        Calculate importance score for an event including cluster boost from related events.
         
-        return {
-            'primary_mentions': primary_mentions,
-            'secondary_mentions': secondary_mentions,
-            'total_score': total_score
-        }
+        Score = (primary_mentions * 2) + (secondary_mentions * 1) + (related_events * 0.5)
+        
+        Args:
+            event_data: Event data with primary and secondary articles
+            all_events_data: All events data for finding clusters
+            cluster_distance_threshold: Distance threshold for related events (default: 0.30)
+            
+        Returns:
+            Calculated score with cluster boost
+        """
+        primary_count = len(event_data['primary_articles'])
+        secondary_count = len(event_data['secondary_articles'])
+        
+        # Base score: same as before
+        base_score = (primary_count * 2) + (secondary_count * 1)
+        
+        # Find related events using semantic similarity
+        target_articles = event_data['primary_articles'] + event_data['secondary_articles']
+        related_events_count = self._count_related_events(
+            target_event=event_data['event'],
+            target_articles=target_articles,
+            distance_threshold=cluster_distance_threshold
+        )
+        
+        # Cluster boost: 0.5 points per related event
+        cluster_boost = related_events_count * 0.5
+        
+        total_score = base_score + cluster_boost
+        
+        logger.info(
+            f"Event '{event_data['event'].title[:50]}...': "
+            f"base={base_score} + cluster_boost={cluster_boost:.1f} "
+            f"({related_events_count} related) = {total_score:.1f}"
+        )
+        
+        return total_score
+
+    def _count_related_events(
+        self, 
+        target_event: 'Event', 
+        target_articles: List[Article],
+        distance_threshold: float = 0.30,
+        digest_window_hours: int = 48
+    ) -> int:
+        """
+        Count events that are semantically related to the target event.
+        
+        Considers all events from the digest window (cross-topic) but excludes
+        events that share articles with the target event to avoid artificial clustering.
+        
+        Args:
+            target_event: Event to find related events for
+            target_articles: Articles associated with the target event
+            distance_threshold: Semantic distance threshold for relatedness
+            digest_window_hours: Hours to look back for related events
+            
+        Returns:
+            Number of related events found
+        """
+        if target_event.centroid_embed is None or len(target_event.centroid_embed) == 0:
+            return 0
+        
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Get all recent events from the digest window (cross-topic)
+        cutoff_time = timezone.now() - timedelta(hours=digest_window_hours)
+        recent_events = Event.objects.filter(
+            last_seen_at__gte=cutoff_time,
+            centroid_embed__isnull=False
+        ).exclude(id=target_event.id)
+        
+        # Get article IDs associated with target event to exclude shared articles
+        target_article_ids = set(article.id for article in target_articles)
+        
+        related_count = 0
+        target_embedding = np.array(target_event.centroid_embed)
+        
+        for other_event in recent_events:
+            # Skip events without embeddings (double-check)
+            if other_event.centroid_embed is None or len(other_event.centroid_embed) == 0:
+                continue
+            
+            # Check if this event shares any articles with target event
+            other_event_article_ids = set(
+                ArticleEvent.objects.filter(event=other_event)
+                .values_list('article_id', flat=True)
+            )
+            
+            # Skip if events share articles (would be artificial clustering)
+            if target_article_ids.intersection(other_event_article_ids):
+                continue
+            
+            # Calculate semantic distance using cosine similarity (same as event creation pipeline)
+            other_embedding = np.array(other_event.centroid_embed)
+            
+            # Calculate cosine similarity manually (same logic as analyzer service)
+            cosine_sim = np.dot(target_embedding, other_embedding) / (
+                np.linalg.norm(target_embedding) * np.linalg.norm(other_embedding)
+            )
+            cosine_distance = 1 - cosine_sim
+            
+            # Count as related if within threshold (same as event creation pipeline)
+            if cosine_distance < distance_threshold:
+                related_count += 1
+                logger.info(
+                    f"  Related event found: '{other_event.title[:40]}...' "
+                    f"(cosine_distance: {cosine_distance:.3f})"
+                )
+        
+        return related_count
     
     def get_user_articles(
         self,
@@ -864,4 +1000,166 @@ class DigestContentSelector:
             f"({start_time_local} to {end_time_local} in {user_timezone})"
         )
         
-        return start_time_utc, end_time_utc 
+        return start_time_utc, end_time_utc
+    
+    def enhance_event_with_related_articles(
+        self,
+        event: 'Event',
+        primary_articles: List[Article],
+        secondary_articles: List[Article],
+        digest_window_hours: int = 48
+    ) -> Dict[str, Any]:
+        """
+        Enhance an event summary using primary, secondary, and related articles.
+        
+        Args:
+            event: Event to enhance
+            primary_articles: Articles where this is the primary event
+            secondary_articles: Articles where this is a secondary event
+            digest_window_hours: Hours to look back for related articles
+            
+        Returns:
+            Dict with enhancement results and metadata
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Check if enhancement is needed
+        all_article_ids = sorted([a.id for a in primary_articles + secondary_articles])
+        
+        # Skip if already enhanced with same articles recently (within 6 hours)
+        if (event.last_enhanced_at and 
+            event.enhanced_article_ids == all_article_ids and
+            timezone.now() - event.last_enhanced_at < timedelta(hours=6)):
+            
+            logger.info(f"Event '{event.title}' already enhanced with same articles, skipping")
+            return {
+                'enhanced': False,
+                'reason': 'already_enhanced',
+                'enhanced_abstract': event.enhanced_abstract,
+                'enhanced_facts': event.enhanced_facts,
+                'enhanced_perspectives': event.enhanced_perspectives,
+                'cost': 0
+            }
+        
+        # Find related articles from semantically similar events
+        related_articles = self._find_related_articles_for_event(
+            event, 
+            exclude_article_ids=all_article_ids,
+            digest_window_hours=digest_window_hours
+        )
+        
+        logger.info(
+            f"Enhancing event '{event.title}' with {len(primary_articles)} primary, "
+            f"{len(secondary_articles)} secondary, {len(related_articles)} related articles"
+        )
+        
+        # Prepare event data for AI enhancement
+        event_data = {
+            'event': event,
+            'primary_articles': primary_articles,
+            'secondary_articles': secondary_articles,
+            'related_articles': related_articles
+        }
+        
+        # Generate enhanced summary using AI
+        from apps.content.digest.services.ai_generator import DigestAIGenerator
+        ai_generator = DigestAIGenerator()
+        
+        enhancement_result = ai_generator.enhance_event_summary_with_related(event_data)
+        
+        # Save enhanced summary to database
+        if enhancement_result.get('enhanced_abstract'):
+            event.enhanced_abstract = enhancement_result['enhanced_abstract']
+            event.enhanced_facts = enhancement_result.get('key_facts', [])
+            event.enhanced_perspectives = enhancement_result.get('perspectives', [])
+            event.last_enhanced_at = timezone.now()
+            event.enhanced_article_ids = all_article_ids
+            event.enhancement_cost_usd = enhancement_result.get('cost', 0)
+            event.save()
+            
+            logger.info(
+                f"Saved enhanced summary for event '{event.title}': "
+                f"{len(event.enhanced_facts)} facts, {len(event.enhanced_perspectives)} perspectives"
+            )
+        
+        return {
+            'enhanced': True,
+            'enhanced_abstract': enhancement_result.get('enhanced_abstract', ''),
+            'enhanced_facts': enhancement_result.get('key_facts', []),
+            'enhanced_perspectives': enhancement_result.get('perspectives', []),
+            'cost': enhancement_result.get('cost', 0),
+            'articles_used': enhancement_result.get('articles_used', 0),
+            'primary_count': enhancement_result.get('primary_count', 0),
+            'secondary_count': enhancement_result.get('secondary_count', 0),
+            'related_count': enhancement_result.get('related_count', 0)
+        }
+    
+    def _find_related_articles_for_event(
+        self,
+        target_event: 'Event',
+        exclude_article_ids: List[int],
+        digest_window_hours: int = 48,
+        distance_threshold: float = 0.30,
+        max_related_articles: int = 3
+    ) -> List[Article]:
+        """
+        Find articles from related events to provide additional context.
+        
+        Args:
+            target_event: Event to find related articles for
+            exclude_article_ids: Article IDs to exclude (already used)
+            digest_window_hours: Hours to look back
+            distance_threshold: Semantic distance threshold for relatedness
+            max_related_articles: Maximum related articles to return
+            
+        Returns:
+            List of related articles
+        """
+        if target_event.centroid_embed is None or len(target_event.centroid_embed) == 0:
+            return []
+        
+        from django.utils import timezone
+        from datetime import timedelta
+        import numpy as np
+        
+        # Get recent events within digest window
+        cutoff_time = timezone.now() - timedelta(hours=digest_window_hours)
+        recent_events = Event.objects.filter(
+            last_seen_at__gte=cutoff_time,
+            centroid_embed__isnull=False
+        ).exclude(id=target_event.id)
+        
+        related_articles = []
+        target_embedding = np.array(target_event.centroid_embed)
+        
+        for other_event in recent_events:
+            if other_event.centroid_embed is None or len(other_event.centroid_embed) == 0:
+                continue
+            
+            # Calculate cosine distance (same as event clustering)
+            other_embedding = np.array(other_event.centroid_embed)
+            cosine_sim = np.dot(target_embedding, other_embedding) / (
+                np.linalg.norm(target_embedding) * np.linalg.norm(other_embedding)
+            )
+            cosine_distance = 1 - cosine_sim
+            
+            # If events are related, get some articles from the related event
+            if cosine_distance < distance_threshold:
+                # Get articles from related event (excluding already used ones)
+                event_articles = ArticleEvent.objects.filter(
+                    event=other_event
+                ).exclude(
+                    article_id__in=exclude_article_ids
+                ).select_related('article').order_by('-relevance_score')[:2]  # Max 2 per related event
+                
+                for article_event in event_articles:
+                    if len(related_articles) >= max_related_articles:
+                        break
+                    related_articles.append(article_event.article)
+                
+                if len(related_articles) >= max_related_articles:
+                    break
+        
+        logger.info(f"Found {len(related_articles)} related articles for event '{target_event.title}'")
+        return related_articles 

@@ -29,6 +29,20 @@ class Command(BaseCommand):
             action='store_true',
             help='Only check for stuck articles without fixing them',
         )
+        
+        # Global timeout options (convenience)
+        parser.add_argument(
+            '--timeout',
+            type=int,
+            help='Set timeout for all stages (hours). Overrides individual timeouts.',
+        )
+        parser.add_argument(
+            '--timeout-minutes',
+            type=int,
+            help='Set timeout for all stages (minutes). Overrides individual timeouts.',
+        )
+        
+        # Individual stage timeouts (hours)
         parser.add_argument(
             '--fetch-timeout',
             type=int,
@@ -53,6 +67,41 @@ class Command(BaseCommand):
             default=2,
             help='Hours after which analysis articles are considered stuck (default: 2)',
         )
+        
+        # Individual stage timeouts (minutes for finer control)
+        parser.add_argument(
+            '--fetch-timeout-minutes',
+            type=int,
+            help='Minutes after which fetching articles are considered stuck (overrides --fetch-timeout)',
+        )
+        parser.add_argument(
+            '--process-timeout-minutes',
+            type=int,
+            help='Minutes after which processing articles are considered stuck (overrides --process-timeout)',
+        )
+        parser.add_argument(
+            '--summarization-timeout-minutes',
+            type=int,
+            help='Minutes after which summarization articles are considered stuck (overrides --summarization-timeout)',
+        )
+        parser.add_argument(
+            '--analysis-timeout-minutes',
+            type=int,
+            help='Minutes after which analysis articles are considered stuck (overrides --analysis-timeout)',
+        )
+        
+        # Convenience presets
+        parser.add_argument(
+            '--aggressive',
+            action='store_true',
+            help='Use aggressive timeouts (30 minutes for all stages)',
+        )
+        parser.add_argument(
+            '--conservative',
+            action='store_true',
+            help='Use conservative timeouts (6 hours for all stages)',
+        )
+        
         parser.add_argument(
             '--verbose',
             action='store_true',
@@ -61,17 +110,24 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         check_only = options['check_only']
-        fetch_timeout = options['fetch_timeout']
-        process_timeout = options['process_timeout']
-        summarization_timeout = options['summarization_timeout']
-        analysis_timeout = options['analysis_timeout']
         verbose = options['verbose']
 
+        # Calculate timeouts with precedence: minutes > global > individual > defaults
+        timeouts = self._calculate_timeouts(options)
+        
         self.stdout.write(
             self.style.SUCCESS(
                 f"\n🔍 {'Checking' if check_only else 'Cleaning up'} stuck articles across all pipeline stages..."
             )
         )
+        
+        # Show timeout configuration
+        self.stdout.write(f"⏱️  Timeout Configuration:")
+        self.stdout.write(f"   • Fetch: {timeouts['fetch']:.1f}h")
+        self.stdout.write(f"   • Process: {timeouts['process']:.1f}h") 
+        self.stdout.write(f"   • Summarization: {timeouts['summarization']:.1f}h")
+        self.stdout.write(f"   • Analysis: {timeouts['analysis']:.1f}h")
+        self.stdout.write("")
 
         total_stuck = 0
 
@@ -80,7 +136,7 @@ class Command(BaseCommand):
             status_field='fetch_status',
             status_value=FetchStatus.FETCHING,
             timestamp_field='last_fetch_attempt',
-            timeout_hours=fetch_timeout,
+            timeout_hours=timeouts['fetch'],
             stage_name='Fetching'
         )
         total_stuck += len(stuck_fetching)
@@ -103,7 +159,7 @@ class Command(BaseCommand):
             status_field='process_status',
             status_value=ProcessingStatus.PROCESSING,
             timestamp_field='last_process_attempt',
-            timeout_hours=process_timeout,
+            timeout_hours=timeouts['process'],
             stage_name='Processing'
         )
         total_stuck += len(stuck_processing)
@@ -126,7 +182,7 @@ class Command(BaseCommand):
             status_field='summarization_status',
             status_value=SummarizationStatus.PROCESSING,
             timestamp_field='last_summarization_attempt',
-            timeout_hours=summarization_timeout,
+            timeout_hours=timeouts['summarization'],
             stage_name='Summarization'
         )
         total_stuck += len(stuck_summarization)
@@ -149,7 +205,7 @@ class Command(BaseCommand):
             status_field='analyzer_status',
             status_value=AnalyzerStatus.PROCESSING,
             timestamp_field='last_analyzer_attempt',
-            timeout_hours=analysis_timeout,
+            timeout_hours=timeouts['analysis'],
             stage_name='Analysis'
         )
         total_stuck += len(stuck_analysis)
@@ -180,6 +236,53 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.WARNING("   💡 Run without --check-only to actually reset these articles")
                 )
+
+    def _calculate_timeouts(self, options):
+        """Calculate timeout values with proper precedence."""
+        # Start with defaults
+        timeouts = {
+            'fetch': 2.0,
+            'process': 2.0,
+            'summarization': 2.0,
+            'analysis': 2.0
+        }
+        
+        # Apply individual hour timeouts (only if explicitly set and no preset)
+        if not options['aggressive'] and not options['conservative']:
+            if options['fetch_timeout'] is not None:
+                timeouts['fetch'] = float(options['fetch_timeout'])
+            if options['process_timeout'] is not None:
+                timeouts['process'] = float(options['process_timeout'])
+            if options['summarization_timeout'] is not None:
+                timeouts['summarization'] = float(options['summarization_timeout'])
+            if options['analysis_timeout'] is not None:
+                timeouts['analysis'] = float(options['analysis_timeout'])
+        
+        # Apply preset configurations (overrides defaults and individual hour timeouts)
+        if options['aggressive']:
+            timeouts = {k: 0.5 for k in timeouts}  # 30 minutes
+        elif options['conservative']:
+            timeouts = {k: 6.0 for k in timeouts}  # 6 hours
+        
+        # Apply global timeout (overrides presets and individual)
+        if options['timeout']:
+            global_timeout = float(options['timeout'])
+            timeouts = {k: global_timeout for k in timeouts}
+        elif options['timeout_minutes']:
+            global_timeout = float(options['timeout_minutes']) / 60.0
+            timeouts = {k: global_timeout for k in timeouts}
+        
+        # Apply individual minute timeouts (highest precedence)
+        if options['fetch_timeout_minutes']:
+            timeouts['fetch'] = float(options['fetch_timeout_minutes']) / 60.0
+        if options['process_timeout_minutes']:
+            timeouts['process'] = float(options['process_timeout_minutes']) / 60.0
+        if options['summarization_timeout_minutes']:
+            timeouts['summarization'] = float(options['summarization_timeout_minutes']) / 60.0
+        if options['analysis_timeout_minutes']:
+            timeouts['analysis'] = float(options['analysis_timeout_minutes']) / 60.0
+        
+        return timeouts
 
     def _check_stuck_articles(self, status_field, status_value, timestamp_field, timeout_hours, stage_name):
         """Check for articles stuck in a specific status."""

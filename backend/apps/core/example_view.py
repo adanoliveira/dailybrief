@@ -189,7 +189,7 @@ def manage_user_settings(request):
             'last_updated': (timezone.now() - timedelta(days=3)).isoformat()
         }
         
-        return create_response({
+    return create_response({
             'settings': settings,
             'user_id': user.id
         })
