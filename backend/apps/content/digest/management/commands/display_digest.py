@@ -239,29 +239,15 @@ class Command(BaseCommand):
             if options['debug']:
                 self._display_topic_debug_info(topic, digest)
             
-            # Abstract
+            # Abstract (no title, just the text directly)
             if topic.topic_abstract:
-                self.stdout.write(f"📄 Abstract: {topic.topic_abstract}")
+                self.stdout.write(f"{topic.topic_abstract}")
                 self.stdout.write("")
             
-            # Facts
-            if topic.main_facts and not options['compact']:
-                self.stdout.write("🔍 KEY FACTS:")
-                for j, fact in enumerate(topic.main_facts, 1):
-                    self.stdout.write(f"  {j}. {fact}")
-                self.stdout.write("")
-            
-            # Perspectives
-            if topic.perspectives and not options['compact']:
-                self.stdout.write("💭 PERSPECTIVES:")
-                for j, perspective in enumerate(topic.perspectives, 1):
-                    self.stdout.write(f"  {j}. {perspective}")
-                self.stdout.write("")
-            
-            # Stories
+            # Stories (the new main content)
             stories = DigestStory.objects.filter(digest_topic=topic).order_by('order')
             if stories and not options['compact']:
-                self.stdout.write("📰 STORIES:")
+                self.stdout.write("📰 TOP STORIES:")
                 for story in stories:
                     self.stdout.write(f"  • {story.title}")
                     if story.enhanced_abstract:
@@ -269,18 +255,45 @@ class Command(BaseCommand):
                     
                     # Key facts
                     if story.key_facts:
-                        self.stdout.write("    📋 Facts:")
-                        for fact in story.key_facts[:3]:  # Show first 3
+                        self.stdout.write("    📋 Main Points:")
+                        for fact in story.key_facts[:5]:  # Show up to 5 facts
                             self.stdout.write(f"      - {fact}")
+                    
+                    # Key perspectives
+                    if story.perspectives:
+                        self.stdout.write("    💭 Key Perspectives:")
+                        for perspective in story.perspectives[:3]:  # Show up to 3 perspectives
+                            self.stdout.write(f"      - {perspective}")
                     
                     # Show recommended articles if requested
                     if options['show_articles']:
                         articles = story.recommended_articles.all()[:3]
                         if articles:
-                            self.stdout.write("    📖 Read more:")
-                            for article in articles:
+                            self.stdout.write("    📖 READ MORE:")
+                            for j, article in enumerate(articles, 1):
                                 pub_name = article.publication.name if article.publication else article.source_name
-                                self.stdout.write(f"      - {article.title} ({pub_name})")
+                                
+                                # Get the best abstract available
+                                abstract = None
+                                try:
+                                    if hasattr(article, 'structured_summary') and article.structured_summary:
+                                        summary = article.structured_summary
+                                        # Prefer longer_abstract (≤200 words) over regular abstract (≤60 words)
+                                        abstract = summary.longer_abstract or summary.abstract
+                                except Exception:
+                                    pass
+                                
+                                # Display article with enhanced formatting
+                                self.stdout.write(f"      {j}. {self.style.HTTP_INFO(article.title)}")
+                                self.stdout.write(f"         📰 {pub_name}")
+                                
+                                if abstract:
+                                    # Truncate abstract if too long for terminal display
+                                    display_abstract = abstract[:200] + "..." if len(abstract) > 200 else abstract
+                                    self.stdout.write(f"         💬 {display_abstract}")
+                                
+                                self.stdout.write(f"         🔗 {article.url}")
+                                self.stdout.write("")  # Add spacing between articles
                     
                     self.stdout.write("")
             

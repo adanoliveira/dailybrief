@@ -82,13 +82,15 @@ class DigestContentSelector:
                 datetime.combine(previous_date, datetime.max.time())
             )
         elif time_window == '24h':
-            # Last 24 hours from current time (when digest is being generated)
-            from django.utils import timezone as django_timezone
-            end_time_utc = django_timezone.now()
-            start_time_utc = end_time_utc - timedelta(hours=24)
-            # Convert to user timezone for logging, but return UTC
-            end_time_local = end_time_utc.astimezone(user_tz)
-            start_time_local = start_time_utc.astimezone(user_tz)
+            # Last 24 hours from end of target_date
+            end_time_local = user_tz.localize(
+                datetime.combine(target_date, datetime.max.time())
+            )
+            start_time_local = end_time_local - timedelta(hours=24)
+            
+            # Convert to UTC
+            start_time_utc = start_time_local.astimezone(pytz.UTC)
+            end_time_utc = end_time_local.astimezone(pytz.UTC)
             
             self.logger.info(
                 f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
@@ -96,13 +98,31 @@ class DigestContentSelector:
             )
             return start_time_utc, end_time_utc
         elif time_window == '48h':
-            # Last 48 hours from current time (when digest is being generated)
-            from django.utils import timezone as django_timezone
-            end_time_utc = django_timezone.now()
-            start_time_utc = end_time_utc - timedelta(hours=48)
-            # Convert to user timezone for logging, but return UTC
-            end_time_local = end_time_utc.astimezone(user_tz)
-            start_time_local = start_time_utc.astimezone(user_tz)
+            # Last 48 hours from end of target_date
+            end_time_local = user_tz.localize(
+                datetime.combine(target_date, datetime.max.time())
+            )
+            start_time_local = end_time_local - timedelta(hours=48)
+            
+            # Convert to UTC
+            start_time_utc = start_time_local.astimezone(pytz.UTC)
+            end_time_utc = end_time_local.astimezone(pytz.UTC)
+            
+            self.logger.info(
+                f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
+                f"({start_time_local} to {end_time_local} in {user_timezone})"
+            )
+            return start_time_utc, end_time_utc
+        elif time_window == '72h':
+            # Last 72 hours from end of target_date
+            end_time_local = user_tz.localize(
+                datetime.combine(target_date, datetime.max.time())
+            )
+            start_time_local = end_time_local - timedelta(hours=72)
+            
+            # Convert to UTC
+            start_time_utc = start_time_local.astimezone(pytz.UTC)
+            end_time_utc = end_time_local.astimezone(pytz.UTC)
             
             self.logger.info(
                 f"Date range for digest ({time_window}): {start_time_utc} to {end_time_utc} "
@@ -110,17 +130,19 @@ class DigestContentSelector:
             )
             return start_time_utc, end_time_utc
         else:
-            # Default to 48h if unknown preference
-            self.logger.warning(f"Unknown time_window preference: {time_window}, defaulting to 48h")
-            from django.utils import timezone as django_timezone
-            end_time_utc = django_timezone.now()
-            start_time_utc = end_time_utc - timedelta(hours=48)
-            # Convert to user timezone for logging, but return UTC
-            end_time_local = end_time_utc.astimezone(user_tz)
-            start_time_local = start_time_utc.astimezone(user_tz)
+            # Default to 72h if unknown preference
+            self.logger.warning(f"Unknown time_window preference: {time_window}, defaulting to 72h")
+            end_time_local = user_tz.localize(
+                datetime.combine(target_date, datetime.max.time())
+            )
+            start_time_local = end_time_local - timedelta(hours=72)
+            
+            # Convert to UTC
+            start_time_utc = start_time_local.astimezone(pytz.UTC)
+            end_time_utc = end_time_local.astimezone(pytz.UTC)
             
             self.logger.info(
-                f"Date range for digest (default 48h): {start_time_utc} to {end_time_utc} "
+                f"Date range for digest (default 72h): {start_time_utc} to {end_time_utc} "
                 f"({start_time_local} to {end_time_local} in {user_timezone})"
             )
             return start_time_utc, end_time_utc
@@ -233,7 +255,7 @@ class DigestContentSelector:
         self,
         topic: Topic,
         target_date: datetime.date,
-        max_articles: int = 3,
+        max_articles: int = 30,  # Feed all available articles to LLM (up to 30)
         user: Optional[User] = None,
         user_preferences: Optional[Dict[str, Any]] = None
     ) -> List[Article]:
@@ -262,9 +284,9 @@ class DigestContentSelector:
                 target_date, user_preferences, user_timezone
             )
         else:
-            # Fallback to default 48h window
+            # Fallback to default 72h window
             end_date = datetime.combine(target_date, datetime.max.time())
-            start_date = end_date - timedelta(hours=48)
+            start_date = end_date - timedelta(hours=72)
         
         # Get articles for this topic in the date range
         # Try primary_topic first, fallback to topics many-to-many if needed
@@ -601,9 +623,9 @@ class DigestContentSelector:
             end_time = datetime.combine(target_date, datetime.max.time())
             start_time = end_time - timedelta(hours=hours)
         else:
-            # Default to 48h window
+            # Default to 72h window
             end_time = datetime.combine(target_date, datetime.max.time())
-            start_time = end_time - timedelta(hours=48)
+            start_time = end_time - timedelta(hours=72)
         
         return Q(
             published_at__gte=start_time,

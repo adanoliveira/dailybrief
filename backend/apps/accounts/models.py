@@ -30,10 +30,13 @@ class UserProfile(models.Model):
         defaults = {
             "max_topics": 6,
             "max_events_per_topic": 3,
+            "max_articles_per_topic": 30,  # Feed more articles to LLM for comprehensive analysis
             "include_opinions": True,
+            "include_impacts": True,
             "preferred_time": "08:00",
             "enabled": True,
-            "time_window": "48h"  # Options: "24h", "48h", "full_previous_day", "full_previous_2_days"
+            "time_window": "72h",  # Options: "24h", "48h", "72h", "full_previous_day", "full_previous_2_days"
+            "digest_strategy": "articles_based"  # Options: "articles_based", "events_based"
         }
         preferences = defaults.copy()
         preferences.update(self.digest_preferences or {})
