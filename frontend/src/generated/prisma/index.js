@@ -35,12 +35,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 6.10.0
- * Query Engine version: aee10d5a411e4360c6d3445ce4810ca65adbf3e8
+ * Prisma Client JS version: 6.11.1
+ * Query Engine version: f40f79ec31188888a2e33acda0ecc8fd10a853a9
  */
 Prisma.prismaVersion = {
-  client: "6.10.0",
-  engine: "aee10d5a411e4360c6d3445ce4810ca65adbf3e8"
+  client: "6.11.1",
+  engine: "f40f79ec31188888a2e33acda0ecc8fd10a853a9"
 }
 
 Prisma.PrismaClientKnownRequestError = PrismaClientKnownRequestError;
@@ -192,8 +192,8 @@ const config = {
     "schemaEnvPath": "../../../.env"
   },
   "relativePath": "../../../prisma",
-  "clientVersion": "6.10.0",
-  "engineVersion": "aee10d5a411e4360c6d3445ce4810ca65adbf3e8",
+  "clientVersion": "6.11.1",
+  "engineVersion": "f40f79ec31188888a2e33acda0ecc8fd10a853a9",
   "datasourceNames": [
     "db"
   ],

@@ -47,7 +47,7 @@ def get_latest_digest(request):
     # Get latest digest
     latest_digest = Digest.objects.filter(
         user=user,
-        generation_status='COMPLETED'
+        generation_status='completed'
     ).order_by('-date', '-created_at').first()
     
     if not latest_digest:
@@ -284,8 +284,8 @@ def get_digest_status(request, digest_id):
             'events_included': digest.events_included,
             'articles_processed': digest.articles_processed,
             'generation_cost_usd': float(digest.generation_cost_usd),
-            'generation_tokens_total': digest.generation_tokens_total
-        } if digest.generation_status == 'COMPLETED' else None,
+            'generation_tokens_total': digest.tokens_input + digest.tokens_output
+        } if digest.generation_status == 'completed' else None,
         'success': True
     })
 
@@ -310,7 +310,7 @@ def get_digest_html(request, digest_id):
         digest = Digest.objects.get(
             public_id=digest_id,
             user=user,
-            generation_status='COMPLETED'
+            generation_status='completed'
         )
     except Digest.DoesNotExist:
         return create_error_response('Digest not found or not completed', status=404)
@@ -329,16 +329,27 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
     
     # Get topics with stories
     topics_data = []
-    for digest_topic in digest.digest_topics.all().prefetch_related('stories'):
+    for digest_topic in digest.digest_topics.all().prefetch_related('stories__recommended_articles'):
         stories_data = []
         for story in digest_topic.stories.all():
+            # Serialize recommended articles
+            articles_data = []
+            for article in story.recommended_articles.all():
+                articles_data.append({
+                    'id': str(article.public_id),
+                    'title': article.title,
+                    'url': article.url,
+                    'publication': article.publication.name if article.publication else None,
+                    'published_at': article.published_at.isoformat() if article.published_at else None,
+                })
+            
             stories_data.append({
-                'id': story.id,
+                'id': str(story.id),
                 'title': story.title,
-                'enhanced_abstract': story.enhanced_abstract,
-                'key_facts': story.key_facts,
-                'perspectives': story.perspectives,
-                'recommended_articles': story.recommended_articles,
+                'abstract': story.enhanced_abstract or story.summary,  # Use enhanced_abstract with fallback
+                'key_facts': story.key_facts or [],
+                'perspectives': story.perspectives or [],
+                'articles': articles_data,
                 'article_count': story.article_count,
                 'event_score': story.event_score,
                 'event': {
@@ -348,17 +359,10 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             })
         
         topics_data.append({
-            'id': digest_topic.id,
-            'topic': {
-                'id': digest_topic.topic.id,
-                'name': digest_topic.topic.name,
-                'slug': digest_topic.topic.slug,
-            },
-            'abstract': digest_topic.abstract,
-            'main_facts': digest_topic.main_facts,
-            'perspectives': digest_topic.perspectives,
-            'event_count': digest_topic.event_count,
-            'topic_score': digest_topic.topic_score,
+            'id': str(digest_topic.id),
+            'title': digest_topic.topic.name,  # Use topic.name as title
+            'abstract': digest_topic.topic_abstract,
+            'score': 0,  # Field doesn't exist in model, using default
             'stories': stories_data
         })
     
@@ -376,7 +380,7 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             'events_included': digest.events_included,
             'articles_processed': digest.articles_processed,
             'generation_cost_usd': float(digest.generation_cost_usd),
-            'generation_tokens_total': digest.generation_tokens_total
+            'generation_tokens_total': digest.tokens_input + digest.tokens_output
         }
     }
 

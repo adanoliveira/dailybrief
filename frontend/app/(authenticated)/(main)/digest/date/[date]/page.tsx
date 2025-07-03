@@ -4,10 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react"
+import { ArrowLeft, AlertCircle, RefreshCw, Calendar } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
 import { digestService, type Digest } from "@/lib/digest-service"
+
+interface DigestByDatePageProps {
+  params: {
+    date: string
+  }
+}
 
 function DigestPageSkeleton() {
   return (
@@ -51,24 +57,43 @@ function DigestPageSkeleton() {
   )
 }
 
-function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => void }) {
+function DigestErrorPage({ error, date, onRetry }: { error: string; date: string; onRetry: () => void }) {
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    } catch {
+      return dateString
+    }
+  }
+
   return (
     <div className="container py-6 max-w-3xl">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
+          <Link href="/digest/archive">
             <Button variant="ghost" size="sm" className="gap-1">
               <ArrowLeft className="h-4 w-4" />
-              Back to feed
+              Back to archive
             </Button>
           </Link>
         </div>
 
         <div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <Calendar className="h-4 w-4" />
+            <span>Daily Brief</span>
+            <span>•</span>
+            <span>{formatDate(date)}</span>
+          </div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
             Daily Brief
           </h1>
-          <p className="text-muted-foreground">Failed to load your daily digest</p>
+          <p className="text-muted-foreground">Failed to load digest for this date</p>
         </div>
 
         <Alert variant="destructive">
@@ -86,39 +111,58 @@ function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => voi
   )
 }
 
-function NoDigestPage() {
+function NoDigestPage({ date }: { date: string }) {
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    } catch {
+      return dateString
+    }
+  }
+
   return (
     <div className="container py-6 max-w-3xl">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
+          <Link href="/digest/archive">
             <Button variant="ghost" size="sm" className="gap-1">
               <ArrowLeft className="h-4 w-4" />
-              Back to feed
+              Back to archive
             </Button>
           </Link>
         </div>
 
         <div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <Calendar className="h-4 w-4" />
+            <span>Daily Brief</span>
+            <span>•</span>
+            <span>{formatDate(date)}</span>
+          </div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
             Daily Brief
           </h1>
-          <p className="text-muted-foreground">No digest available yet</p>
+          <p className="text-muted-foreground">No digest found for this date</p>
         </div>
 
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            No daily brief has been generated yet. Follow some topics in your profile to start receiving personalized daily briefs.
+            No daily brief was generated for {formatDate(date)}. This might be because you weren't following any topics at the time, or there was an issue with generation.
           </AlertDescription>
         </Alert>
 
         <div className="flex gap-3">
-          <Link href="/profile">
-            <Button>Follow Topics</Button>
-          </Link>
           <Link href="/digest/archive">
-            <Button variant="outline">View Archive</Button>
+            <Button>View Archive</Button>
+          </Link>
+          <Link href="/digest/latest">
+            <Button variant="outline">Latest Digest</Button>
           </Link>
         </div>
       </div>
@@ -126,54 +170,72 @@ function NoDigestPage() {
   )
 }
 
-export default function LatestDigest() {
+export default function DigestByDatePage({ params }: DigestByDatePageProps) {
+  const { date } = params
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadLatestDigest = async () => {
+  // Validate date format
+  const isValidDate = (dateString: string) => {
+    const regex = /^\d{4}-\d{2}-\d{2}$/
+    if (!regex.test(dateString)) return false
+    
+    const date = new Date(dateString)
+    return date.toISOString().split('T')[0] === dateString
+  }
+
+  const loadDigestByDate = async (dateString: string) => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await digestService.getLatestDigest()
+      const response = await digestService.getDigestByDate(dateString)
       setDigest(response.digest)
     } catch (err) {
-      console.error('Failed to load latest digest:', err)
-      setError('Failed to load your daily brief. Please try again.')
+      console.error(`Failed to load digest for ${dateString}:`, err)
+      setError(`Failed to load digest for ${dateString}. Please try again.`)
     } finally {
       setLoading(false)
     }
   }
 
   const handleRetry = () => {
-    loadLatestDigest()
+    if (isValidDate(date)) {
+      loadDigestByDate(date)
+    }
   }
 
   useEffect(() => {
-    loadLatestDigest()
-  }, [])
+    if (!isValidDate(date)) {
+      setError('Invalid date format. Date should be in YYYY-MM-DD format.')
+      setLoading(false)
+      return
+    }
+
+    loadDigestByDate(date)
+  }, [date])
 
   if (loading) {
     return <DigestPageSkeleton />
   }
 
   if (error) {
-    return <DigestErrorPage error={error} onRetry={handleRetry} />
+    return <DigestErrorPage error={error} date={date} onRetry={handleRetry} />
   }
 
   if (!digest) {
-    return <NoDigestPage />
+    return <NoDigestPage date={date} />
   }
 
   return (
     <div className="container py-6 max-w-3xl">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
+          <Link href="/digest/archive">
             <Button variant="ghost" size="sm" className="gap-1">
               <ArrowLeft className="h-4 w-4" />
-              Back to feed
+              Back to archive
             </Button>
           </Link>
         </div>
@@ -182,10 +244,10 @@ export default function LatestDigest() {
 
         <div className="flex justify-between pt-4">
           <Link href="/digest/archive">
-            <Button variant="outline">View past digests</Button>
+            <Button variant="outline">View archive</Button>
           </Link>
-          <Link href="/home">
-            <Button variant="default">Back to feed</Button>
+          <Link href="/digest/latest">
+            <Button variant="default">Latest digest</Button>
           </Link>
         </div>
       </div>
