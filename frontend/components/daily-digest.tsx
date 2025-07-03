@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Newspaper, Clock, FileText, AlertCircle, RefreshCw, Sparkles, Users } from "lucide-react"
+import { Newspaper, Clock, AlertCircle, RefreshCw, Sparkles, Users } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { digestService, type Digest } from "@/lib/digest-service"
@@ -17,24 +17,24 @@ interface DailyDigestProps {
 
 function DigestSkeleton() {
   return (
-    <Card className="bg-muted/40">
-      <CardHeader>
+    <Card className="bg-gradient-to-r from-muted/20 to-muted/10 border-muted/30">
+      <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-5 w-5" />
+          <Skeleton className="h-5 w-5 rounded" />
           <Skeleton className="h-6 w-32" />
         </div>
-        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-4 w-48 mt-2" />
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-4">
         <div className="space-y-2">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-4/5" />
           <Skeleton className="h-4 w-3/4" />
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <Skeleton className="h-9 w-24" />
-        <Skeleton className="h-9 w-32" />
+      <CardFooter className="flex justify-between pt-0">
+        <Skeleton className="h-9 w-28" />
+        <Skeleton className="h-9 w-20" />
       </CardFooter>
     </Card>
   )
@@ -43,27 +43,31 @@ function DigestSkeleton() {
 function GeneratingDigest() {
   return (
     <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <div className="relative">
-            <Newspaper className="h-5 w-5" />
-            <Sparkles className="h-3 w-3 absolute -top-1 -right-1 text-primary" />
+            <Newspaper className="h-5 w-5 text-primary" />
+            <Sparkles className="h-3 w-3 absolute -top-1 -right-1 text-primary animate-pulse" />
           </div>
-          Your Daily Brief
+          <span className="font-semibold tracking-tight">Your Daily Brief</span>
         </CardTitle>
-        <CardDescription>AI is crafting your personalized news digest...</CardDescription>
+        <CardDescription className="text-sm">
+          AI is crafting your personalized news digest...
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="h-16 flex items-center justify-center">
+      <CardContent className="pb-4">
+        <div className="flex items-center justify-center py-6">
           <div className="flex space-x-2">
             <div className="rounded-full bg-primary h-2 w-2 animate-bounce [animation-delay:-0.3s]"></div>
             <div className="rounded-full bg-primary h-2 w-2 animate-bounce [animation-delay:-0.15s]"></div>
             <div className="rounded-full bg-primary h-2 w-2 animate-bounce"></div>
           </div>
         </div>
-        <p className="text-xs text-center text-muted-foreground mt-2">
-          This usually takes 30-60 seconds
-        </p>
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">
+            This usually takes 30-60 seconds
+          </p>
+        </div>
       </CardContent>
     </Card>
   )
@@ -255,25 +259,23 @@ export function DailyDigest({ className }: DailyDigestProps) {
   // Format date
   const digestDate = digestService.getRelativeDigestDate(digest.date)
 
-  // Get a compelling preview from the introduction
-  const getDigestPreview = (introduction: string) => {
-    // Extract the first sentence or first 120 characters, whichever is shorter
-    const firstSentence = introduction.split('.')[0] + '.'
-    return firstSentence.length <= 120 ? firstSentence : introduction.substring(0, 120) + '...'
-  }
-
   return (
-    <Card className={cn("bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 transition-all hover:shadow-md", className)}>
-      <CardHeader>
+    <Card className={cn(
+      "bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20",
+      "transition-all duration-200 ease-in-out hover:shadow-md hover:shadow-primary/10",
+      "focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2",
+      className
+    )}>
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <div className="relative">
             <Newspaper className="h-5 w-5 text-primary" />
             <div className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
           </div>
-          Your Daily Brief
+          <span className="font-semibold tracking-tight">Your Daily Brief</span>
         </CardTitle>
-        <CardDescription className="flex items-center gap-2">
-          <span>{digestDate}</span>
+        <CardDescription className="flex items-center gap-2 text-sm">
+          <time className="font-medium">{digestDate}</time>
           <span>•</span>
           <div className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -282,39 +284,40 @@ export function DailyDigest({ className }: DailyDigestProps) {
         </CardDescription>
       </CardHeader>
       
-      <CardContent>
-        <div className="space-y-3">
-          <p className="text-sm line-clamp-2 font-medium">
-            {getDigestPreview(digest.introduction)}
+      <CardContent className="pb-4">
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <p className="line-clamp-3 leading-relaxed text-muted-foreground m-0">
+            {digest.introduction}
           </p>
-          
-          {/* Digest stats */}
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-              <FileText className="h-3 w-3 mr-1" />
-              {digest.metrics.topics_included} topics
-            </Badge>
-            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-              <Sparkles className="h-3 w-3 mr-1" />
-              {digest.metrics.events_included} stories
-            </Badge>
-            <Badge variant="outline" className="text-xs">
-              {digest.metrics.articles_processed} articles analyzed
-            </Badge>
-          </div>
         </div>
       </CardContent>
       
-      <CardFooter className="flex justify-between">
-        <Link href="/digest/latest">
-          <Button variant="default" size="sm" className="bg-primary hover:bg-primary/90">
+      <CardFooter className="flex justify-between pt-0">
+        <Link href="/digest/latest" className="flex-1 mr-2">
+          <Button 
+            className={cn(
+              "w-full bg-primary hover:bg-primary/90 text-primary-foreground",
+              "transition-all duration-200 ease-in-out",
+              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
+              "font-medium"
+            )}
+            size="sm"
+          >
             <Newspaper className="h-4 w-4 mr-2" />
-            Read digest
+            Read Brief
           </Button>
         </Link>
         <Link href="/digest/archive">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-            See all digests
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className={cn(
+              "text-muted-foreground hover:text-primary hover:bg-muted/50",
+              "transition-colors duration-200 ease-in-out",
+              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+            )}
+          >
+            Archive
           </Button>
         </Link>
       </CardFooter>

@@ -1,8 +1,6 @@
 "use client"
 
 import React, { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -10,17 +8,17 @@ import {
   ChevronDown, 
   ChevronUp, 
   Clock, 
-  TrendingUp, 
   Newspaper,
   ExternalLink,
   Share,
   BookOpen,
-  Eye,
   Lightbulb,
-  MessageSquare
+  MessageSquare,
+  ArrowUp
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { BackToTop } from "@/components/ui/back-to-top"
 import type { Digest, DigestTopic, DigestStory } from "@/lib/digest-service"
 
 interface DigestReaderProps {
@@ -28,171 +26,151 @@ interface DigestReaderProps {
   className?: string
 }
 
-interface DigestTopicCardProps {
-  topic: DigestTopic
-  isExpanded: boolean
-  onToggle: () => void
-}
-
-interface DigestStoryCardProps {
+interface DigestStoryProps {
   story: DigestStory
+  isFirst?: boolean
+  topicIndex: number
+  storyIndex: number
 }
 
-function DigestStoryCard({ story }: DigestStoryCardProps) {
-  const [showKeyFacts, setShowKeyFacts] = useState(false)
+function DigestStory({ story, isFirst = false, topicIndex, storyIndex }: DigestStoryProps) {
+  // Smart defaults: Auto-expand first story of first topic for immediate engagement
+  const shouldAutoExpand = topicIndex === 0 && storyIndex === 0
+  const [showKeyFacts, setShowKeyFacts] = useState(shouldAutoExpand)
   const [showPerspectives, setShowPerspectives] = useState(false)
 
   return (
-    <Card className="border-l-4 border-l-primary/20">
-      <CardContent className="pt-4">
-        <div className="space-y-3">
-          <div>
-            <h3 className="font-semibold text-lg leading-tight mb-2">
-              {story.title}
-            </h3>
-            <p className="text-muted-foreground leading-relaxed">
-              {story.abstract}
-            </p>
-          </div>
+    <article className={cn(
+      "space-y-4 scroll-mt-20", // scroll-mt for navigation offsets
+      !isFirst && "pt-8 border-t border-muted/30"
+    )}>
+      {/* Story Title and Abstract - Article page typography patterns */}
+      <header className="space-y-3">
+        <h3 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight leading-tight text-foreground">
+          {story.title}
+        </h3>
+        <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl">
+          <p className="text-muted-foreground leading-relaxed m-0">
+            {story.abstract}
+          </p>
+        </div>
+      </header>
 
-          {story.key_facts && story.key_facts.length > 0 && (
+      {/* Progressive Disclosure Sections */}
+      <div className="space-y-4">
+        {/* Key Facts - Enhanced interaction patterns */}
+        {story.key_facts && story.key_facts.length > 0 && (
+          <section className="space-y-3">
             <Collapsible open={showKeyFacts} onOpenChange={setShowKeyFacts}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-auto p-0 font-normal">
-                  <div className="flex items-center gap-2">
-                    <Lightbulb className="h-4 w-4" />
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "h-auto p-0 font-medium text-left hover:bg-transparent",
+                    "transition-colors duration-200 ease-in-out",
+                    "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
+                    "group" // For group hover effects
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    <Lightbulb className={cn(
+                      "h-4 w-4 transition-colors",
+                      showKeyFacts ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    )} />
                     <span>Key Facts ({story.key_facts.length})</span>
-                    {showKeyFacts ? (
-                      <ChevronUp className="h-3 w-3" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3" />
-                    )}
+                    <div className="transition-transform duration-200 ease-in-out">
+                      {showKeyFacts ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </div>
                   </div>
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-2 space-y-2">
+              <CollapsibleContent className="transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in">
+                <div className="mt-3 space-y-3 pl-6 border-l-2 border-primary/20">
                   {story.key_facts.map((fact, index) => (
-                    <div key={index} className="flex items-start gap-2 text-sm p-2 bg-muted/30 rounded">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                      <span>{fact}</span>
+                    <div key={index} className="flex items-start gap-3 text-sm leading-relaxed">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                      <span className="prose prose-sm max-w-none dark:prose-invert">{fact}</span>
                     </div>
                   ))}
                 </div>
               </CollapsibleContent>
             </Collapsible>
-          )}
+          </section>
+        )}
 
-          {story.perspectives && story.perspectives.length > 0 && (
+        {/* Perspectives - Enhanced styling */}
+        {story.perspectives && story.perspectives.length > 0 && (
+          <section className="space-y-3">
             <Collapsible open={showPerspectives} onOpenChange={setShowPerspectives}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-auto p-0 font-normal">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "h-auto p-0 font-medium text-left hover:bg-transparent",
+                    "transition-colors duration-200 ease-in-out",
+                    "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
+                    "group"
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    <MessageSquare className={cn(
+                      "h-4 w-4 transition-colors",
+                      showPerspectives ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground group-hover:text-foreground"
+                    )} />
                     <span>Perspectives ({story.perspectives.length})</span>
-                    {showPerspectives ? (
-                      <ChevronUp className="h-3 w-3" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3" />
-                    )}
+                    <div className="transition-transform duration-200 ease-in-out">
+                      {showPerspectives ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </div>
                   </div>
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-2 space-y-2">
+              <CollapsibleContent className="transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in">
+                <div className="mt-3 space-y-3 pl-6 border-l-2 border-blue-200 dark:border-blue-800">
                   {story.perspectives.map((perspective, index) => (
-                    <div key={index} className="text-sm p-2 bg-blue-50 dark:bg-blue-950/20 rounded border-l-2 border-blue-200 dark:border-blue-800">
-                      <span className="italic">"{perspective}"</span>
-                    </div>
+                    <blockquote key={index} className="text-sm leading-relaxed italic text-muted-foreground border-none p-0 m-0">
+                      "{perspective}"
+                    </blockquote>
                   ))}
                 </div>
               </CollapsibleContent>
             </Collapsible>
-          )}
-        </div>
+          </section>
+        )}
+      </div>
 
-        <div className="flex items-center justify-between pt-2">
-          <div className="text-xs text-muted-foreground">
-            {story.article_count} {story.article_count === 1 ? 'article' : 'articles'}
-          </div>
-          {story.articles && story.articles.length > 0 && (
-            <Button variant="outline" size="sm" className="h-7 text-xs">
-              <BookOpen className="h-3 w-3 mr-1" />
-              Read Sources
-              <ExternalLink className="h-3 w-3 ml-1" />
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function DigestTopicCard({ topic, isExpanded, onToggle }: DigestTopicCardProps) {
-  return (
-    <div className="space-y-4">
-      <Card className="overflow-hidden">
-        <Collapsible open={isExpanded} onOpenChange={onToggle}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-xl">{topic.title}</CardTitle>
-                  <Badge variant="outline">
-                    {topic.stories.length} {topic.stories.length === 1 ? 'story' : 'stories'}
-                  </Badge>
-                </div>
-                {isExpanded ? (
-                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-muted-foreground text-left">{topic.abstract}</p>
-            </CardHeader>
-          </CollapsibleTrigger>
-          
-          <CollapsibleContent>
-            <CardContent className="pt-0">
-              <Separator className="mb-4" />
-              
-              <div className="space-y-4">
-                {topic.stories.map((story) => (
-                  <DigestStoryCard 
-                    key={story.id} 
-                    story={story}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
-    </div>
+      {/* Source Articles - Thumb-friendly placement */}
+      {story.articles && story.articles.length > 0 && (
+        <footer className="pt-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className={cn(
+              "h-9 px-3 text-sm font-medium",
+              "transition-all duration-200 ease-in-out",
+              "hover:bg-muted/50 hover:border-primary/40",
+              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+            )}
+          >
+            <BookOpen className="h-3 w-3 mr-2" />
+            Read Sources ({story.articles.length})
+            <ExternalLink className="h-3 w-3 ml-2" />
+          </Button>
+        </footer>
+      )}
+    </article>
   )
 }
 
 export function DigestReader({ digest, className }: DigestReaderProps) {
-  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
-  
-  const toggleTopic = (topicId: string) => {
-    const newExpanded = new Set(expandedTopics)
-    if (newExpanded.has(topicId)) {
-      newExpanded.delete(topicId)
-    } else {
-      newExpanded.add(topicId)
-    }
-    setExpandedTopics(newExpanded)
-  }
-
-  const expandAll = () => {
-    setExpandedTopics(new Set(digest.topics.map(t => t.id)))
-  }
-
-  const collapseAll = () => {
-    setExpandedTopics(new Set())
-  }
-
+  // Reading time calculation - matches article page approach
   const readingTime = React.useMemo(() => {
     const wordsPerMinute = 200
     let totalWords = digest.introduction.split(' ').length
@@ -209,83 +187,111 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
   }, [digest])
 
   return (
-    <div className={cn("space-y-6", className)}>
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Newspaper className="h-4 w-4" />
-          <span>Daily Brief</span>
-          <span>•</span>
-          <span>{new Date(digest.date).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric', 
-            month: 'long',
-            day: 'numeric'
-          })}</span>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span>{readingTime} min read</span>
+    <div className="min-h-screen">
+      {/* Header - Exact article page pattern */}
+      <div className={cn(
+        "container px-4 md:px-6 lg:px-8",
+        "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
+        "pt-6 md:pt-8"
+      )}>
+        <div className="space-y-4">
+          {/* Metadata breadcrumb - Article page pattern */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Newspaper className="h-4 w-4" />
+            <span>Daily Brief</span>
+            <span>•</span>
+            <time>{new Date(digest.date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric', 
+              month: 'long',
+              day: 'numeric'
+            })}</time>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{readingTime} min read</span>
+            </div>
+          </div>
+          
+          {/* Title - Exact article page typography */}
+          <header>
+            <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
+              {digest.title}
+            </h1>
+            
+            {/* Introduction - Article page prose styling */}
+            <div className="mt-4 md:mt-6">
+              <div className="prose prose-gray max-w-none dark:prose-invert prose-lg md:prose-xl lg:prose-2xl">
+                <p className="text-muted-foreground leading-relaxed m-0">
+                  {digest.introduction}
+                </p>
+              </div>
+            </div>
+          </header>
+
+          {/* Actions - Thumb-zone optimized */}
+          <div className="flex items-center gap-3 pt-2">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className={cn(
+                "transition-colors duration-200 ease-in-out",
+                "hover:bg-muted/50",
+                "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+              )}
+            >
+              <Share className="h-4 w-4 mr-2" />
+              Share
+            </Button>
           </div>
         </div>
-        
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
-            {digest.title}
-          </h1>
-          <p className="text-lg text-muted-foreground leading-relaxed">
-            {digest.introduction}
-          </p>
-        </div>
+      </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary">
-            {digest.metrics.topics_included} topics
-          </Badge>
-          <Badge variant="secondary">
-            {digest.metrics.events_included} stories
-          </Badge>
-          <Badge variant="secondary">
-            {digest.metrics.articles_processed} articles analyzed
-          </Badge>
-        </div>
+      {/* Content - Article page container pattern */}
+      <div className={cn(
+        "container px-4 md:px-6 lg:px-8 mt-8 pb-20 md:pb-8",
+        "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
+      )}>
+        <div className="space-y-12">
+          {digest.topics.map((topic, topicIndex) => (
+            <section 
+              key={topic.id} 
+              className={cn(
+                "space-y-6",
+                topicIndex > 0 && "pt-12 border-t-2 border-muted/50"
+              )}
+            >
+              {/* Topic Header - Progressive hierarchy */}
+              <header className="space-y-4">
+                <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
+                  {topic.title}
+                </h2>
+                <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl">
+                  <p className="text-muted-foreground leading-relaxed m-0">
+                    {topic.abstract}
+                  </p>
+                </div>
+              </header>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={expandAll}>
-            Expand All
-          </Button>
-          <Button variant="outline" size="sm" onClick={collapseAll}>
-            Collapse All
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Share className="h-4 w-4 mr-2" />
-            Share
-          </Button>
+              {/* Topic Stories - Continuous reading flow */}
+              <div className="space-y-1">
+                {topic.stories.map((story, storyIndex) => (
+                  <DigestStory 
+                    key={story.id} 
+                    story={story}
+                    isFirst={storyIndex === 0}
+                    topicIndex={topicIndex}
+                    storyIndex={storyIndex}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </div>
 
-      <Separator />
-
-      <div className="space-y-6">
-        {digest.topics.map((topic) => (
-          <DigestTopicCard
-            key={topic.id}
-            topic={topic}
-            isExpanded={expandedTopics.has(topic.id)}
-            onToggle={() => toggleTopic(topic.id)}
-          />
-        ))}
-      </div>
-
-      <div className="text-center py-8">
-        <div className="text-sm text-muted-foreground space-y-2">
-          <p>
-            Generated using {digest.metrics.generation_tokens_total.toLocaleString()} AI tokens
-          </p>
-          <p>
-            Last updated: {new Date(digest.updated_at).toLocaleString()}
-          </p>
-        </div>
-      </div>
+      {/* Back to Top - Article page pattern */}
+      <BackToTop showAfter={300} />
     </div>
   )
 } 
