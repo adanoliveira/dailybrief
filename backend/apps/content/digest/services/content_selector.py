@@ -118,7 +118,7 @@ class DigestContentSelector:
             end_time_local = user_tz.localize(
                 datetime.combine(target_date, datetime.max.time())
             )
-            start_time_local = end_time_local - timedelta(hours=72)
+            start_time_local = end_time_local - timedelta(hours=48)
             
             # Convert to UTC
             start_time_utc = start_time_local.astimezone(pytz.UTC)
@@ -130,22 +130,10 @@ class DigestContentSelector:
             )
             return start_time_utc, end_time_utc
         else:
-            # Default to 72h if unknown preference
-            self.logger.warning(f"Unknown time_window preference: {time_window}, defaulting to 72h")
-            end_time_local = user_tz.localize(
-                datetime.combine(target_date, datetime.max.time())
-            )
-            start_time_local = end_time_local - timedelta(hours=72)
-            
-            # Convert to UTC
-            start_time_utc = start_time_local.astimezone(pytz.UTC)
-            end_time_utc = end_time_local.astimezone(pytz.UTC)
-            
-            self.logger.info(
-                f"Date range for digest (default 72h): {start_time_utc} to {end_time_utc} "
-                f"({start_time_local} to {end_time_local} in {user_timezone})"
-            )
-            return start_time_utc, end_time_utc
+            # Default to 48h if unknown preference
+            self.logger.warning(f"Unknown time_window preference: {time_window}, defaulting to 48h")
+            end_date = datetime.combine(target_date, datetime.max.time())
+            start_date = end_date - timedelta(hours=48)
         
         # Convert to UTC for database queries (for full day options)
         start_time_utc = start_time_local.astimezone(pytz.UTC)
@@ -284,9 +272,9 @@ class DigestContentSelector:
                 target_date, user_preferences, user_timezone
             )
         else:
-            # Fallback to default 72h window
+            # Fallback to default 48h window
             end_date = datetime.combine(target_date, datetime.max.time())
-            start_date = end_date - timedelta(hours=72)
+            start_date = end_date - timedelta(hours=48)
         
         # Get articles for this topic in the date range
         # Try primary_topic first, fallback to topics many-to-many if needed
@@ -623,9 +611,9 @@ class DigestContentSelector:
             end_time = datetime.combine(target_date, datetime.max.time())
             start_time = end_time - timedelta(hours=hours)
         else:
-            # Default to 72h window
+            # Default to 48h window
             end_time = datetime.combine(target_date, datetime.max.time())
-            start_time = end_time - timedelta(hours=72)
+            start_time = end_time - timedelta(hours=48)
         
         return Q(
             published_at__gte=start_time,
