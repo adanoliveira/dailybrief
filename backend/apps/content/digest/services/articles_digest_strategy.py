@@ -170,16 +170,32 @@ class ArticlesDigestStrategy(DigestStrategy):
             )
         
         # Step 3: Generate digest introduction for daily readers
+        # Collect DigestTopic objects for introduction context
+        digest_topics = DigestTopic.objects.filter(digest=digest).order_by('order')
+        
         introduction = self.ai_generator.generate_digest_introduction(
             digest_data={
                 'digest': digest,
                 'topics_data': selected_topics_data,
+                'digest_topics': digest_topics,  # Pass actual DigestTopic objects with abstracts
                 'strategy': 'articles_based_comprehensive'
             }
         )
         
-        # Step 4: Generate digest conclusion
-        conclusion = self.ai_generator.generate_digest_conclusion(topic_summaries_for_conclusion)
+        # Step 4: Generate digest conclusion with enhanced context
+        # Collect topic abstracts for richer conclusion context
+        topic_abstracts = []
+        for digest_topic in digest_topics:
+            topic_abstracts.append({
+                'topic_name': digest_topic.topic.name,
+                'abstract': digest_topic.topic_abstract
+            })
+        
+        conclusion = self.ai_generator.generate_digest_conclusion(
+            topic_summaries=topic_summaries_for_conclusion,
+            introduction=introduction['content'],  # Pass introduction for tone continuity
+            topic_abstracts=topic_abstracts  # Pass full topic abstracts for deeper context
+        )
         
         # Update digest metadata
         digest.introduction = introduction['content']
@@ -339,20 +355,35 @@ class ArticlesDigestStrategy(DigestStrategy):
             story_read_more = story_data.get('read_more', [])
             
             for recommendation in story_read_more:
-                article_id = recommendation.get('article_id')
+                article_id = None
+                
+                # Handle both simple ID arrays and object arrays
+                if isinstance(recommendation, (int, str)):
+                    # Simple ID format: [12345, 67890]
+                    article_id = recommendation
+                elif isinstance(recommendation, dict):
+                    # Object format: [{"article_id": 12345, "title": "...", ...}]
+                    article_id = recommendation.get('article_id')
+                else:
+                    self.logger.warning(f"Unexpected recommendation format: {type(recommendation)} - {recommendation}")
+                    continue
+                    
                 if article_id and str(article_id) in map(str, articles_by_id.keys()):
                     # Find article by ID (handle both int and string IDs)
                     for aid, article in articles_by_id.items():
                         if str(aid) == str(article_id):
                             recommended_articles.append(article)
+                            # Extract title for logging
+                            title = recommendation.get('title', f'Article {article_id}') if isinstance(recommendation, dict) else f'Article {article_id}'
                             self.logger.info(
-                                f"Mapped AI recommendation for story '{story_data.get('headline', '')}': {recommendation.get('title', '')} -> Article {article.id}"
+                                f"Mapped AI recommendation for story '{story_data.get('headline', '')}': {title} -> Article {article.id}"
                             )
                             break
                 else:
                     if article_id:  # Only warn if there was an actual ID provided
+                        title = recommendation.get('title', 'Unknown') if isinstance(recommendation, dict) else f'Article {article_id}'
                         self.logger.warning(
-                            f"Could not find article ID {article_id} for story recommendation: {recommendation.get('title', 'Unknown')}"
+                            f"Could not find article ID {article_id} for story recommendation: {title}"
                         )
             
             # Ensure we have at least 1 article per story

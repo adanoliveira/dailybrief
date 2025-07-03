@@ -37,28 +37,50 @@ class DigestPrompts:
         """
         Generate friendly, personalized digest introduction for daily readers.
         
-        Creates a welcoming introduction focused on the individual user
-        with a 1-to-1 personalized perspective.
+        Creates a welcoming introduction with full context from topic abstracts,
+        emphasizing the custom nature of the digest with neutral but friendly tone.
         """
-        topics_preview = []
+        # Build comprehensive topic context with abstracts
+        topics_context = []
         for topic in topic_summaries:
-            events_text = f"{topic['event_count']} story{'ies' if topic['event_count'] != 1 else 'y'}"
-            if topic['top_events']:
-                events_text += f" including {', '.join(topic['top_events'][:2])}"
-            topics_preview.append(f"- {topic['name']}: {events_text}")
+            # Include the topic abstract for meaningful context
+            abstract = topic.get('topic_abstract', '').strip()
+            story_count = topic.get('story_count', topic.get('event_count', 0))
+            
+            if abstract:
+                topics_context.append(f"- {topic['name']}: {abstract} ({story_count} stories)")
+            else:
+                # Fallback if no abstract available
+                events_text = f"{story_count} stor{'ies' if story_count != 1 else 'y'}"
+                if topic.get('top_events'):
+                    events_text += f" including {', '.join(topic['top_events'][:2])}"
+                topics_context.append(f"- {topic['name']}: {events_text}")
         
-        return f"""Write a friendly, personalized introduction for a daily news digest aimed directly at the individual reader.
+        topics_preview = "\n".join(topics_context)
+        
+        return f"""Write a friendly, personalized introduction for a custom daily news digest.
 
-Today's digest covers {len(topic_summaries)} topics with key developments:
-{chr(10).join(topics_preview)}
+CONTEXT:
+This digest is personally curated for this individual user based on their interests and preferences. Each user gets their own unique digest with different topics and stories selected specifically for them.
 
-Write a 2-3 sentence introduction that:
-1. Personally welcomes the individual reader back to their daily brief (use "you" and "your")
-2. Acts as a friendly, personalized preview of what they'll find in their digest today
-3. Highlights the most significant developments that matter to them
-4. Uses a conversational, one-on-one tone as if speaking directly to this specific reader
+TODAY'S TOPICS & CONTENT:
+{topics_preview}
 
-Keep it concise, warm, and personally focused on the individual reader who relies on this daily digest. Start with "Good morning" or similar personal greeting."""
+TONE & STYLE:
+- Neutral and journalistic, but warm and approachable
+- Young, friendly, and conversational without being casual
+- Simple language that's easy to scan quickly
+- Direct and personal - speak to "you" as an individual reader
+- Confident but not overwhelming
+
+REQUIREMENTS:
+- Keep it concise (2-3 sentences max)
+- Acknowledge the personalized nature briefly
+- Give a genuine preview of what's inside based on the actual content
+- Make the reader want to dive into the stories
+- Start with a warm greeting appropriate for the time of day
+
+Write the introduction:"""
     
     @staticmethod
     def topic_summary_prompt(
@@ -232,10 +254,7 @@ REQUIREMENTS:
     @staticmethod
     def comprehensive_topic_summary_prompt(
         topic_name: str,
-        article_summaries: List[Dict], 
-        facts: List[str], 
-        opinions: List[str],
-        impacts: List[str]
+        clustered_articles: List[Dict]
     ) -> str:
         """
         Generate story-driven topic summary for articles-based digests.
@@ -246,121 +265,196 @@ REQUIREMENTS:
         - Regional/topical significance
         
         Each story includes: headline, abstract, main points, perspectives, read more articles
+        
+        Args:
+            topic_name: Name of the topic
+            clustered_articles: List of articles with all their content clustered together
         """
-        # Format article summaries for context with IDs
+        # Format clustered article data for context
         articles_context = []
-        for i, summary in enumerate(article_summaries[:20], 1):  # Increased to 20 articles for richer context
-            articles_context.append(
-                f"{i}. [ID: {summary['id']}] {summary['source']} ({summary['published']}): {summary['headline']}\n"
-                f"   Summary: {summary['longer_abstract']}"  # No truncation - feed full summary
-            )
+        for i, article in enumerate(clustered_articles[:20], 1):  # Limit to 20 articles for prompt length
+            # Build article summary with all content clustered together
+            article_context = [
+                f"{i}. [ID: {article['id']}] {article['source']} ({article['published']})",
+                f"   Headline: {article['headline']}",
+                f"   Summary: {article['longer_abstract']}"
+            ]
+            
+            # Add facts if available
+            if article.get('facts'):
+                facts_text = "; ".join(article['facts'][:5])  # Limit to 5 facts per article
+                article_context.append(f"   Facts: {facts_text}")
+            
+            # Add opinions if available
+            if article.get('opinions'):
+                opinions_text = "; ".join(article['opinions'][:3])  # Limit to 3 opinions per article
+                article_context.append(f"   Opinions: {opinions_text}")
+            
+            # Add impacts if available
+            if article.get('impacts'):
+                impacts_text = "; ".join(article['impacts'][:3])  # Limit to 3 impacts per article
+                article_context.append(f"   Impacts: {impacts_text}")
+            
+            articles_context.append("\n".join(article_context))
         
-        # Format extracted content for reference (but don't use directly in stories)
-        facts_context = "\n".join(f"- {fact}" for fact in facts[:50]) if facts else "No facts extracted"
-        opinions_context = "\n".join(f"- {opinion}" for opinion in opinions[:40]) if opinions else "No opinions extracted"
-        impacts_context = "\n".join(f"- {impact}" for impact in impacts[:30]) if impacts else "No impacts extracted"
-        
-        return f"""You are a senior news editor creating today's top stories for the {topic_name} section of a daily digest.
+        return f"""You are a senior news editor creating today's top stories for the {topic_name} section of a custom daily digest.
 
-ARTICLES AVAILABLE:
+ARTICLES AVAILABLE (with content clustered by source):
 {chr(10).join(articles_context)}
-
-EXTRACTED CONTENT FOR REFERENCE:
-Facts: {facts_context}
-Opinions: {opinions_context}  
-Impacts: {impacts_context}
 
 TASK: Analyze all articles and create exactly 3 top stories that represent the most important developments in {topic_name} today.
 
+STORY CLUSTERING & ANALYSIS:
+1. **Identify Common Themes**: Look for articles mentioning the same events, people, companies, or geographical regions
+2. **Group Related Coverage**: Cluster articles that cover the same story from different angles or perspectives
+3. **Find Connected Stories**: Link articles on related topics (e.g., multiple Middle East developments, related tech company moves, connected health studies)
+4. **Measure Story Significance**: Prioritize stories with the most article coverage and cross-source validation
+
 STORY SELECTION CRITERIA:
-1. **Most Cited Events**: Stories mentioned across multiple articles (cross-reference coverage)
-2. **Broadest Impact**: Stories affecting the most people, regions, or having systemic implications
-3. **Significance**: Federal/national issues > local issues, major corporations > small companies, policy changes > individual incidents
+1. **Cross-Article Coverage**: Prioritize stories mentioned across multiple sources (indicates significance)
+2. **Impact Scale**: Stories with the highest economic, social, political, or environmental impact, affecting the most people, regions, or having systemic implications  
+3. **News Hierarchy**: Federal/national > regional > local; policy changes > market moves > individual incidents
+
+TONE & STYLE:
+- Neutral and journalistic, but engaging and accessible
+- Professional yet approachable for general readers
+- Clear, direct language that's easy to scan quickly
+- Confident reporting without sensationalism
+- Focus on facts while acknowledging diverse perspectives
 
 For each story, provide:
-- **headline**: Compelling, specific headline (8-12 words)
-- **abstract**: Engaging 60-word summary explaining what happened and why it matters
-- **main_points**: 3-5 key facts or developments (each 15-25 words)
-- **perspectives**: 0-3 key viewpoints from stakeholders, experts, or officials (verbatim quotes preferred)
-- **read_more**: 1-3 most relevant article IDs that best cover this story
+- **headline**: Compelling, specific headline (8-12 words) that captures the unified story theme
+- **abstract**: Engaging 60-word summary explaining what happened and why it matters, synthesizing multiple article perspectives
+- **main_points**: 3-5 key facts or developments (each 15-25 words) that combine facts mentioned in articles that compose the story
+- **perspectives**: 0-3 key viewpoints for story understading and reflection, expressed by stakeholders, experts, officials and other people features in the articles, taken from the opinions bullets from the articles that compose the story (verbatim quotes preferred)
+- **read_more**: 1-3 most relevant article IDs that best cover this story (choose articles that provide complementary angles or comprehensive coverage)
 
 Also provide:
 - **topic_abstract**: 120-word overview presenting all 3 stories in a cohesive narrative
 
 RESPONSE FORMAT (JSON):
 {{
-    "topic_abstract": "120-word overview of all stories...",
+    "topic_abstract": "A 100-120 word overview presenting the 3 top stories in {topic_name}. Begin with: 'Today's top {topic_name} stories highlight...' Describe story themes and their collective significance.",
     "stories": [
         {{
-            "headline": "Compelling headline for story 1",
-            "abstract": "60-word engaging summary explaining what happened and significance...",
+            "headline": "Compelling 8-12 word headline capturing unified story theme",
+            "abstract": "Engaging 60-word summary explaining what happened and why it matters",
             "main_points": [
-                "Key fact or development 1 (15-25 words)",
-                "Key fact or development 2 (15-25 words)", 
-                "Key fact or development 3 (15-25 words)"
+                "Key fact 1 (15-25 words combining insights from related articles)",
+                "Key fact 2 (15-25 words combining insights from related articles)",
+                "Key fact 3 (15-25 words combining insights from related articles)"
             ],
             "perspectives": [
-                "Direct quote or viewpoint from stakeholder/expert (if available)",
-                "Another relevant perspective (if available)"
+                "Verbatim quote or paraphrased opinion from stakeholder/expert in the articles",
+                "Different viewpoint from another source in the articles"
             ],
-            "read_more": [
-                {{"article_id": "ID", "title": "Article Title", "source": "Source", "reason": "Why this article is essential for this story"}}
-            ]
+            "read_more": [12345, 67890]
         }},
         {{
-            "headline": "Compelling headline for story 2",
-            "abstract": "60-word engaging summary...",
-            "main_points": [...],
-            "perspectives": [...],
-            "read_more": [...]
+            "headline": "Second story headline",
+            "abstract": "Second story 60-word abstract",
+            "main_points": ["Fact 1", "Fact 2", "Fact 3"],
+            "perspectives": ["Perspective 1", "Perspective 2"],
+            "read_more": [11111, 22222]
         }},
         {{
-            "headline": "Compelling headline for story 3", 
-            "abstract": "60-word engaging summary...",
-            "main_points": [...],
-            "perspectives": [...],
-            "read_more": [...]
+            "headline": "Third story headline", 
+            "abstract": "Third story 60-word abstract",
+            "main_points": ["Fact 1", "Fact 2", "Fact 3"],
+            "perspectives": ["Perspective 1"],
+            "read_more": [33333, 44444]
         }}
     ]
 }}
 
-GUIDELINES:
-- Prioritize stories with multiple article coverage over single-article events
-- Focus on systemic impact over isolated incidents  
-- Use engaging, specific headlines that capture the essence
-- Make abstracts compelling and accessible to general readers
-- Ensure main_points are factual developments, not opinions
-- Include diverse perspectives when available
-- Select read_more articles that provide the best coverage/analysis
-- Make topic_abstract flow naturally, connecting the stories thematically
+CRITICAL JSON REQUIREMENTS:
+- Use double quotes for all strings
+- No trailing commas after last array/object elements
+- Escape any quotes within text with backslash (\")
+- Ensure proper nesting and bracket matching
+- Test JSON validity mentally before output
+
+EDITORIAL GUIDELINES:
+- **Article Clustering**: Group articles covering the same events, companies, or regions into unified stories rather than treating them separately
+- **Story Synthesis**: Combine facts, opinions, and impacts from multiple related articles to create richer, more comprehensive stories
+- **Avoid Redundancy**: Don't create separate stories for closely related developments—merge them into broader, more meaningful narratives
+- **Maintain Focus**: While clustering related content, ensure each story has a clear, specific theme and doesn't become too broad or vague
+- **Source Diversity**: When multiple articles cover the same story, select read_more articles that provide different angles, sources, or depth of coverage
+- **Content Integration**: Use the clustered article data to understand which facts/opinions come from which sources and synthesize them appropriately
+- **Regional/Thematic Connections**: Link articles on related geographical regions (e.g., Middle East developments) or thematic areas (e.g., AI regulation, health studies) when they strengthen the story narrative
+
+EXAMPLE CLUSTERING:
+- Multiple articles about different companies in the same sector → "Tech Sector Faces New Regulatory Challenges"
+- Various Middle East developments → "Escalating Tensions Reshape Middle East Dynamics"  
+- Related health studies → "New Research Reveals Hidden Factors in Public Health"
 
 Generate stories that inform and engage readers about the most significant {topic_name} developments today."""
     
     @staticmethod
-    def digest_conclusion_prompt(topic_summaries: List[Dict]) -> str:
+    def digest_conclusion_prompt(
+        topic_summaries: List[Dict], 
+        introduction: str = None,
+        topic_abstracts: List[Dict] = None
+    ) -> str:
         """
-        Generate brief digest conclusion summarizing main topics.
+        Generate compelling digest conclusion for daily readers.
         
-        Creates a concise wrap-up that recaps the main topic summaries
-        for daily digest readers.
+        Creates an engaging wrap-up that synthesizes the main themes from today's
+        digest while maintaining the neutral but friendly journalistic tone.
+        
+        Args:
+            topic_summaries: Topic summaries with key points
+            introduction: The digest introduction for context
+            topic_abstracts: Full topic abstracts for deeper understanding
         """
-        topics_recap = []
+        # Build comprehensive topic context
+        topics_context = []
         for topic in topic_summaries:
             key_point = topic.get('key_point', topic.get('name', 'developments'))
-            topics_recap.append(f"- {topic['name']}: {key_point}")
+            # Extract meaningful themes from the key points
+            theme_preview = key_point[:80] + "..." if len(key_point) > 80 else key_point
+            topics_context.append(f"• **{topic['name']}**: {theme_preview}")
         
-        return f"""Write a brief, friendly conclusion for a daily news digest that wraps up the main topic summaries.
+        # Include topic abstracts if available for deeper context
+        abstracts_context = ""
+        if topic_abstracts:
+            abstracts_context = "\\n\\nTOPIC ABSTRACTS FOR DEEPER CONTEXT:\\n"
+            for abstract_data in topic_abstracts:
+                topic_name = abstract_data.get('topic_name', 'Unknown')
+                abstract_text = abstract_data.get('abstract', '')[:150] + "..." if len(abstract_data.get('abstract', '')) > 150 else abstract_data.get('abstract', '')
+                abstracts_context += f"• **{topic_name}**: {abstract_text}\\n"
+        
+        # Include introduction if available for tone and theme continuity
+        intro_context = ""
+        if introduction:
+            intro_context = f"\\n\\nDIGEST INTRODUCTION (for tone and theme continuity):\\n{introduction[:200]}{'...' if len(introduction) > 200 else ''}\\n"
+        
+        return f"""You are writing the conclusion for a personalized daily news digest.
 
-Today's digest covered {len(topic_summaries)} key topics:
-{chr(10).join(topics_recap)}
+DIGEST CONTEXT:
+Today's digest covered {len(topic_summaries)} key topics with their main themes:
+{chr(10).join(topics_context)}{abstracts_context}{intro_context}
 
-Write a 2-3 sentence conclusion that:
-1. Briefly recaps the main themes from today's topic summaries
-2. Provides a sense of closure for daily readers
-3. Uses a warm, professional tone
-4. Encourages readers to return tomorrow
+TASK: Write a compelling, warm conclusion that wraps up the day's news for engaged readers.
 
-Keep it concise and focused on the key themes that emerged across topics. End with a forward-looking statement about staying informed."""
+TONE & STYLE:
+- Neutral and journalistic, but warm and approachable
+- Professional yet friendly for daily readers  
+- Clear, direct language that resonates with informed audiences
+- Confident without being sensationalistic
+- Match the tone established in the introduction (if provided)
+
+REQUIREMENTS:
+1. **Synthesize themes**: Connect the major themes that emerged across topics (2-3 sentences)
+2. **Acknowledge significance**: Briefly reflect on why these stories matter to readers
+3. **Forward momentum**: End with encouragement to stay informed and engaged
+4. **Length**: Exactly 60-80 words for optimal digest flow
+5. **Continuity**: If introduction is provided, maintain consistent tone and perspective
+
+EXAMPLE TONE:
+"Today's stories illustrate how [common theme] continues to shape [area of impact]. From [topic area] developments to [another area], these events highlight [broader significance]. As these stories unfold, staying informed helps you understand the forces shaping our world. We'll be back tomorrow with fresh insights to keep you ahead of what matters most."
+
+Write a conclusion that feels like a natural, thoughtful and concise wrap-up from a trusted news source to an engaged daily reader."""
     
     @staticmethod
     def fallback_topic_summary_prompt(
@@ -486,6 +580,8 @@ REQUIREMENTS:
         """
         Validate and parse comprehensive topic summary output.
         
+        Validates the new story-driven format with topic_abstract and stories array.
+        
         Args:
             output_text: JSON output from AI
             
@@ -498,39 +594,65 @@ REQUIREMENTS:
             if json_match:
                 parsed = json.loads(json_match.group())
                 
-                # Validate required fields
-                required_fields = ['abstract', 'main_events', 'key_perspectives', 'read_more']
+                # Validate required fields for new story-driven format
+                required_fields = ['topic_abstract', 'stories']
                 for field in required_fields:
                     if field not in parsed:
                         return {'success': False, 'error': f'Missing required field: {field}'}
                 
-                # Validate abstract word count (60-120 words)
-                abstract_words = len(parsed['abstract'].split())
-                if not (60 <= abstract_words <= 120):
-                    return {'success': False, 'error': f'Abstract must be 60-120 words, got {abstract_words}'}
+                # Validate topic_abstract word count (90-130 words)
+                abstract_words = len(parsed['topic_abstract'].split())
+                if not (90 <= abstract_words <= 130):  # Relaxed from 100-120 to 90-130
+                    return {'success': False, 'error': f'Topic abstract must be 90-130 words, got {abstract_words}'}
                 
-                # Validate main_events (up to 5, each max 60 words)
-                if len(parsed['main_events']) > 5:
-                    return {'success': False, 'error': f'Too many main_events: {len(parsed["main_events"])}, max 5'}
+                # Validate stories array (exactly 3 stories)
+                stories = parsed['stories']
+                if len(stories) != 3:
+                    return {'success': False, 'error': f'Must have exactly 3 stories, got {len(stories)}'}
                 
-                for i, event in enumerate(parsed['main_events']):
-                    event_words = len(event.split())
-                    if event_words > 60:
-                        return {'success': False, 'error': f'Main event {i+1} too long: {event_words} words, max 60'}
-                
-                # Validate key_perspectives (up to 3)
-                if len(parsed['key_perspectives']) > 3:
-                    return {'success': False, 'error': f'Too many key_perspectives: {len(parsed["key_perspectives"])}, max 3'}
-                
-                # Validate read_more (exactly 3)
-                if len(parsed['read_more']) != 3:
-                    return {'success': False, 'error': f'Must have exactly 3 read_more articles, got {len(parsed["read_more"])}'}
-                
-                for i, article in enumerate(parsed['read_more']):
-                    required_article_fields = ['article_id', 'title', 'source', 'reason']
-                    for field in required_article_fields:
-                        if field not in article:
-                            return {'success': False, 'error': f'Read more article {i+1} missing field: {field}'}
+                # Validate each story structure
+                for i, story in enumerate(stories):
+                    required_story_fields = ['headline', 'abstract', 'main_points', 'perspectives', 'read_more']
+                    for field in required_story_fields:
+                        if field not in story:
+                            return {'success': False, 'error': f'Story {i+1} missing field: {field}'}
+                    
+                    # Validate story abstract (exactly 60 words) - more forgiving
+                    story_abstract_words = len(story['abstract'].split())
+                    if not (45 <= story_abstract_words <= 75):  # Relaxed from 55-65 to 45-75
+                        return {'success': False, 'error': f'Story {i+1} abstract must be ~60 words (45-75 range), got {story_abstract_words}'}
+                    
+                    # Validate main_points (3-5 points, each 15-25 words) - more forgiving
+                    main_points = story['main_points']
+                    if not (3 <= len(main_points) <= 5):
+                        return {'success': False, 'error': f'Story {i+1} must have 3-5 main points, got {len(main_points)}'}
+                    
+                    for j, point in enumerate(main_points):
+                        point_words = len(point.split())
+                        if not (8 <= point_words <= 35):  # Relaxed from 10-30 to 8-35
+                            return {'success': False, 'error': f'Story {i+1} point {j+1} should be 15-25 words (8-35 range), got {point_words}'}
+                    
+                    # Validate perspectives (0-3 perspectives)
+                    perspectives = story['perspectives']
+                    if len(perspectives) > 3:
+                        return {'success': False, 'error': f'Story {i+1} has too many perspectives: {len(perspectives)}, max 3'}
+                    
+                    # Validate read_more articles (1-3 articles)
+                    read_more = story['read_more']
+                    if not (1 <= len(read_more) <= 3):
+                        return {'success': False, 'error': f'Story {i+1} must have 1-3 read_more articles, got {len(read_more)}'}
+                    
+                    # Validate each read_more article has required fields
+                    for k, article in enumerate(read_more):
+                        if isinstance(article, (int, str)):
+                            # Just article ID - this is valid
+                            continue
+                        elif isinstance(article, dict):
+                            # Full article object - validate required fields exist
+                            if 'article_id' not in article:
+                                return {'success': False, 'error': f'Story {i+1} read_more article {k+1} missing article_id'}
+                        else:
+                            return {'success': False, 'error': f'Story {i+1} read_more article {k+1} has invalid format'}
                 
                 return {'success': True, 'data': parsed}
             else:

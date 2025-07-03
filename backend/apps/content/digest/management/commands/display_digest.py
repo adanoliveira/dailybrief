@@ -299,6 +299,12 @@ class Command(BaseCommand):
             
             self.stdout.write("")
         
+        # Conclusion
+        if digest.conclusion:
+            self.stdout.write(self.style.WARNING("🎯 CONCLUSION"))
+            self.stdout.write(digest.conclusion)
+            self.stdout.write("")
+        
         # Footer with stats
         self.stdout.write("=" * 60)
         self.stdout.write(self.style.SUCCESS("📊 GENERATION STATS"))

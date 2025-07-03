@@ -17,6 +17,7 @@ class Digest(models.Model):
     
     # Digest content
     introduction = models.TextField(help_text="AI-generated introduction to the day's stories")
+    conclusion = models.TextField(blank=True, help_text="AI-generated conclusion wrapping up the day's stories")
     html_content = models.TextField(help_text="Full HTML content of the digest")
     
     # Generation status tracking

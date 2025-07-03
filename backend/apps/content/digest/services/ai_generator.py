@@ -74,52 +74,67 @@ class DigestAIGenerator:
         total_events = 0
         total_articles = 0
         
-        # Handle the new data structure
+        # Handle the new data structure with digest_topics containing abstracts
+        digest_topics = digest_data.get('digest_topics', [])
         topics_data = digest_data.get('topics_data', [])
         strategy = digest_data.get('strategy', 'unknown')
         
-        for topic_data in topics_data:
-            topic = topic_data['topic']
-            
-            # Handle articles-based strategy
-            if strategy == 'articles_based_comprehensive' or 'articles' in topic_data:
-                articles = topic_data.get('articles', [])
-                article_count = len(articles)
-                total_articles += article_count
-                
-                # Create topic preview for articles-based approach
+        # Prefer digest_topics if available (for articles-based strategy with abstracts)
+        if digest_topics:
+            for digest_topic in digest_topics:
                 topic_summaries.append({
-                    'name': topic.name,
-                    'event_count': 1,  # Represent as 1 comprehensive summary
-                    'article_count': article_count,
-                    'top_events': [f'{article_count} articles covering latest developments in {topic.name}']
+                    'name': digest_topic.topic.name,
+                    'topic_abstract': digest_topic.topic_abstract,
+                    'story_count': len(digest_topic.main_facts) if digest_topic.main_facts else 1,
+                    'article_count': digest_topic.article_count
                 })
-                total_events += 1  # One comprehensive summary per topic
-            
-            # Handle events-based strategy
-            else:
-                events = topic_data.get('events', [])
-                fallback_mode = topic_data.get('fallback_mode', False)
+                total_events += len(digest_topic.main_facts) if digest_topic.main_facts else 1
+                total_articles += digest_topic.article_count
+        
+        # Fallback to original approach for events-based or if no digest_topics
+        elif topics_data:
+            for topic_data in topics_data:
+                topic = topic_data['topic']
                 
-                if fallback_mode:
-                    # For fallback mode, we don't have events but we have the topic
-                    topic_summaries.append({
-                        'name': topic.name,
-                        'event_count': 1,  # Represent as 1 story in fallback mode
-                        'top_events': ['Latest developments']
-                    })
-                    total_events += 1
-                else:
-                    # Regular event-based mode
-                    total_events += len(events)
+                # Handle articles-based strategy
+                if strategy == 'articles_based_comprehensive' or 'articles' in topic_data:
+                    articles = topic_data.get('articles', [])
+                    article_count = len(articles)
+                    total_articles += article_count
                     
-                    # Create brief topic preview
-                    event_titles = [event['event'].title for event in events[:2]]  # Top 2 events
+                    # Create topic preview for articles-based approach
                     topic_summaries.append({
                         'name': topic.name,
-                        'event_count': len(events),
-                        'top_events': event_titles
+                        'event_count': 1,  # Represent as 1 comprehensive summary
+                        'article_count': article_count,
+                        'top_events': [f'{article_count} articles covering latest developments in {topic.name}']
                     })
+                    total_events += 1  # One comprehensive summary per topic
+                
+                # Handle events-based strategy
+                else:
+                    events = topic_data.get('events', [])
+                    fallback_mode = topic_data.get('fallback_mode', False)
+                    
+                    if fallback_mode:
+                        # For fallback mode, we don't have events but we have the topic
+                        topic_summaries.append({
+                            'name': topic.name,
+                            'event_count': 1,  # Represent as 1 story in fallback mode
+                            'top_events': ['Latest developments']
+                        })
+                        total_events += 1
+                    else:
+                        # Regular event-based mode
+                        total_events += len(events)
+                        
+                        # Create brief topic preview
+                        event_titles = [event['event'].title for event in events[:2]]  # Top 2 events
+                        topic_summaries.append({
+                            'name': topic.name,
+                            'event_count': len(events),
+                            'top_events': event_titles
+                        })
         
         # Create structured prompt using centralized template
         prompt = DigestPrompts.digest_introduction_prompt(topic_summaries, total_events)
@@ -181,111 +196,179 @@ class DigestAIGenerator:
         
         self.logger.info(f"Generating comprehensive summary for topic '{topic.name}' with {len(articles)} articles")
         
-        # Collect content from article summaries
-        article_summaries = []
-        all_facts = []
-        all_opinions = []
-        all_impacts = []
+        # Collect content from article summaries - cluster everything together
+        clustered_articles = []
         
         for article in articles:
             try:
                 summary = article.structured_summary
                 if summary:
-                    article_summaries.append({
+                    article_data = {
                         'id': article.id,  # Add article ID for AI reference
                         'headline': summary.headline or article.title,
                         'longer_abstract': summary.longer_abstract or summary.abstract,
                         'source': article.publication.name if article.publication else article.source_name,
                         'published': article.published_at.strftime('%Y-%m-%d') if article.published_at else 'Recent'
-                    })
+                    }
                     
+                    # Cluster all content with the article
                     if summary.facts:
-                        all_facts.extend(summary.facts)
+                        article_data['facts'] = summary.facts
                     if summary.opinions:
-                        all_opinions.extend(summary.opinions)
+                        article_data['opinions'] = summary.opinions
                     if summary.impact:
-                        all_impacts.extend(summary.impact)
+                        article_data['impacts'] = summary.impact
+                    
+                    clustered_articles.append(article_data)
             except Exception as e:
                 self.logger.warning(f"Error processing summary for article {article.id}: {e}")
                 continue
         
-        if not article_summaries:
+        if not clustered_articles:
             self.logger.warning(f"No article summaries available for comprehensive topic '{topic.name}'")
             return DigestFallbacks.get_fallback_topic_summary_response(topic.name)
         
-        # Deduplicate content for prompt
-        unique_facts = list(dict.fromkeys(all_facts))[:40]  # Increased for 20 articles
-        unique_opinions = list(dict.fromkeys(all_opinions))[:30]  # Increased for 20 articles
-        unique_impacts = list(dict.fromkeys(all_impacts))[:25]  # Increased for 20 articles
+        # Limit articles for large datasets to prevent AI overload
+        if len(clustered_articles) > 20:
+            self.logger.warning(f"Large dataset detected ({len(clustered_articles)} articles), limiting to 20 most recent")
+            # Sort by published date and take most recent 20
+            clustered_articles = sorted(
+                clustered_articles, 
+                key=lambda a: a.get('published', '2000-01-01'), 
+                reverse=True
+            )[:20]
         
-        # Create AI prompt using centralized template
-        prompt = DigestPrompts.comprehensive_topic_summary_prompt(
-            topic.name, article_summaries, unique_facts, unique_opinions, unique_impacts
-        )
-        
-        try:
-            response = self.ai_service.call_llm(
-                operation='digest_comprehensive_topic',
-                prompt=prompt,
-                max_tokens=1200,
-                temperature=0.2  # More factual, focused
-            )
-            
-            # Track costs
-            cost = response.usage.get('total_cost', 0)
-            tokens_in = response.usage.get('prompt_tokens', 0)
-            tokens_out = response.usage.get('completion_tokens', 0)
-            
-            self._update_costs(cost, tokens_in, tokens_out)
-            
-            # Parse structured response using centralized validator
-            validator = get_digest_validator('digest_comprehensive_topic')
-            if validator:
-                validation_result = validator(response.content)
-                if validation_result.get('success'):
-                    parsed_content = validation_result['data']
+        # Retry mechanism for AI generation with validation
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                # Create AI prompt using clustered article data
+                prompt = DigestPrompts.comprehensive_topic_summary_prompt(
+                    topic.name, clustered_articles
+                )
+                
+                response = self.ai_service.call_llm(
+                    operation='digest_comprehensive_topic',
+                    prompt=prompt,
+                    max_tokens=1200,
+                    temperature=0.2  # More factual, focused
+                )
+                
+                # Track costs
+                cost = response.usage.get('total_cost', 0)
+                tokens_in = response.usage.get('prompt_tokens', 0)
+                tokens_out = response.usage.get('completion_tokens', 0)
+                
+                self._update_costs(cost, tokens_in, tokens_out)
+                
+                # Parse structured response using centralized validator
+                validator = get_digest_validator('digest_comprehensive_topic')
+                if validator:
+                    validation_result = validator(response.content)
+                    if validation_result.get('success'):
+                        parsed_content = validation_result['data']
+                        
+                        self.logger.info(
+                            f"Generated comprehensive topic summary for '{topic.name}' (attempt {attempt + 1}): "
+                            f"topic_abstract={len(parsed_content.get('topic_abstract', '').split())}w, "
+                            f"{len(parsed_content.get('stories', []))} stories"
+                        )
+                        
+                        return {
+                            **parsed_content,
+                            'cost': Decimal(str(cost)),
+                            'tokens_input': tokens_in,
+                            'tokens_output': tokens_out,
+                            'model_used': response.model or 'gpt-4.1-mini',
+                            'attempt': attempt + 1
+                        }
+                    else:
+                        # Log validation failure and retry if attempts remaining
+                        validation_error = validation_result.get('error', 'Unknown validation error')
+                        self.logger.warning(
+                            f"Validation failed for comprehensive topic '{topic.name}' (attempt {attempt + 1}): {validation_error}"
+                        )
+                        
+                        if attempt < max_retries:
+                            self.logger.info(f"Retrying topic '{topic.name}' generation (attempt {attempt + 2})")
+                            continue
+                        else:
+                            # Final attempt failed, use fallback parsing
+                            self.logger.error(f"All attempts failed for topic '{topic.name}', using fallback parsing")
+                            parsed_content = self._parse_comprehensive_fallback(response.content, topic.name)
+                            
+                            return {
+                                **parsed_content,
+                                'cost': Decimal(str(cost)),
+                                'tokens_input': tokens_in,
+                                'tokens_output': tokens_out,
+                                'model_used': response.model or 'gpt-4.1-mini',
+                                'attempt': attempt + 1,
+                                'validation_failed': True,
+                                'validation_error': validation_error
+                            }
                 else:
-                    # Fallback to simple parsing
-                    self.logger.warning(f"Validation failed for comprehensive topic '{topic.name}': {validation_result.get('error')}")
+                    # No validator available, use fallback parsing
                     parsed_content = self._parse_comprehensive_fallback(response.content, topic.name)
-            else:
-                parsed_content = self._parse_comprehensive_fallback(response.content, topic.name)
-            
-            self.logger.info(
-                f"Generated comprehensive topic summary for '{topic.name}': "
-                f"topic_abstract={len(parsed_content.get('topic_abstract', '').split())}w, "
-                f"{len(parsed_content.get('stories', []))} stories"
-            )
-            
-            return {
-                **parsed_content,
-                'cost': Decimal(str(cost)),
-                'tokens_input': tokens_in,
-                'tokens_output': tokens_out,
-                'model_used': response.model or 'gpt-4.1-mini'
-            }
-            
-        except Exception as e:
-            self.logger.error(f"Failed to generate comprehensive topic summary for '{topic.name}': {e}")
-            return self._get_fallback_comprehensive_summary(topic.name, unique_facts, unique_opinions, articles, str(e))
+                    
+                    return {
+                        **parsed_content,
+                        'cost': Decimal(str(cost)),
+                        'tokens_input': tokens_in,
+                        'tokens_output': tokens_out,
+                        'model_used': response.model or 'gpt-4.1-mini',
+                        'attempt': attempt + 1
+                    }
+                    
+            except Exception as e:
+                self.logger.error(f"Failed to generate comprehensive topic summary for '{topic.name}' (attempt {attempt + 1}): {e}")
+                
+                if attempt < max_retries:
+                    self.logger.info(f"Retrying topic '{topic.name}' generation due to error (attempt {attempt + 2})")
+                    continue
+                else:
+                    # All attempts failed, use comprehensive fallback
+                    fallback_facts = []
+                    fallback_opinions = []
+                    for article in clustered_articles:
+                        if article.get('facts'):
+                            fallback_facts.extend(article['facts'])
+                        if article.get('opinions'):
+                            fallback_opinions.extend(article['opinions'])
+                    
+                    return self._get_fallback_comprehensive_summary(
+                        topic.name, fallback_facts, fallback_opinions, articles, str(e)
+                    )
     
-    def generate_digest_conclusion(self, topic_summaries: List[Dict]) -> Dict[str, Any]:
+    def generate_digest_conclusion(
+        self, 
+        topic_summaries: List[Dict],
+        introduction: str = None,
+        topic_abstracts: List[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Generate brief digest conclusion summarizing main topics.
         
         Creates a concise wrap-up that recaps the main topic summaries
-        for daily digest readers.
+        for daily digest readers, using introduction and topic abstracts
+        for richer context and better tone continuity.
         
         Args:
             topic_summaries: List of topic summary data
+            introduction: The digest introduction for tone consistency
+            topic_abstracts: Full topic abstracts for deeper context
             
         Returns:
             Dict with conclusion content and processing metadata
         """
         self.logger.info(f"Generating digest conclusion for {len(topic_summaries)} topics")
         
-        # Create structured prompt using centralized template
-        prompt = DigestPrompts.digest_conclusion_prompt(topic_summaries)
+        # Create structured prompt using centralized template with enhanced context
+        prompt = DigestPrompts.digest_conclusion_prompt(
+            topic_summaries, 
+            introduction, 
+            topic_abstracts
+        )
         
         try:
             response = self.ai_service.call_llm(
