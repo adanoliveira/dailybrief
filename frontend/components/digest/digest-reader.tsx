@@ -9,6 +9,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { 
   ChevronDown, 
   ChevronUp, 
+  ChevronLeft,
+  ChevronRight,
   Clock, 
   Newspaper,
   ExternalLink,
@@ -39,12 +41,38 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
   // Smart defaults: Auto-expand first story of first topic
   const shouldAutoExpand = topicIndex === 0 && storyIndex === 0
   const [isExpanded, setIsExpanded] = useState(shouldAutoExpand)
-  const [imageError, setImageError] = useState(false)
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  // Get first article with image for cover
-  const coverArticle = story.articles?.find(article => article.imageUrl && !imageError)
-  const hasImage = coverArticle?.imageUrl && !imageError
-  const imageCount = story.articles?.length || 0
+  // Get articles with images (excluding failed ones) - limit to 3 for slider
+  const articlesWithImages = (story.articles?.filter(article => 
+    article.imageUrl && !failedImages.has(article.imageUrl)
+  ) || []).slice(0, 3)
+  
+  // Get first available image for cover
+  const coverArticle = articlesWithImages[currentImageIndex]
+  const hasImage = !!coverArticle?.imageUrl
+  const imageCount = articlesWithImages.length
+  const hasMultipleImages = imageCount > 1
+
+  const handleImageError = (imageUrl: string) => {
+    console.log('Image failed to load:', imageUrl)
+    setFailedImages(prev => new Set([...prev, imageUrl]))
+    // If current image failed and there are others, move to next
+    if (currentImageIndex < articlesWithImages.length - 1) {
+      setCurrentImageIndex(prev => prev + 1)
+    } else if (currentImageIndex > 0) {
+      setCurrentImageIndex(0)
+    }
+  }
+
+  const goToPrevImage = () => {
+    setCurrentImageIndex(prev => prev === 0 ? imageCount - 1 : prev - 1)
+  }
+
+  const goToNextImage = () => {
+    setCurrentImageIndex(prev => prev === imageCount - 1 ? 0 : prev + 1)
+  }
 
   return (
     <Card className={cn(
@@ -54,24 +82,64 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
       "max-w-none md:max-w-xl lg:max-w-2xl mx-auto" // Reduced desktop max-width
     )}>
       {/* Image section - always on top for both mobile and desktop */}
-      {hasImage && (
-        <div className="w-full h-48 md:h-64 lg:h-72 relative overflow-hidden">
-          <div 
-            className="w-full h-full bg-cover bg-center" 
-            style={{ 
-              backgroundImage: `url(${coverArticle.imageUrl})`, 
-              backgroundPosition: 'center',
-              backgroundSize: 'cover'
+      {hasImage && coverArticle?.imageUrl && (
+        <div className="w-full h-48 md:h-64 lg:h-72 relative overflow-hidden bg-muted/10">
+          <img
+            src={coverArticle.imageUrl}
+            alt={story.title}
+            className="w-full h-full object-cover"
+            onError={() => {
+              if (coverArticle.imageUrl) {
+                handleImageError(coverArticle.imageUrl)
+              }
             }}
-            role="img"
-            aria-label={story.title}
-            onError={() => setImageError(true)}
+            onLoad={() => console.log('Image loaded successfully:', coverArticle.imageUrl)}
           />
-          {/* Image count badge */}
+          
+          {/* Navigation arrows - only show if multiple images */}
+          {hasMultipleImages && (
+            <>
+              <button
+                onClick={goToPrevImage}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </button>
+              <button
+                onClick={goToNextImage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center transition-colors backdrop-blur-sm"
+                aria-label="Next image"
+              >
+                <ChevronRight className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </button>
+            </>
+          )}
+          
+          {/* Image indicators - show current position */}
+          {hasMultipleImages && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {articlesWithImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentImageIndex(index)}
+                  className={cn(
+                    "w-2 h-2 rounded-full transition-colors",
+                    index === currentImageIndex 
+                      ? "bg-white" 
+                      : "bg-white/50 hover:bg-white/70"
+                  )}
+                  aria-label={`Go to image ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+          
+          {/* Image count badge - updated to show current/total */}
           {imageCount > 1 && (
             <div className="absolute top-3 right-3 md:top-4 md:right-4">
               <Badge className="h-5 px-2 md:h-6 md:px-3 text-xs md:text-sm bg-black/70 text-white border-none backdrop-blur-sm">
-                +{imageCount - 1} more
+                {currentImageIndex + 1} of {imageCount}
               </Badge>
             </div>
           )}

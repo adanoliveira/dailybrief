@@ -360,17 +360,10 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             })
         
         topics_data.append({
-            'id': digest_topic.id,
-            'topic': {
-                'id': digest_topic.topic.id,
-                'name': digest_topic.topic.name,
-                'slug': digest_topic.topic.slug,
-            },
+            'id': str(digest_topic.id),
+            'title': digest_topic.topic.name,  # Use topic.name as title
             'abstract': digest_topic.topic_abstract,
-            'main_facts': digest_topic.main_facts,
-            'perspectives': digest_topic.perspectives,
-            'event_count': digest_topic.event_count,
-            'topic_score': 0,  # Field doesn't exist in model, using default
+            'score': 0,  # Field doesn't exist in model, using default
             'stories': stories_data
         })
     
