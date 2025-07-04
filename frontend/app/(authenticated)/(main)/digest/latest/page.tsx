@@ -11,7 +11,7 @@ import { digestService, type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
   return (
-    <div className="container py-6 max-w-3xl">
+    <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
           <Skeleton className="h-9 w-24" />
@@ -53,7 +53,7 @@ function DigestPageSkeleton() {
 
 function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
-    <div className="container py-6 max-w-3xl">
+    <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
           <Link href="/home">
@@ -88,7 +88,7 @@ function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => voi
 
 function NoDigestPage() {
   return (
-    <div className="container py-6 max-w-3xl">
+    <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-4">
           <Link href="/home">
@@ -167,8 +167,8 @@ export default function LatestDigest() {
   }
 
   return (
-    <div className="container py-6 max-w-3xl">
-      <div className="space-y-6">
+    <div>
+      <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto pt-6">
         <div className="flex items-center gap-2 mb-4">
           <Link href="/home">
             <Button variant="ghost" size="sm" className="gap-1">
@@ -177,9 +177,11 @@ export default function LatestDigest() {
             </Button>
           </Link>
         </div>
+      </div>
 
-        <DigestReader digest={digest} />
+      <DigestReader digest={digest} />
 
+      <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto pb-6">
         <div className="flex justify-between pt-4">
           <Link href="/digest/archive">
             <Button variant="outline">View past digests</Button>

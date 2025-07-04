@@ -39,147 +39,125 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
   // Smart defaults: Auto-expand first story of first topic
   const shouldAutoExpand = topicIndex === 0 && storyIndex === 0
   const [isExpanded, setIsExpanded] = useState(shouldAutoExpand)
+  const [imageError, setImageError] = useState(false)
 
-  // Simulate image extraction from sources (placeholder for now)
-  const hasImages = story.articles && story.articles.length > 0
-  const imageCount = Math.min(story.articles?.length || 0, 3) // Max 3 images
+  // Get first article with image for cover
+  const coverArticle = story.articles?.find(article => article.imageUrl && !imageError)
+  const hasImage = coverArticle?.imageUrl && !imageError
+  const imageCount = story.articles?.length || 0
 
   return (
     <Card className={cn(
-      "border border-muted/30 bg-card/50 backdrop-blur-sm",
+      "border border-muted/30 bg-card/50 backdrop-blur-sm overflow-hidden",
       "transition-all duration-200 ease-in-out",
-      "hover:border-muted/50 hover:shadow-sm"
+      "hover:border-muted/50 hover:shadow-sm",
+      "max-w-none md:max-w-xl lg:max-w-2xl mx-auto" // Reduced desktop max-width
     )}>
-      <CardHeader className="pb-3">
-        {/* Story header with image placeholder */}
-        <div className="flex gap-4">
-          <div className="flex-1 space-y-2">
-            <h4 className="text-lg md:text-xl font-semibold tracking-tight leading-tight text-foreground line-clamp-2">
-              {story.title}
-            </h4>
-            
-            {/* Story metadata */}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                {story.articles?.length || 0} sources
+      {/* Image section - always on top for both mobile and desktop */}
+      {hasImage && (
+        <div className="w-full h-48 md:h-64 lg:h-72 relative overflow-hidden">
+          <div 
+            className="w-full h-full bg-cover bg-center" 
+            style={{ 
+              backgroundImage: `url(${coverArticle.imageUrl})`, 
+              backgroundPosition: 'center',
+              backgroundSize: 'cover'
+            }}
+            role="img"
+            aria-label={story.title}
+            onError={() => setImageError(true)}
+          />
+          {/* Image count badge */}
+          {imageCount > 1 && (
+            <div className="absolute top-3 right-3 md:top-4 md:right-4">
+              <Badge className="h-5 px-2 md:h-6 md:px-3 text-xs md:text-sm bg-black/70 text-white border-none backdrop-blur-sm">
+                +{imageCount - 1} more
               </Badge>
-              {story.event_score && story.event_score > 0 && (
-                <Badge variant="outline" className="text-xs px-2 py-0.5">
-                  Score: {story.event_score.toFixed(1)}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Image placeholder */}
-          {hasImages && (
-            <div className="flex-shrink-0 w-20 h-16 bg-muted/30 rounded-md border border-muted/40 flex items-center justify-center">
-              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-              {imageCount > 1 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
-                  {imageCount}
-                </Badge>
-              )}
             </div>
           )}
         </div>
-      </CardHeader>
+      )}
 
-      <CardContent className="pt-0 space-y-4">
-        {/* Story abstract - always visible */}
-        <div className="prose prose-sm max-w-none dark:prose-invert">
-          <p className="text-muted-foreground leading-relaxed m-0 line-clamp-3">
-            {story.abstract}
-          </p>
-        </div>
+      {/* Content section - always full width below image */}
+      <div className="w-full">
+        <CardHeader className="pb-3 px-4 pt-4 md:px-6 md:pt-6 lg:px-8">
+          <div className="space-y-2 md:space-y-3">
+            <h4 className="text-base md:text-lg lg:text-xl font-semibold tracking-tight leading-tight text-foreground">
+              {story.title}
+            </h4>
+            
+            {/* Story abstract - always visible */}
+            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert">
+              <p className="text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed m-0">
+                {story.abstract}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
 
         {/* Expandable content */}
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-          <div className="space-y-3">
-            {/* Key Facts preview (first 2) */}
-            {story.key_facts && story.key_facts.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-sm font-medium text-foreground">Key Facts</span>
-                </div>
-                <div className="space-y-1.5 pl-5">
-                  {story.key_facts.slice(0, isExpanded ? undefined : 2).map((fact, index) => (
-                    <div key={index} className="flex items-start gap-2 text-sm">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                      <span className="text-muted-foreground leading-relaxed">{fact}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Perspectives preview (first 1) */}
-            {story.perspectives && story.perspectives.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-foreground">Perspectives</span>
-                </div>
-                <div className="pl-5">
-                  {story.perspectives.slice(0, isExpanded ? undefined : 1).map((perspective, index) => (
-                    <blockquote key={index} className="text-sm text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
-                      "{perspective}"
-                    </blockquote>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Expanded content */}
-            <CollapsibleContent className="space-y-3">
-              {/* Additional Key Facts */}
-              {story.key_facts && story.key_facts.length > 2 && (
-                <div className="pl-5 space-y-1.5">
-                  {story.key_facts.slice(2).map((fact, index) => (
-                    <div key={index + 2} className="flex items-start gap-2 text-sm">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                      <span className="text-muted-foreground leading-relaxed">{fact}</span>
-                    </div>
-                  ))}
+          <CardContent className="pt-0 px-4 pb-4 md:px-6 md:pb-6 lg:px-8">
+            <CollapsibleContent className="space-y-3 md:space-y-4">
+              {/* Key Facts */}
+              {story.key_facts && story.key_facts.length > 0 && (
+                <div className="space-y-2 md:space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
+                    <span className="text-sm md:text-base font-medium text-foreground">Key Facts</span>
+                  </div>
+                  <div className="space-y-1.5 md:space-y-2 pl-4 md:pl-5 lg:pl-6">
+                    {story.key_facts.map((fact, index) => (
+                      <div key={index} className="flex items-start gap-2 md:gap-3 text-sm md:text-base">
+                        <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-primary mt-1.5 md:mt-2 shrink-0" />
+                        <span className="text-muted-foreground leading-relaxed">{fact}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Additional Perspectives */}
-              {story.perspectives && story.perspectives.length > 1 && (
-                <div className="pl-5 space-y-2">
-                  {story.perspectives.slice(1).map((perspective, index) => (
-                    <blockquote key={index + 1} className="text-sm text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
-                      "{perspective}"
-                    </blockquote>
-                  ))}
+              {/* Perspectives */}
+              {story.perspectives && story.perspectives.length > 0 && (
+                <div className="space-y-2 md:space-y-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm md:text-base font-medium text-foreground">Perspectives</span>
+                  </div>
+                  <div className="pl-4 md:pl-5 lg:pl-6 space-y-1.5 md:space-y-2">
+                    {story.perspectives.map((perspective, index) => (
+                      <blockquote key={index} className="text-sm md:text-base text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
+                        "{perspective}"
+                      </blockquote>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Sources section - Perplexity style */}
               {story.articles && story.articles.length > 0 && (
-                <div className="space-y-3 pt-2 border-t border-muted/30">
+                <div className="space-y-2 md:space-y-3 pt-2 border-t border-muted/30">
                   <div className="flex items-center gap-2">
-                    <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">Sources</span>
+                    <BookOpen className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground" />
+                    <span className="text-sm md:text-base font-medium text-foreground">Sources</span>
                   </div>
-                  <div className="grid gap-2 pl-5">
+                  <div className="grid gap-2 pl-4 md:pl-5 lg:pl-6">
                     {story.articles.map((article, index) => (
-                      <div key={article.id} className="flex items-start gap-3 p-2 rounded-md bg-muted/20 hover:bg-muted/30 transition-colors">
-                        <Badge variant="outline" className="text-xs w-6 h-6 p-0 flex items-center justify-center shrink-0 mt-0.5">
+                      <div key={article.id} className="flex items-start gap-2 md:gap-3 p-2 md:p-3 rounded-md bg-muted/20 hover:bg-muted/30 transition-colors">
+                        <Badge variant="outline" className="text-xs w-5 h-5 md:w-6 md:h-6 p-0 flex items-center justify-center shrink-0 mt-0.5">
                           {index + 1}
                         </Badge>
                         <div className="flex-1 min-w-0">
                           <Link href={article.url} target="_blank" rel="noopener noreferrer" className="group">
-                            <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                            <p className="text-sm md:text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
                               {article.title}
                             </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {article.publication} • {new Date(article.published_at).toLocaleDateString()}
+                            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                              {article.publication} • {article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date'}
                             </p>
                           </Link>
                         </div>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
+                        <ExternalLink className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground shrink-0 mt-1" />
                       </div>
                     ))}
                   </div>
@@ -188,30 +166,32 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
             </CollapsibleContent>
 
             {/* Expand/Collapse button */}
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                className={cn(
-                  "w-full h-8 text-sm font-medium",
-                  "transition-all duration-200 ease-in-out",
-                  "hover:bg-muted/50 border border-muted/30 hover:border-muted/50",
-                  "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
-                )}
-              >
-                <span>{isExpanded ? 'View less' : 'View more'}</span>
-                <div className="transition-transform duration-200 ease-in-out ml-2">
-                  {isExpanded ? (
-                    <ChevronUp className="h-3 w-3" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
+            <div className="pt-2 md:pt-3">
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className={cn(
+                    "w-full h-8 md:h-9 text-sm md:text-base font-medium",
+                    "transition-all duration-200 ease-in-out",
+                    "hover:bg-muted/50 border border-muted/30 hover:border-muted/50",
+                    "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
                   )}
-                </div>
-              </Button>
-            </CollapsibleTrigger>
-          </div>
+                >
+                  <span>{isExpanded ? 'View less' : 'View more'}</span>
+                  <div className="transition-transform duration-200 ease-in-out ml-2">
+                    {isExpanded ? (
+                      <ChevronUp className="h-3 w-3 md:h-4 md:w-4" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 md:h-4 md:w-4" />
+                    )}
+                  </div>
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </CardContent>
         </Collapsible>
-      </CardContent>
+      </div>
     </Card>
   )
 }
@@ -314,9 +294,6 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
                   <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
                     {topic.title}
                   </h2>
-                  <Badge variant="secondary" className="text-sm px-3 py-1">
-                    {topic.stories.length} {topic.stories.length === 1 ? 'story' : 'stories'}
-                  </Badge>
                 </div>
                 <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg">
                   <p className="text-muted-foreground leading-relaxed m-0">

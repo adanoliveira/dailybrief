@@ -339,6 +339,7 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
                     'id': str(article.public_id),
                     'title': article.title,
                     'url': article.url,
+                    'imageUrl': article.image_url,  # Add image URL for frontend display
                     'publication': article.publication.name if article.publication else None,
                     'published_at': article.published_at.isoformat() if article.published_at else None,
                 })
@@ -359,10 +360,17 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             })
         
         topics_data.append({
-            'id': str(digest_topic.id),
-            'title': digest_topic.topic.name,  # Use topic.name as title
+            'id': digest_topic.id,
+            'topic': {
+                'id': digest_topic.topic.id,
+                'name': digest_topic.topic.name,
+                'slug': digest_topic.topic.slug,
+            },
             'abstract': digest_topic.topic_abstract,
-            'score': 0,  # Field doesn't exist in model, using default
+            'main_facts': digest_topic.main_facts,
+            'perspectives': digest_topic.perspectives,
+            'event_count': digest_topic.event_count,
+            'topic_score': 0,  # Field doesn't exist in model, using default
             'stories': stories_data
         })
     
