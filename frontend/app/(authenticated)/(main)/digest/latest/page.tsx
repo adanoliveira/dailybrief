@@ -97,7 +97,7 @@ function NoDigestPage() {
               Back to feed
             </Button>
           </Link>
-        </div>
+          </div>
 
         <div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
@@ -191,4 +191,4 @@ export default function LatestDigest() {
       </div>
     </div>
   )
-} 
+}

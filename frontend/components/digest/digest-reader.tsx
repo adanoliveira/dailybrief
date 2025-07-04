@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react'
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { 
@@ -14,7 +16,8 @@ import {
   BookOpen,
   Lightbulb,
   MessageSquare,
-  ArrowUp
+  Image as ImageIcon,
+  MoreHorizontal
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -26,151 +29,195 @@ interface DigestReaderProps {
   className?: string
 }
 
-interface DigestStoryProps {
+interface DigestStoryCardProps {
   story: DigestStory
-  isFirst?: boolean
   topicIndex: number
   storyIndex: number
 }
 
-function DigestStory({ story, isFirst = false, topicIndex, storyIndex }: DigestStoryProps) {
-  // Smart defaults: Auto-expand first story of first topic for immediate engagement
+function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps) {
+  // Smart defaults: Auto-expand first story of first topic
   const shouldAutoExpand = topicIndex === 0 && storyIndex === 0
-  const [showKeyFacts, setShowKeyFacts] = useState(shouldAutoExpand)
-  const [showPerspectives, setShowPerspectives] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(shouldAutoExpand)
+
+  // Simulate image extraction from sources (placeholder for now)
+  const hasImages = story.articles && story.articles.length > 0
+  const imageCount = Math.min(story.articles?.length || 0, 3) // Max 3 images
 
   return (
-    <article className={cn(
-      "space-y-4 scroll-mt-20", // scroll-mt for navigation offsets
-      !isFirst && "pt-8 border-t border-muted/30"
+    <Card className={cn(
+      "border border-muted/30 bg-card/50 backdrop-blur-sm",
+      "transition-all duration-200 ease-in-out",
+      "hover:border-muted/50 hover:shadow-sm"
     )}>
-      {/* Story Title and Abstract - Article page typography patterns */}
-      <header className="space-y-3">
-        <h3 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight leading-tight text-foreground">
-          {story.title}
-        </h3>
-        <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl">
-          <p className="text-muted-foreground leading-relaxed m-0">
+      <CardHeader className="pb-3">
+        {/* Story header with image placeholder */}
+        <div className="flex gap-4">
+          <div className="flex-1 space-y-2">
+            <h4 className="text-lg md:text-xl font-semibold tracking-tight leading-tight text-foreground line-clamp-2">
+              {story.title}
+            </h4>
+            
+            {/* Story metadata */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                {story.articles?.length || 0} sources
+              </Badge>
+              {story.event_score && story.event_score > 0 && (
+                <Badge variant="outline" className="text-xs px-2 py-0.5">
+                  Score: {story.event_score.toFixed(1)}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {/* Image placeholder */}
+          {hasImages && (
+            <div className="flex-shrink-0 w-20 h-16 bg-muted/30 rounded-md border border-muted/40 flex items-center justify-center">
+              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+              {imageCount > 1 && (
+                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] flex items-center justify-center">
+                  {imageCount}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0 space-y-4">
+        {/* Story abstract - always visible */}
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <p className="text-muted-foreground leading-relaxed m-0 line-clamp-3">
             {story.abstract}
           </p>
         </div>
-      </header>
 
-      {/* Progressive Disclosure Sections */}
-      <div className="space-y-4">
-        {/* Key Facts - Enhanced interaction patterns */}
-        {story.key_facts && story.key_facts.length > 0 && (
-          <section className="space-y-3">
-            <Collapsible open={showKeyFacts} onOpenChange={setShowKeyFacts}>
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className={cn(
-                    "h-auto p-0 font-medium text-left hover:bg-transparent",
-                    "transition-colors duration-200 ease-in-out",
-                    "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
-                    "group" // For group hover effects
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-sm">
-                    <Lightbulb className={cn(
-                      "h-4 w-4 transition-colors",
-                      showKeyFacts ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                    )} />
-                    <span>Key Facts ({story.key_facts.length})</span>
-                    <div className="transition-transform duration-200 ease-in-out">
-                      {showKeyFacts ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </div>
-                  </div>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in">
-                <div className="mt-3 space-y-3 pl-6 border-l-2 border-primary/20">
-                  {story.key_facts.map((fact, index) => (
-                    <div key={index} className="flex items-start gap-3 text-sm leading-relaxed">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                      <span className="prose prose-sm max-w-none dark:prose-invert">{fact}</span>
+        {/* Expandable content */}
+        <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+          <div className="space-y-3">
+            {/* Key Facts preview (first 2) */}
+            {story.key_facts && story.key_facts.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-sm font-medium text-foreground">Key Facts</span>
+                </div>
+                <div className="space-y-1.5 pl-5">
+                  {story.key_facts.slice(0, isExpanded ? undefined : 2).map((fact, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                      <span className="text-muted-foreground leading-relaxed">{fact}</span>
                     </div>
                   ))}
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </section>
-        )}
+              </div>
+            )}
 
-        {/* Perspectives - Enhanced styling */}
-        {story.perspectives && story.perspectives.length > 0 && (
-          <section className="space-y-3">
-            <Collapsible open={showPerspectives} onOpenChange={setShowPerspectives}>
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className={cn(
-                    "h-auto p-0 font-medium text-left hover:bg-transparent",
-                    "transition-colors duration-200 ease-in-out",
-                    "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
-                    "group"
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-sm">
-                    <MessageSquare className={cn(
-                      "h-4 w-4 transition-colors",
-                      showPerspectives ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground group-hover:text-foreground"
-                    )} />
-                    <span>Perspectives ({story.perspectives.length})</span>
-                    <div className="transition-transform duration-200 ease-in-out">
-                      {showPerspectives ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </div>
-                  </div>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in">
-                <div className="mt-3 space-y-3 pl-6 border-l-2 border-blue-200 dark:border-blue-800">
-                  {story.perspectives.map((perspective, index) => (
-                    <blockquote key={index} className="text-sm leading-relaxed italic text-muted-foreground border-none p-0 m-0">
+            {/* Perspectives preview (first 1) */}
+            {story.perspectives && story.perspectives.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-foreground">Perspectives</span>
+                </div>
+                <div className="pl-5">
+                  {story.perspectives.slice(0, isExpanded ? undefined : 1).map((perspective, index) => (
+                    <blockquote key={index} className="text-sm text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
                       "{perspective}"
                     </blockquote>
                   ))}
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </section>
-        )}
-      </div>
-
-      {/* Source Articles - Thumb-friendly placement */}
-      {story.articles && story.articles.length > 0 && (
-        <footer className="pt-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className={cn(
-              "h-9 px-3 text-sm font-medium",
-              "transition-all duration-200 ease-in-out",
-              "hover:bg-muted/50 hover:border-primary/40",
-              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+              </div>
             )}
-          >
-            <BookOpen className="h-3 w-3 mr-2" />
-            Read Sources ({story.articles.length})
-            <ExternalLink className="h-3 w-3 ml-2" />
-          </Button>
-        </footer>
-      )}
-    </article>
+
+            {/* Expanded content */}
+            <CollapsibleContent className="space-y-3">
+              {/* Additional Key Facts */}
+              {story.key_facts && story.key_facts.length > 2 && (
+                <div className="pl-5 space-y-1.5">
+                  {story.key_facts.slice(2).map((fact, index) => (
+                    <div key={index + 2} className="flex items-start gap-2 text-sm">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                      <span className="text-muted-foreground leading-relaxed">{fact}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Additional Perspectives */}
+              {story.perspectives && story.perspectives.length > 1 && (
+                <div className="pl-5 space-y-2">
+                  {story.perspectives.slice(1).map((perspective, index) => (
+                    <blockquote key={index + 1} className="text-sm text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
+                      "{perspective}"
+                    </blockquote>
+                  ))}
+                </div>
+              )}
+
+              {/* Sources section - Perplexity style */}
+              {story.articles && story.articles.length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-muted/30">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">Sources</span>
+                  </div>
+                  <div className="grid gap-2 pl-5">
+                    {story.articles.map((article, index) => (
+                      <div key={article.id} className="flex items-start gap-3 p-2 rounded-md bg-muted/20 hover:bg-muted/30 transition-colors">
+                        <Badge variant="outline" className="text-xs w-6 h-6 p-0 flex items-center justify-center shrink-0 mt-0.5">
+                          {index + 1}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <Link href={article.url} target="_blank" rel="noopener noreferrer" className="group">
+                            <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                              {article.title}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {article.publication} • {new Date(article.published_at).toLocaleDateString()}
+                            </p>
+                          </Link>
+                        </div>
+                        <ExternalLink className="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CollapsibleContent>
+
+            {/* Expand/Collapse button */}
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className={cn(
+                  "w-full h-8 text-sm font-medium",
+                  "transition-all duration-200 ease-in-out",
+                  "hover:bg-muted/50 border border-muted/30 hover:border-muted/50",
+                  "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+                )}
+              >
+                <span>{isExpanded ? 'View less' : 'View more'}</span>
+                <div className="transition-transform duration-200 ease-in-out ml-2">
+                  {isExpanded ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </div>
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+        </Collapsible>
+      </CardContent>
+    </Card>
   )
 }
 
 export function DigestReader({ digest, className }: DigestReaderProps) {
-  // Reading time calculation - matches article page approach
+  // Reading time calculation
   const readingTime = React.useMemo(() => {
     const wordsPerMinute = 200
     let totalWords = digest.introduction.split(' ').length
@@ -187,7 +234,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
   }, [digest])
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       {/* Header - Exact article page pattern */}
       <div className={cn(
         "container px-4 md:px-6 lg:px-8",
@@ -195,7 +242,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         "pt-6 md:pt-8"
       )}>
         <div className="space-y-4">
-          {/* Metadata breadcrumb - Article page pattern */}
+          {/* Metadata breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Newspaper className="h-4 w-4" />
             <span>Daily Brief</span>
@@ -213,13 +260,13 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
             </div>
           </div>
           
-          {/* Title - Exact article page typography */}
+          {/* Title */}
           <header>
             <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
               {digest.title}
             </h1>
             
-            {/* Introduction - Article page prose styling */}
+            {/* Introduction */}
             <div className="mt-4 md:mt-6">
               <div className="prose prose-gray max-w-none dark:prose-invert prose-lg md:prose-xl lg:prose-2xl">
                 <p className="text-muted-foreground leading-relaxed m-0">
@@ -229,7 +276,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
             </div>
           </header>
 
-          {/* Actions - Thumb-zone optimized */}
+          {/* Actions */}
           <div className="flex items-center gap-3 pt-2">
             <Button 
               variant="ghost" 
@@ -247,39 +294,43 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         </div>
       </div>
 
-      {/* Content - Article page container pattern */}
+      {/* Content */}
       <div className={cn(
         "container px-4 md:px-6 lg:px-8 mt-8 pb-20 md:pb-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
       )}>
-        <div className="space-y-12">
+        <div className="space-y-16">
           {digest.topics.map((topic, topicIndex) => (
             <section 
               key={topic.id} 
               className={cn(
                 "space-y-6",
-                topicIndex > 0 && "pt-12 border-t-2 border-muted/50"
+                topicIndex > 0 && "pt-16 border-t-2 border-muted/50"
               )}
             >
-              {/* Topic Header - Progressive hierarchy */}
-              <header className="space-y-4">
-                <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
-                  {topic.title}
-                </h2>
-                <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg lg:prose-xl">
+              {/* Topic Header - Clear hierarchy */}
+              <header className="space-y-4 pb-2">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
+                    {topic.title}
+                  </h2>
+                  <Badge variant="secondary" className="text-sm px-3 py-1">
+                    {topic.stories.length} {topic.stories.length === 1 ? 'story' : 'stories'}
+                  </Badge>
+                </div>
+                <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg">
                   <p className="text-muted-foreground leading-relaxed m-0">
                     {topic.abstract}
                   </p>
                 </div>
               </header>
 
-              {/* Topic Stories - Continuous reading flow */}
-              <div className="space-y-1">
+              {/* Topic Stories - Card grid */}
+              <div className="space-y-4 pl-0 md:pl-4">
                 {topic.stories.map((story, storyIndex) => (
-                  <DigestStory 
+                  <DigestStoryCard 
                     key={story.id} 
                     story={story}
-                    isFirst={storyIndex === 0}
                     topicIndex={topicIndex}
                     storyIndex={storyIndex}
                   />
@@ -290,7 +341,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         </div>
       </div>
 
-      {/* Back to Top - Article page pattern */}
+      {/* Back to Top */}
       <BackToTop showAfter={300} />
     </div>
   )

@@ -74,16 +74,16 @@ function GeneratingDigest() {
 }
 
 function NoDigestAvailable({ onGenerate, message }: { onGenerate: () => void; message?: string }) {
-  return (
+    return (
     <Card className="bg-muted/30 border-muted">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
           <Newspaper className="h-5 w-5 text-muted-foreground" />
-          Your Daily Brief
-        </CardTitle>
+            Your Daily Brief
+          </CardTitle>
         <CardDescription>No digest available yet</CardDescription>
-      </CardHeader>
-      <CardContent>
+        </CardHeader>
+        <CardContent>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {message || "Get a personalized summary of yesterday's most important stories based on your interests."}
@@ -91,9 +91,9 @@ function NoDigestAvailable({ onGenerate, message }: { onGenerate: () => void; me
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Users className="h-3 w-3" />
             <span>Follow topics in your profile to enable daily briefs</span>
+            </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
       <CardFooter className="flex justify-between">
         <Button onClick={onGenerate} variant="default" size="sm">
           <Sparkles className="h-4 w-4 mr-2" />
@@ -105,9 +105,9 @@ function NoDigestAvailable({ onGenerate, message }: { onGenerate: () => void; me
           </Button>
         </Link>
       </CardFooter>
-    </Card>
-  )
-}
+      </Card>
+    )
+  }
 
 function DigestError({ error, onRetry }: { error: string; onRetry: () => void }) {
   // Provide more specific error handling and helpful messaging
