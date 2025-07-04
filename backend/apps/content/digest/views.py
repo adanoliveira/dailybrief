@@ -339,9 +339,9 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
                     'id': str(article.public_id),
                     'title': article.title,
                     'url': article.url,
-                    'imageUrl': article.image_url,  # Add image URL for frontend display
+                    'imageUrl': article.image_url,  # Add image URL
                     'publication': article.publication.name if article.publication else None,
-                    'published_at': article.published_at.isoformat() if article.published_at else None,
+                    'publicationLogoUrl': article.publication.logo_url if article.publication else None,                    'published_at': article.published_at.isoformat() if article.published_at else None,
                 })
             
             stories_data.append({

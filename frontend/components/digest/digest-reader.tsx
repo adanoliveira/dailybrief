@@ -24,6 +24,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BackToTop } from "@/components/ui/back-to-top"
+import { SourceCarousel } from "@/components/digest/source-carousel"
 import type { Digest, DigestTopic, DigestStory } from "@/lib/digest-service"
 
 interface DigestReaderProps {
@@ -171,7 +172,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
               {story.key_facts && story.key_facts.length > 0 && (
                 <div className="space-y-2 md:space-y-3">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-base md:text-lg font-bold text-foreground">Key Facts</h5>
+                    <h5 className="text-base md:text-lg font-bold text-foreground">Main Takeaways</h5>
                   </div>
                   <div className="space-y-1.5 md:space-y-2 pl-4 md:pl-5 lg:pl-6">
                     {story.key_facts.map((fact, index) => (
@@ -188,7 +189,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
               {story.perspectives && story.perspectives.length > 0 && (
                 <div className="space-y-2 md:space-y-3">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-base md:text-lg font-bold text-foreground">Perspectives</h5>
+                    <h5 className="text-base md:text-lg font-bold text-foreground">Key Perspectives</h5>
                   </div>
                   <div className="pl-4 md:pl-5 lg:pl-6 space-y-1.5 md:space-y-2">
                     {story.perspectives.map((perspective, index) => (
@@ -200,32 +201,10 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
                 </div>
               )}
 
-              {/* Sources section - Perplexity style */}
+              {/* Sources section - Perplexity style carousel */}
               {story.articles && story.articles.length > 0 && (
                 <div className="space-y-2 md:space-y-3 pt-2 border-t border-muted/30">
-                  <div className="flex items-center gap-2">
-                    <h5 className="text-base md:text-lg font-bold text-foreground">Sources</h5>
-                  </div>
-                  <div className="grid gap-2 pl-4 md:pl-5 lg:pl-6">
-                    {story.articles.map((article, index) => (
-                      <div key={article.id} className="flex items-start gap-2 md:gap-3 p-2 md:p-3 rounded-md bg-muted/20 hover:bg-muted/30 transition-colors">
-                        <Badge variant="outline" className="text-xs w-5 h-5 md:w-6 md:h-6 p-0 flex items-center justify-center shrink-0 mt-0.5">
-                          {index + 1}
-                        </Badge>
-                        <div className="flex-1 min-w-0">
-                          <Link href={article.url} target="_blank" rel="noopener noreferrer" className="group">
-                            <p className="text-sm md:text-base font-medium text-muted-foreground group-hover:text-primary transition-colors line-clamp-1">
-                              {article.title}
-                            </p>
-                            <p className="text-xs md:text-sm text-muted-foreground/70 mt-0.5">
-                              {article.publication} • {article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date'}
-                            </p>
-                          </Link>
-                        </div>
-                        <ExternalLink className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground shrink-0 mt-1" />
-                      </div>
-                    ))}
-                  </div>
+                  <SourceCarousel articles={story.articles} />
                 </div>
               )}
             </CollapsibleContent>
@@ -243,7 +222,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
                     "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
                   )}
                 >
-                  <span>{isExpanded ? 'View less' : 'View more'}</span>
+                  <span>{isExpanded ? 'View less' : 'Read more'}</span>
                   <div className="transition-transform duration-200 ease-in-out ml-2">
                     {isExpanded ? (
                       <ChevronUp className="h-3 w-3 md:h-4 md:w-4" />
