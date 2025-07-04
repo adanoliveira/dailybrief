@@ -4,19 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, AlertCircle, RefreshCw } from "lucide-react"
+import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
+import { DigestActionBar } from "@/components/digest/digest-action-bar"
 import { digestService, type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
   return (
     <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Skeleton className="h-9 w-24" />
-        </div>
-
         <div className="space-y-4">
           <div className="space-y-2">
             <Skeleton className="h-4 w-48" />
@@ -51,24 +48,20 @@ function DigestPageSkeleton() {
   )
 }
 
-function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => void }) {
+function DigestErrorPage({ error, onRetry, date }: { error: string; onRetry: () => void; date: string }) {
   return (
     <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              Back to feed
-            </Button>
-          </Link>
-        </div>
-
         <div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
-            Daily Brief
+            Daily Brief - {new Date(date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
           </h1>
-          <p className="text-muted-foreground">Failed to load your daily digest</p>
+          <p className="text-muted-foreground">Failed to load digest</p>
         </div>
 
         <Alert variant="destructive">
@@ -86,36 +79,32 @@ function DigestErrorPage({ error, onRetry }: { error: string; onRetry: () => voi
   )
 }
 
-function NoDigestPage() {
+function NoDigestPage({ date }: { date: string }) {
   return (
     <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto py-6">
       <div className="space-y-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              Back to feed
-            </Button>
-          </Link>
-          </div>
-
         <div>
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl mb-3">
-            Daily Brief
+            Daily Brief - {new Date(date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            })}
           </h1>
-          <p className="text-muted-foreground">No digest available yet</p>
+          <p className="text-muted-foreground">No digest available for this date</p>
         </div>
 
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            No daily brief has been generated yet. Follow some topics in your profile to start receiving personalized daily briefs.
+            No daily brief was generated for this date. This might be because you weren't following any topics yet, or there wasn't enough content to generate a digest.
           </AlertDescription>
         </Alert>
 
         <div className="flex gap-3">
-          <Link href="/profile">
-            <Button>Follow Topics</Button>
+          <Link href="/digest/latest">
+            <Button>View Latest Digest</Button>
           </Link>
           <Link href="/digest/archive">
             <Button variant="outline">View Archive</Button>
@@ -126,71 +115,54 @@ function NoDigestPage() {
   )
 }
 
-export default function LatestDigest() {
+export default function DigestByDate({ params }: { params: { date: string } }) {
   const [digest, setDigest] = useState<Digest | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadLatestDigest = async () => {
+  const loadDigest = async () => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await digestService.getLatestDigest()
+      const response = await digestService.getDigestByDate(params.date)
       setDigest(response.digest)
     } catch (err) {
-      console.error('Failed to load latest digest:', err)
-      setError('Failed to load your daily brief. Please try again.')
+      console.error('Failed to load digest:', err)
+      setError('Failed to load digest for this date. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   const handleRetry = () => {
-    loadLatestDigest()
+    loadDigest()
   }
 
   useEffect(() => {
-    loadLatestDigest()
-  }, [])
+    loadDigest()
+  }, [params.date])
 
   if (loading) {
     return <DigestPageSkeleton />
   }
 
   if (error) {
-    return <DigestErrorPage error={error} onRetry={handleRetry} />
+    return <DigestErrorPage error={error} onRetry={handleRetry} date={params.date} />
   }
 
   if (!digest) {
-    return <NoDigestPage />
+    return <NoDigestPage date={params.date} />
   }
 
   return (
-    <div>
-      <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto pt-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Link href="/home">
-            <Button variant="ghost" size="sm" className="gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              Back to feed
-            </Button>
-          </Link>
-        </div>
-      </div>
-
+    <div className="min-h-screen">
       <DigestReader digest={digest} />
 
-      <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto pb-6">
-        <div className="flex justify-between pt-4">
-          <Link href="/digest/archive">
-            <Button variant="outline">View past digests</Button>
-          </Link>
-          <Link href="/home">
-            <Button variant="default">Back to feed</Button>
-          </Link>
-        </div>
+      {/* Digest Action Bar - Only show on mobile */}
+      <div className="md:hidden">
+        <DigestActionBar digest={digest} />
       </div>
     </div>
   )
-}
+} 

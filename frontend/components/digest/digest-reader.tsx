@@ -150,13 +150,13 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
       <div className="w-full">
         <CardHeader className="pb-3 px-4 pt-4 md:px-6 md:pt-6 lg:px-8">
           <div className="space-y-2 md:space-y-3">
-            <h4 className="text-base md:text-lg lg:text-xl font-semibold tracking-tight leading-tight text-foreground">
+            <h4 className="text-lg md:text-xl lg:text-2xl xl:text-3xl font-black tracking-tight leading-tight text-foreground">
               {story.title}
             </h4>
             
             {/* Story abstract - always visible */}
-            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert">
-              <p className="text-sm md:text-base lg:text-lg text-muted-foreground leading-relaxed m-0">
+            <div className="max-w-none">
+              <p className="text-lg md:text-xl lg:text-xl text-foreground leading-relaxed m-0 article-content-font">
                 {story.abstract}
               </p>
             </div>
@@ -171,14 +171,13 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
               {story.key_facts && story.key_facts.length > 0 && (
                 <div className="space-y-2 md:space-y-3">
                   <div className="flex items-center gap-2">
-                    <Lightbulb className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
-                    <span className="text-sm md:text-base font-medium text-foreground">Key Facts</span>
+                    <h5 className="text-base md:text-lg font-bold text-foreground">Key Facts</h5>
                   </div>
                   <div className="space-y-1.5 md:space-y-2 pl-4 md:pl-5 lg:pl-6">
                     {story.key_facts.map((fact, index) => (
-                      <div key={index} className="flex items-start gap-2 md:gap-3 text-sm md:text-base">
+                      <div key={index} className="flex items-start gap-2 md:gap-3 text-lg md:text-xl lg:text-xl">
                         <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-primary mt-1.5 md:mt-2 shrink-0" />
-                        <span className="text-muted-foreground leading-relaxed">{fact}</span>
+                        <span className="text-foreground leading-relaxed article-content-font">{fact}</span>
                       </div>
                     ))}
                   </div>
@@ -189,12 +188,11 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
               {story.perspectives && story.perspectives.length > 0 && (
                 <div className="space-y-2 md:space-y-3">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm md:text-base font-medium text-foreground">Perspectives</span>
+                    <h5 className="text-base md:text-lg font-bold text-foreground">Perspectives</h5>
                   </div>
                   <div className="pl-4 md:pl-5 lg:pl-6 space-y-1.5 md:space-y-2">
                     {story.perspectives.map((perspective, index) => (
-                      <blockquote key={index} className="text-sm md:text-base text-muted-foreground italic border-none p-0 m-0 leading-relaxed">
+                      <blockquote key={index} className="text-lg md:text-xl lg:text-xl text-foreground italic border-none p-0 m-0 leading-relaxed article-content-font">
                         "{perspective}"
                       </blockquote>
                     ))}
@@ -206,8 +204,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
               {story.articles && story.articles.length > 0 && (
                 <div className="space-y-2 md:space-y-3 pt-2 border-t border-muted/30">
                   <div className="flex items-center gap-2">
-                    <BookOpen className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground" />
-                    <span className="text-sm md:text-base font-medium text-foreground">Sources</span>
+                    <h5 className="text-base md:text-lg font-bold text-foreground">Sources</h5>
                   </div>
                   <div className="grid gap-2 pl-4 md:pl-5 lg:pl-6">
                     {story.articles.map((article, index) => (
@@ -217,10 +214,10 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
                         </Badge>
                         <div className="flex-1 min-w-0">
                           <Link href={article.url} target="_blank" rel="noopener noreferrer" className="group">
-                            <p className="text-sm md:text-base font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                            <p className="text-sm md:text-base font-medium text-muted-foreground group-hover:text-primary transition-colors line-clamp-1">
                               {article.title}
                             </p>
-                            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                            <p className="text-xs md:text-sm text-muted-foreground/70 mt-0.5">
                               {article.publication} • {article.published_at ? new Date(article.published_at).toLocaleDateString() : 'Unknown date'}
                             </p>
                           </Link>
@@ -316,8 +313,8 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
             
             {/* Introduction */}
             <div className="mt-4 md:mt-6">
-              <div className="prose prose-gray max-w-none dark:prose-invert prose-lg md:prose-xl lg:prose-2xl">
-                <p className="text-muted-foreground leading-relaxed m-0">
+              <div className="max-w-none">
+                <p className="text-lg md:text-xl lg:text-xl text-muted-foreground leading-relaxed m-0 article-content-font">
                   {digest.introduction}
                 </p>
               </div>
@@ -347,24 +344,24 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         "container px-4 md:px-6 lg:px-8 mt-8 pb-20 md:pb-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
       )}>
-        <div className="space-y-16">
+        <div className="space-y-10">
           {digest.topics.map((topic, topicIndex) => (
             <section 
               key={topic.id} 
               className={cn(
                 "space-y-6",
-                topicIndex > 0 && "pt-16 border-t-2 border-muted/50"
+                topicIndex > 0 && "pt-8"
               )}
             >
               {/* Topic Header - Clear hierarchy */}
               <header className="space-y-4 pb-2">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
+                  <h2 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight text-foreground">
                     {topic.title}
                   </h2>
                 </div>
-                <div className="prose prose-gray max-w-none dark:prose-invert prose-base md:prose-lg">
-                  <p className="text-muted-foreground leading-relaxed m-0">
+                <div className="max-w-none">
+                  <p className="text-lg md:text-xl lg:text-xl text-foreground leading-relaxed m-0 article-content-font">
                     {topic.abstract}
                   </p>
                 </div>
