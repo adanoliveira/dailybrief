@@ -314,17 +314,29 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
                 </div>
               </header>
 
-              {/* Topic Stories - Card grid */}
-              <div className="space-y-4 pl-0 md:pl-4">
-                {topic.stories.map((story, storyIndex) => (
-                  <DigestStoryCard 
-                    key={story.id} 
-                    story={story}
-                    topicIndex={topicIndex}
-                    storyIndex={storyIndex}
-                  />
-                ))}
-              </div>
+              {/* Top Stories Section */}
+              {topic.stories && topic.stories.length > 0 && (
+                <div className="space-y-4">
+                  {/* Top Stories Heading */}
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-black tracking-tight text-foreground">
+                      Top Stories
+                    </h3>
+                  </div>
+                  
+                  {/* Story Cards */}
+                  <div className="space-y-4 pl-0 md:pl-4">
+                    {topic.stories.map((story, storyIndex) => (
+                      <DigestStoryCard 
+                        key={story.id} 
+                        story={story}
+                        topicIndex={topicIndex}
+                        storyIndex={storyIndex}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           ))}
         </div>
