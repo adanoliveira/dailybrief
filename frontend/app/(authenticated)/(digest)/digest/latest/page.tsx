@@ -148,11 +148,7 @@ export default function LatestDigest() {
   return (
     <div className="min-h-screen">
       <DigestReader digest={digest} />
-
-      {/* Digest Action Bar - Only show on mobile */}
-      <div className="md:hidden">
-        <DigestActionBar digest={digest} />
-      </div>
+      <DigestActionBar digest={digest} />
     </div>
   )
 }

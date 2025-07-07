@@ -25,6 +25,8 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BackToTop } from "@/components/ui/back-to-top"
 import { SourceCarousel } from "@/components/digest/source-carousel"
+import { DigestHeader } from "@/components/digest/digest-header"
+import { DigestActionBar } from "@/components/digest/digest-action-bar"
 import type { Digest, DigestTopic, DigestStory } from "@/lib/digest-service"
 
 interface DigestReaderProps {
@@ -215,7 +217,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  className={cn(
+     className={cn(
                     "w-full h-8 md:h-9 text-sm md:text-base font-medium",
                     "transition-all duration-200 ease-in-out",
                     "hover:bg-muted/50 border border-muted/30 hover:border-muted/50",
@@ -259,61 +261,27 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - Exact article page pattern */}
+      {/* Header container */}
       <div className={cn(
         "container px-4 md:px-6 lg:px-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto",
         "pt-6 md:pt-8"
       )}>
-        <div className="space-y-4">
-          {/* Metadata breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Newspaper className="h-4 w-4" />
-            <span>Daily Brief</span>
-            <span>•</span>
-            <time>{new Date(digest.date).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric', 
-              month: 'long',
-              day: 'numeric'
-            })}</time>
-            <span>•</span>
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>{readingTime} min read</span>
-            </div>
-          </div>
+        
+        {/* 1. Digest Action Bar (first block) */}
+        <DigestActionBar digest={digest} />
+        
+        {/* 2. Digest Header (second block) */}
+        <div className={cn(
+          "mt-6 space-y-4"
+        )}>
+          <DigestHeader digest={digest} />
           
-          {/* Title */}
-          <header>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black tracking-tight leading-tight text-foreground">
-              {digest.title}
-            </h1>
-            
-            {/* Introduction */}
-            <div className="mt-4 md:mt-6">
-              <div className="max-w-none">
-                <p className="text-lg md:text-xl lg:text-xl text-muted-foreground leading-relaxed m-0 article-content-font">
-                  {digest.introduction}
-                </p>
-              </div>
-            </div>
-          </header>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              className={cn(
-                "transition-colors duration-200 ease-in-out",
-                "hover:bg-muted/50",
-                "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
-              )}
-            >
-              <Share className="h-4 w-4 mr-2" />
-              Share
-            </Button>
+          {/* Introduction - below header */}
+          <div className="max-w-none">
+            <p className="text-lg md:text-xl lg:text-xl text-muted-foreground leading-relaxed m-0 article-content-font">
+              {digest.introduction}
+            </p>
           </div>
         </div>
       </div>

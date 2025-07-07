@@ -142,9 +142,96 @@ export function DigestActionBar({ digest }: DigestActionBarProps) {
 
   return (
     <>
-      {/* Fixed bottom action bar - mobile first */}
+      {/* Desktop action bar - horizontal layout, hidden on mobile */}
+      <div className="hidden md:flex items-center justify-between">
+        {/* Back Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(backNav.path)}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground h-10 px-3"
+        >
+          <ArrowLeft className="size-5" />
+          <span className="text-sm font-medium">{backNav.label}</span>
+        </Button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLike}
+            className={cn(
+              "h-10 w-10 rounded-full transition-colors",
+              liked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+            title="Like Digest"
+          >
+            <ThumbsUp className={cn("h-5 w-5", liked && "fill-current")} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDislike}
+            className={cn(
+              "h-10 w-10 rounded-full transition-colors",
+              disliked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+            title="Dislike Digest"
+          >
+            <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleArchive}
+            className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+            title="View Archive"
+          >
+            <Archive className="h-5 w-5" />
+          </Button>
+          
+          <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleShare}
+                className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                title="Share Digest"
+              >
+                <Share className="h-5 w-5" />
+              </Button>
+            </DialogTrigger>
+            
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Share Daily Brief</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Share this daily brief with others
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={copyToClipboard}
+                  >
+                    Copy Link
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Mobile action bar - fixed bottom, hidden on desktop */}
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border",
+        "md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border",
         // Add shadow for better separation, especially in dark mode
         "shadow-lg dark:shadow-white/10 dark:shadow-2xl"
       )}>
