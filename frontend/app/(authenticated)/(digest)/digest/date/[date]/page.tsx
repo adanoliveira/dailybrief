@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
-import { DigestActionBar } from "@/components/digest/digest-action-bar"
 import { digestService, type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
@@ -158,7 +157,6 @@ export default function DigestByDate({ params }: { params: { date: string } }) {
   return (
     <div className="min-h-screen">
       <DigestReader digest={digest} />
-      <DigestActionBar digest={digest} />
     </div>
   )
 } 
