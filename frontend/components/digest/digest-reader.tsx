@@ -328,6 +328,17 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
             </section>
           ))}
         </div>
+
+        {/* Conclusion Section */}
+        {digest.conclusion && (
+          <section className="mt-16 space-y-4">
+            <div className="max-w-none">
+              <p className="text-lg md:text-xl lg:text-xl text-foreground leading-relaxed m-0 article-content-font">
+                {digest.conclusion}
+              </p>
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Back to Top */}

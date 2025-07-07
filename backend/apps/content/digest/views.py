@@ -372,8 +372,8 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
         'title': digest.title,
         'date': digest.date.isoformat(),
         'introduction': digest.introduction,
+        'conclusion': digest.conclusion,
         'topics': topics_data,
-        'generation_status': digest.generation_status,
         'created_at': digest.created_at.isoformat(),
         'updated_at': digest.updated_at.isoformat(),
         'metrics': {
