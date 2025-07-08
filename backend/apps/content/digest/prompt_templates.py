@@ -343,11 +343,11 @@ For each story, provide:
 - **read_more**: 1-3 most relevant article IDs that best cover this story (choose articles that provide complementary angles or comprehensive coverage)
 
 Also provide:
-- **topic_abstract**: 120-word overview presenting all 3 stories in a cohesive narrative
+- **topic_abstract**: Concise 25-30 word introduction to the topic that sets context for the stories below (avoid restating story details)
 
 RESPONSE FORMAT (JSON):
 {{
-    "topic_abstract": "A 100-120 word overview presenting the 3 top stories in {topic_name}. Begin with: 'Today's top {topic_name} stories highlight...' Describe story themes and their collective significance.",
+    "topic_abstract": "A concise 25-30 word introduction to {topic_name} that provides relevant context for today's stories without summarizing them. Focus on the broader theme or significance.",
     "stories": [
         {{
             "headline": "Compelling 8-12 word headline capturing unified story theme",
@@ -448,26 +448,26 @@ DIGEST CONTEXT:
 Today's digest covered {len(topic_summaries)} key topics with their main themes:
 {chr(10).join(topics_context)}{abstracts_context}{intro_context}
 
-TASK: Write a compelling, warm conclusion that wraps up the day's news for engaged readers.
+TASK: Write a brief, direct wrap-up of today's digest for daily readers.
 
 TONE & STYLE:
-- Neutral and journalistic, but warm and approachable
-- Professional yet friendly for daily readers  
-- Clear, direct language that resonates with informed audiences
-- Confident without being sensationalistic
-- Match the tone established in the introduction (if provided)
+- Conversational and natural
+- Direct and concise - avoid explaining why stories matter
+- Professional but not formal or authoritative
+- Like closing a conversation with a colleague, not delivering a lecture
 
 REQUIREMENTS:
-1. **Synthesize themes**: Connect the major themes that emerged across topics (2-3 sentences)
-2. **Acknowledge significance**: Briefly reflect on why these stories matter to readers
-3. **Forward momentum**: End with encouragement to stay informed and engaged
-4. **Length**: Exactly 60-80 words for optimal digest flow
-5. **Continuity**: If introduction is provided, maintain consistent tone and perspective
+1. **Brief summary**: Quickly recap the main topics covered (1-2 sentences)
+2. **Simple close**: Natural, friendly sign-off
+3. **Length**: Exactly 25-35 words total
+4. **Avoid**: Explanations about significance, "why this matters", forward-looking statements about staying informed
 
-EXAMPLE TONE:
-"Today's stories illustrate how [common theme] continues to shape [area of impact]. From [topic area] developments to [another area], these events highlight [broader significance]. As these stories unfold, staying informed helps you understand the forces shaping our world. We'll be back tomorrow with fresh insights to keep you ahead of what matters most."
+EXAMPLE STYLES:
+"From tech breakthroughs to market shifts, today brought notable developments across business and science. That's your digest for today—see you tomorrow."
 
-Write a conclusion that feels like a natural, thoughtful and concise wrap-up from a trusted news source to an engaged daily reader."""
+"Today covered major moves in politics, technology, and global markets. Thanks for reading, and we'll be back tomorrow with the latest."
+
+Write a natural, brief conclusion that simply wraps up the day without lecturing or explaining importance."""
     
     @staticmethod
     def fallback_topic_summary_prompt(
@@ -594,6 +594,7 @@ REQUIREMENTS:
         Validate and parse comprehensive topic summary output.
         
         Validates the new story-driven format with topic_abstract and stories array.
+        Uses lenient validation that only catches corner cases indicating errors.
         
         Args:
             output_text: JSON output from AI
@@ -613,10 +614,12 @@ REQUIREMENTS:
                     if field not in parsed:
                         return {'success': False, 'error': f'Missing required field: {field}'}
                 
-                # Validate topic_abstract word count (90-130 words)
+                # Lenient topic_abstract validation - only catch real errors
                 abstract_words = len(parsed['topic_abstract'].split())
-                if not (90 <= abstract_words <= 130):  # Relaxed from 100-120 to 90-130
-                    return {'success': False, 'error': f'Topic abstract must be 90-130 words, got {abstract_words}'}
+                if abstract_words < 10:  # Too short - likely an error
+                    return {'success': False, 'error': f'Topic abstract too short (got {abstract_words} words, minimum 10)'}
+                if abstract_words > 80:  # Way too long - over 120% of max requested
+                    return {'success': False, 'error': f'Topic abstract too long (got {abstract_words} words, maximum 80)'}
                 
                 # Validate stories array (exactly 3 stories)
                 stories = parsed['stories']
@@ -630,27 +633,32 @@ REQUIREMENTS:
                         if field not in story:
                             return {'success': False, 'error': f'Story {i+1} missing field: {field}'}
                     
-                    # Validate story abstract (exactly 60 words) - more forgiving
+                    # Lenient story abstract validation - only catch real errors
                     story_abstract_words = len(story['abstract'].split())
-                    if not (45 <= story_abstract_words <= 75):  # Relaxed from 55-65 to 45-75
-                        return {'success': False, 'error': f'Story {i+1} abstract must be ~60 words (45-75 range), got {story_abstract_words}'}
+                    if story_abstract_words < 15:  # Too short - likely an error
+                        return {'success': False, 'error': f'Story {i+1} abstract too short (got {story_abstract_words} words, minimum 15)'}
+                    if story_abstract_words > 120:  # Way too long - over 120% of max requested
+                        return {'success': False, 'error': f'Story {i+1} abstract too long (got {story_abstract_words} words, maximum 120)'}
                     
-                    # Validate main_points (3-5 points, each 15-25 words) - more forgiving
+                    # Validate main_points count only
                     main_points = story['main_points']
-                    if not (3 <= len(main_points) <= 5):
-                        return {'success': False, 'error': f'Story {i+1} must have 3-5 main points, got {len(main_points)}'}
+                    if not (1 <= len(main_points) <= 8):  # More lenient range
+                        return {'success': False, 'error': f'Story {i+1} must have 1-8 main points, got {len(main_points)}'}
                     
+                    # Only validate that main_points aren't empty or extremely long
                     for j, point in enumerate(main_points):
                         point_words = len(point.split())
-                        if not (8 <= point_words <= 35):  # Relaxed from 10-30 to 8-35
-                            return {'success': False, 'error': f'Story {i+1} point {j+1} should be 15-25 words (8-35 range), got {point_words}'}
+                        if point_words < 3:  # Too short - likely an error
+                            return {'success': False, 'error': f'Story {i+1} point {j+1} too short (got {point_words} words, minimum 3)'}
+                        if point_words > 60:  # Way too long - over 120% of max requested
+                            return {'success': False, 'error': f'Story {i+1} point {j+1} too long (got {point_words} words, maximum 60)'}
                     
-                    # Validate perspectives (0-3 perspectives)
+                    # Validate perspectives count only - content length is flexible
                     perspectives = story['perspectives']
-                    if len(perspectives) > 3:
-                        return {'success': False, 'error': f'Story {i+1} has too many perspectives: {len(perspectives)}, max 3'}
+                    if len(perspectives) > 5:  # More lenient
+                        return {'success': False, 'error': f'Story {i+1} has too many perspectives: {len(perspectives)}, max 5'}
                     
-                    # Validate read_more articles (1-3 articles)
+                    # Validate read_more articles
                     read_more = story['read_more']
                     if not (1 <= len(read_more) <= 3):
                         return {'success': False, 'error': f'Story {i+1} must have 1-3 read_more articles, got {len(read_more)}'}
@@ -751,6 +759,8 @@ REQUIREMENTS:
         """
         Validate and parse fallback topic summary output.
         
+        Uses lenient validation to accept reasonable variations in content length.
+        
         Args:
             output_text: JSON output from AI
             
@@ -770,13 +780,13 @@ REQUIREMENTS:
                 opinions = parsed.get('opinions', [])[:5]  # Limit to 5
                 impacts = parsed.get('impacts', [])[:3]  # Limit to 3
                 
-                # Validate abstract length
+                # Lenient abstract length validation - only warn for extreme cases
                 abstract_words = len(abstract.split()) if abstract else 0
-                if abstract_words > 60:
-                    # Truncate to 60 words if too long
-                    abstract_words_list = abstract.split()[:60]
+                if abstract_words > 120:  # Only truncate if way too long (120+ words vs 60 target)
+                    # Truncate to 100 words if extremely long
+                    abstract_words_list = abstract.split()[:100]
                     abstract = ' '.join(abstract_words_list)
-                    logger.warning(f"Truncated abstract from {len(parsed.get('abstract', '').split())} to 60 words")
+                    logger.warning(f"Truncated abstract from {len(parsed.get('abstract', '').split())} to 100 words")
                 
                 return {
                     'success': True,

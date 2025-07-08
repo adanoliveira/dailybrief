@@ -113,9 +113,9 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
       const minDate = new Date(digest.article_date_range.min_published_at)
       const maxDate = new Date(digest.article_date_range.max_published_at)
       
-      // Normalize dates to start of day for accurate comparison
-      const minDay = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())
-      const maxDay = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate())
+      // Normalize dates to start of day using UTC to avoid timezone issues
+      const minDay = new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), minDate.getUTCDate()))
+      const maxDay = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth(), maxDate.getUTCDate()))
       
       // Calculate difference in days
       const diffDays = Math.floor((maxDay.getTime() - minDay.getTime()) / (1000 * 60 * 60 * 24))
@@ -123,8 +123,11 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
       if (diffDays === 0) {
         // All articles from the same day
         const today = new Date()
-        const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
         const diffFromToday = Math.floor((todayNormalized.getTime() - minDay.getTime()) / (1000 * 60 * 60 * 24))
+        
+        // Debug: Log the key decision point
+        console.log(`[DEBUG] Articles all from same day (${minDate.toDateString()}), ${diffFromToday} days ago`)
         
         if (diffFromToday === 0) {
           return 'Today'
@@ -136,9 +139,9 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
           return minDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
         }
       } else {
-        // Articles span multiple days
+        // Articles span multiple days - use actual date span, not search window
         const today = new Date()
-        const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
         const daysSinceMax = Math.floor((todayNormalized.getTime() - maxDay.getTime()) / (1000 * 60 * 60 * 24))
         
         // For very recent multi-day ranges
@@ -186,8 +189,8 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
       // Final fallback to digest date
       const date = new Date(digest.date)
       const today = new Date()
-      const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-      const dateNormalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+      const dateNormalized = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
       const diffFromToday = Math.floor((todayNormalized.getTime() - dateNormalized.getTime()) / (1000 * 60 * 60 * 24))
       
       if (diffFromToday === 0) return 'Today'
@@ -198,31 +201,45 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
     const earliest = publishedDates[0]
     const latest = publishedDates[publishedDates.length - 1]
     
-    // Normalize dates to start of day for accurate comparison
-    const earliestDay = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate())
-    const latestDay = new Date(latest.getFullYear(), latest.getMonth(), latest.getDate())
+    // Normalize dates to start of day using UTC to avoid timezone issues
+    const earliestDay = new Date(Date.UTC(earliest.getUTCFullYear(), earliest.getUTCMonth(), earliest.getUTCDate()))
+    const latestDay = new Date(Date.UTC(latest.getUTCFullYear(), latest.getUTCMonth(), latest.getUTCDate()))
     
     // Calculate difference in days
     const diffDays = Math.floor((latestDay.getTime() - earliestDay.getTime()) / (1000 * 60 * 60 * 24))
     
+    console.log(`[DEBUG] Fallback: ${publishedDates.length} articles span ${diffDays} days`)
+    
     if (diffDays === 0) {
-      // All articles from the same day
+      // All articles from the same day - use the actual article date, not the digest date
       const today = new Date()
-      const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
       const diffFromToday = Math.floor((todayNormalized.getTime() - earliestDay.getTime()) / (1000 * 60 * 60 * 24))
       
       if (diffFromToday === 0) return 'Today'
       if (diffFromToday === 1) return 'Yesterday'
       return earliest.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     } else if (diffDays === 1) {
-      // Articles span exactly 2 days
+      // Articles span exactly 2 days - be more careful about this calculation
       const today = new Date()
-      const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
       const daysSinceLatest = Math.floor((todayNormalized.getTime() - latestDay.getTime()) / (1000 * 60 * 60 * 24))
+      const daysSinceEarliest = Math.floor((todayNormalized.getTime() - earliestDay.getTime()) / (1000 * 60 * 60 * 24))
       
-      if (daysSinceLatest === 0) {
+      // If latest article is from today and earliest is from yesterday
+      if (daysSinceLatest === 0 && daysSinceEarliest === 1) {
         return 'Today and Yesterday'
-      } else {
+      } 
+      // If latest article is from yesterday and earliest is from day before
+      else if (daysSinceLatest === 1 && daysSinceEarliest === 2) {
+        return 'the past 2 days'
+      }
+      // If both are from yesterday (edge case with timezone/date boundary issues)
+      else if (daysSinceLatest === 1 && daysSinceEarliest === 1) {
+        return 'Yesterday'
+      }
+      // Default to generic "past 2 days"
+      else {
         return 'the past 2 days'
       }
     } else if (diffDays <= 7) {
