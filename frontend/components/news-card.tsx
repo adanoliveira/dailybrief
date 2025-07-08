@@ -73,7 +73,7 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
 
   return (
     <Link href={`/article/${article.id}`} className="block">
-      <Card className={cn("overflow-hidden transition-all cursor-pointer hover:shadow-lg dark:hover:shadow-white/15 dark:hover:shadow-2xl")}>
+      <Card className={cn("overflow-hidden transition-all cursor-pointer hover:shadow-md dark:hover:shadow-white/15 dark:hover:shadow-lg")}>
         <div className="flex flex-col md:flex-row">
           {/* Image section - conditional rendering based on image availability */}
           {hasImage && (

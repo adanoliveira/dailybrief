@@ -71,7 +71,7 @@ function SourceCard({ article, index, variant = 'carousel' }: SourceCardProps) {
     >
       <div className={cn(
         "border border-muted/30 rounded-lg p-2 bg-background hover:bg-muted/20 transition-all duration-200",
-        "hover:border-muted/50 hover:shadow-sm",
+        "hover:border-muted/50 hover:shadow-sm dark:hover:shadow-white/10",
         isCarousel ? "w-36" : "w-full"
       )}>
         {/* Header with favicon, publication name and number */}

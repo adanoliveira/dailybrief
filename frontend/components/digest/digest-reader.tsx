@@ -82,7 +82,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
     <Card className={cn(
       "border border-muted/30 bg-card/50 backdrop-blur-sm overflow-hidden",
       "transition-all duration-200 ease-in-out",
-      "hover:border-muted/50 hover:shadow-sm dark:hover:shadow-white/8",
+      "hover:border-muted/50 hover:shadow-sm dark:hover:shadow-white/10",
       "max-w-none md:max-w-xl lg:max-w-2xl mx-auto" // Reduced desktop max-width
     )}>
       {/* Image section - always on top for both mobile and desktop */}
