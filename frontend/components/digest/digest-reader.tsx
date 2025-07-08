@@ -170,8 +170,34 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
         {/* Expandable content */}
         <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
           <CardContent className="pt-0 px-4 pb-4 md:px-6 md:pb-6 lg:px-8">
+            
+            {/* Collapsed preview of Main Takeaways */}
+            {!isExpanded && story.key_facts && story.key_facts.length > 0 && (
+              <div className="space-y-2 md:space-y-3 mb-3 md:mb-4">
+                <div className="flex items-center gap-2">
+                  <h5 className="text-base md:text-lg font-bold text-foreground">Main Takeaways</h5>
+                </div>
+                <div className="relative">
+                  <div className="space-y-1.5 md:space-y-2 pl-4 md:pl-5 lg:pl-6">
+                    <div className="flex items-start gap-2 md:gap-3 text-lg md:text-xl lg:text-xl">
+                      <div className="h-1.5 w-1.5 md:h-2 md:w-2 rounded-full bg-primary mt-1.5 md:mt-2 shrink-0" />
+                      <span className="text-foreground leading-relaxed article-content-font">
+                        {story.key_facts[0].length > 50 
+                          ? `${story.key_facts[0].substring(0, 50)}...` 
+                          : story.key_facts[0]
+                        }
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Gradient overlay - theme-aware with larger shadow */}
+                  <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+                </div>
+              </div>
+            )}
+
             <CollapsibleContent className="space-y-3 md:space-y-4">
-              {/* Key Facts */}
+              {/* Key Facts - Full version when expanded */}
               {story.key_facts && story.key_facts.length > 0 && (
                 <div className="space-y-2 md:space-y-3">
                   <div className="flex items-center gap-2">
