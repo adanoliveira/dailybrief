@@ -318,21 +318,20 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
         <div className="mb-3 md:mb-4">
           <span className={cn(
             "text-sm md:text-sm font-medium uppercase tracking-wider",
-            "text-muted-foreground/70 font-sans"
+            "text-muted-foreground/70 font-sans flex items-center gap-1"
           )}>
             {digestDate === 'Today' ? 
-              `Daily Digest • Today • ${readingTime} min read` : 
+              <>Daily Digest • Today • <Clock className="h-3 w-3" /> {readingTime} min read</> : 
               digestDate === 'Yesterday' ?
-                `Daily Digest • Yesterday • ${readingTime} min read` :
-                `Daily Digest • ${new Date(digest.date).toLocaleDateString('en-US', {
+                <>Daily Digest • Yesterday • <Clock className="h-3 w-3" /> {readingTime} min read</> :
+                <>Daily Digest • {new Date(digest.date).toLocaleDateString('en-US', {
                   month: 'long',
                   day: 'numeric',
                   year: 'numeric'
-                })} • ${readingTime} min read`
+                })} • <Clock className="h-3 w-3" /> {readingTime} min read</>
             }
           </span>
         </div>
-
 
         {/* Main headline */}
         <h1 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-foreground leading-tight">
