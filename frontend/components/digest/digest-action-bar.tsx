@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowLeft, Share, Archive, ThumbsUp, ThumbsDown } from "lucide-react"
+import { ArrowLeft, Share, ThumbsUp, ThumbsDown } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -136,10 +136,6 @@ export function DigestActionBar({ digest }: DigestActionBarProps) {
     }
   };
 
-  const handleArchive = () => {
-    router.push('/digest/archive');
-  };
-
   return (
     <>
       {/* Desktop action bar - horizontal layout, hidden on mobile */}
@@ -181,16 +177,6 @@ export function DigestActionBar({ digest }: DigestActionBarProps) {
             title="Dislike Digest"
           >
             <ThumbsDown className={cn("h-5 w-5", disliked && "fill-current")} />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleArchive}
-            className="h-10 w-10 rounded-full text-muted-foreground hover:text-foreground transition-colors"
-            title="View Archive"
-          >
-            <Archive className="h-5 w-5" />
           </Button>
           
           <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
@@ -281,17 +267,6 @@ export function DigestActionBar({ digest }: DigestActionBarProps) {
               title="Dislike Digest"
             >
               <ThumbsDown className={cn("size-5", disliked && "fill-current")} />
-            </Button>
-
-            {/* Archive Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleArchive}
-              className="h-12 w-12 rounded-full transition-colors hover:bg-transparent text-muted-foreground hover:text-foreground"
-              title="View Archive"
-            >
-              <Archive className="size-5" />
             </Button>
 
             {/* Share Button */}
