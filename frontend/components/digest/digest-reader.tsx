@@ -82,7 +82,7 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
     <Card className={cn(
       "border border-muted/30 bg-card/50 backdrop-blur-sm overflow-hidden",
       "transition-all duration-200 ease-in-out",
-      "hover:border-muted/50 hover:shadow-sm",
+      "hover:border-muted/50 hover:shadow-sm dark:hover:shadow-white/8",
       "max-w-none md:max-w-xl lg:max-w-2xl mx-auto" // Reduced desktop max-width
     )}>
       {/* Image section - always on top for both mobile and desktop */}
@@ -320,7 +320,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
 
       {/* Content */}
       <div className={cn(
-        "container px-4 md:px-6 lg:px-8 mt-6 pb-20 md:pb-8",
+        "container px-4 md:px-6 lg:px-8 mt-6 pb-20",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
       )}>
         <div className="space-y-10">
