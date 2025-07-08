@@ -260,7 +260,7 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
                     // Remove any default button text color overrides
                     "active:scale-100 active:translate-y-0",
                     activeTopicId === topic.id
-                      ? "bg-primary border-primary shadow-sm focus-visible:ring-primary/20 hover:bg-primary/90 focus:bg-primary active:bg-primary !text-white hover:!text-white focus:!text-white active:!text-white"
+                      ? "bg-primary border-primary shadow-sm focus-visible:ring-primary/20 hover:bg-primary/90 focus:bg-primary active:bg-primary text-primary-foreground hover:text-primary-foreground focus:text-primary-foreground active:text-primary-foreground [&]:text-primary-foreground"
                       : "bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground focus-visible:ring-muted/30 focus:bg-muted/30 focus:text-foreground active:bg-muted/30 active:text-foreground"
                   )}
                 >
