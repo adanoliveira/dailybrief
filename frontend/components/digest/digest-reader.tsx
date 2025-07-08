@@ -27,6 +27,7 @@ import { BackToTop } from "@/components/ui/back-to-top"
 import { SourceCarousel } from "@/components/digest/source-carousel"
 import { DigestHeader } from "@/components/digest/digest-header"
 import { DigestActionBar } from "@/components/digest/digest-action-bar"
+import { TopicNavigation } from "@/components/digest/topic-navigation"
 import type { Digest, DigestTopic, DigestStory } from "@/lib/digest-service"
 
 interface DigestReaderProps {
@@ -286,6 +287,9 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         </div>
       </div>
 
+      {/* Topic Navigation - Sticky carousel */}
+      <TopicNavigation topics={digest.topics} />
+
       {/* Content */}
       <div className={cn(
         "container px-4 md:px-6 lg:px-8 mt-8 pb-20 md:pb-8",
@@ -294,7 +298,8 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         <div className="space-y-10">
           {digest.topics.map((topic, topicIndex) => (
             <section 
-              key={topic.id} 
+              key={topic.id}
+              id={`topic-${topic.id}`}
               className={cn(
                 "space-y-6",
                 topicIndex > 0 && "pt-8"
