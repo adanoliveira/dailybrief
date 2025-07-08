@@ -35,9 +35,9 @@ class DigestPrompts:
     @staticmethod
     def digest_introduction_prompt(topic_summaries: List[Dict], total_events: int) -> str:
         """
-        Generate friendly, personalized digest introduction for daily readers.
+        Generate friendly, personalized digest headline and introduction for daily readers.
         
-        Creates a welcoming introduction with full context from topic abstracts,
+        Creates a compelling headline and welcoming introduction with full context from topic abstracts,
         emphasizing the custom nature of the digest with neutral but friendly tone.
         """
         # Build comprehensive topic context with abstracts
@@ -58,7 +58,7 @@ class DigestPrompts:
         
         topics_preview = "\n".join(topics_context)
         
-        return f"""Write a friendly, personalized introduction for a custom daily news digest.
+        return f"""Generate a compelling headline and friendly introduction for a custom daily news digest.
 
 CONTEXT:
 This digest is personally curated for this individual user based on their interests and preferences. Each user gets their own unique digest with different topics and stories selected specifically for them.
@@ -73,14 +73,27 @@ TONE & STYLE:
 - Direct and personal - speak to "you" as an individual reader
 - Confident but not overwhelming
 
-REQUIREMENTS:
-- Keep it concise (2-3 sentences max)
-- Acknowledge the personalized nature briefly
-- Give a genuine preview of what's inside based on the actual content
-- Make the reader want to dive into the stories
-- Start with a warm greeting appropriate for the time of day
+Generate exactly the following in JSON format:
+{{
+    "headline": "Your compelling headline here",
+    "introduction": "Your introduction text here"
+}}
 
-Write the introduction:"""
+REQUIREMENTS:
+- **headline**: Compelling, engaging headline (45-60 characters max) that captures the day's major themes
+- **introduction**: Concise introduction (2-3 sentences max) that acknowledges personalization and previews content
+- Headline should be newsworthy and intriguing without being clickbait
+- Introduction should start with a warm greeting appropriate for the time of day
+- Both should make the reader want to dive into the stories
+- Ensure JSON is valid and properly formatted
+
+HEADLINE EXAMPLES (for style reference):
+- "Trade Wars Heat Up as Tech Innovation Surges"
+- "Breaking: Markets React to Policy Shifts" 
+- "Science Breakthroughs Shape Tomorrow's World"
+- "Global Events Reshape Business Landscape"
+
+Write the JSON response:"""
     
     @staticmethod
     def topic_summary_prompt(

@@ -16,6 +16,7 @@ class Digest(models.Model):
     date = models.DateField(help_text="Date this digest covers")
     
     # Digest content
+    headline = models.CharField(max_length=100, blank=True, help_text="AI-generated compelling headline for the digest")
     introduction = models.TextField(help_text="AI-generated introduction to the day's stories")
     conclusion = models.TextField(blank=True, help_text="AI-generated conclusion wrapping up the day's stories")
     html_content = models.TextField(help_text="Full HTML content of the digest")

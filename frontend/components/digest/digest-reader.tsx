@@ -300,7 +300,7 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
         
         {/* 2. Digest Header (second block) */}
         <div className={cn(
-          "mt-6 space-y-4"
+          "space-y-4 mt-2 md:mt-6"
         )}>
           <DigestHeader digest={digest} />
           
@@ -314,11 +314,13 @@ export function DigestReader({ digest, className }: DigestReaderProps) {
       </div>
 
       {/* Topic Navigation - Sticky carousel */}
-      <TopicNavigation topics={digest.topics} />
+      <div className="mt-2">
+        <TopicNavigation topics={digest.topics} />
+      </div>
 
       {/* Content */}
       <div className={cn(
-        "container px-4 md:px-6 lg:px-8 mt-8 pb-20 md:pb-8",
+        "container px-4 md:px-6 lg:px-8 mt-6 pb-20 md:pb-8",
         "max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto"
       )}>
         <div className="space-y-10">

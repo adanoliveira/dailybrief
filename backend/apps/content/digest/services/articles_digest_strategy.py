@@ -173,7 +173,7 @@ class ArticlesDigestStrategy(DigestStrategy):
         # Collect DigestTopic objects for introduction context
         digest_topics = DigestTopic.objects.filter(digest=digest).order_by('order')
         
-        introduction = self.ai_generator.generate_digest_introduction(
+        introduction_result = self.ai_generator.generate_digest_introduction(
             digest_data={
                 'digest': digest,
                 'topics_data': selected_topics_data,
@@ -193,20 +193,21 @@ class ArticlesDigestStrategy(DigestStrategy):
         
         conclusion = self.ai_generator.generate_digest_conclusion(
             topic_summaries=topic_summaries_for_conclusion,
-            introduction=introduction['content'],  # Pass introduction for tone continuity
+            introduction=introduction_result['introduction'],  # Pass introduction for tone continuity
             topic_abstracts=topic_abstracts  # Pass full topic abstracts for deeper context
         )
         
         # Update digest metadata
-        digest.introduction = introduction['content']
+        digest.headline = introduction_result['headline']
+        digest.introduction = introduction_result['introduction']
         digest.conclusion = conclusion['content']
         digest.articles_processed = metrics['total_articles_processed']
         digest.events_included = 0  # No events in articles-based approach
         digest.topics_included = metrics['topics_with_content']
-        digest.generation_cost_usd = metrics['total_cost'] + Decimal(str(introduction['cost'])) + Decimal(str(conclusion['cost']))
-        digest.tokens_input = metrics['total_input_tokens'] + introduction['tokens_input'] + conclusion['tokens_input']
-        digest.tokens_output = metrics['total_output_tokens'] + introduction['tokens_output'] + conclusion['tokens_output']
-        digest.ai_model_used = introduction.get('model_used', 'gpt-4.1-mini')
+        digest.generation_cost_usd = metrics['total_cost'] + Decimal(str(introduction_result['cost'])) + Decimal(str(conclusion['cost']))
+        digest.tokens_input = metrics['total_input_tokens'] + introduction_result['tokens_input'] + conclusion['tokens_input']
+        digest.tokens_output = metrics['total_output_tokens'] + introduction_result['tokens_output'] + conclusion['tokens_output']
+        digest.ai_model_used = introduction_result.get('model_used', 'gpt-4.1-mini')
         digest.save()
         
         self.logger.info(

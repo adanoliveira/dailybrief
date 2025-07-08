@@ -329,19 +329,25 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
     
     # Get topics with stories
     topics_data = []
+    all_published_dates = []  # Collect all article published dates
     for digest_topic in digest.digest_topics.all().prefetch_related('stories__recommended_articles'):
         stories_data = []
         for story in digest_topic.stories.all():
             # Serialize recommended articles
             articles_data = []
             for article in story.recommended_articles.all():
+                # Collect published dates for date range calculation
+                if article.published_at:
+                    all_published_dates.append(article.published_at)
+                
                 articles_data.append({
                     'id': str(article.public_id),
                     'title': article.title,
                     'url': article.url,
-                    'imageUrl': article.image_url,  # Add image URL
+                    'imageUrl': article.image_url,  # Add image URL for frontend display
                     'publication': article.publication.name if article.publication else None,
-                    'publicationLogoUrl': article.publication.logo_url if article.publication else None,                    'published_at': article.published_at.isoformat() if article.published_at else None,
+                    'publicationLogoUrl': article.publication.logo_url if article.publication else None,
+                    'published_at': article.published_at.isoformat() if article.published_at else None,
                 })
             
             stories_data.append({
@@ -367,15 +373,29 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             'stories': stories_data
         })
     
+    # Calculate article date range
+    article_date_range = None
+    if all_published_dates:
+        all_published_dates.sort()
+        min_date = all_published_dates[0]
+        max_date = all_published_dates[-1]
+        article_date_range = {
+            'min_published_at': min_date.isoformat(),
+            'max_published_at': max_date.isoformat(),
+        }
+    
     return {
         'id': str(digest.public_id),
         'title': digest.title,
+        'headline': digest.headline,
         'date': digest.date.isoformat(),
         'introduction': digest.introduction,
         'conclusion': digest.conclusion,
         'topics': topics_data,
+        'generation_status': digest.generation_status.upper(),
         'created_at': digest.created_at.isoformat(),
         'updated_at': digest.updated_at.isoformat(),
+        'article_date_range': article_date_range,  # Add the new field
         'metrics': {
             'topics_included': digest.topics_included,
             'events_included': digest.events_included,
@@ -391,6 +411,7 @@ def _serialize_digest_summary(digest: Digest) -> Dict[str, Any]:
     return {
         'id': str(digest.public_id),
         'title': digest.title,
+        'headline': digest.headline,
         'date': digest.date.isoformat(),
         'introduction': digest.introduction[:200] + ('...' if len(digest.introduction) > 200 else ''),
         'generation_status': digest.generation_status,

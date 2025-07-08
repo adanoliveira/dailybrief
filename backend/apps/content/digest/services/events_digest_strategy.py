@@ -268,7 +268,7 @@ class EventsDigestStrategy(DigestStrategy):
                 metrics['total_output_tokens'] += digest_topic.tokens_output
         
         # Step 3: Generate digest introduction
-        introduction = self.ai_generator.generate_digest_introduction(
+        introduction_result = self.ai_generator.generate_digest_introduction(
             digest_data={
                 'digest': digest,
                 'topics_data': selected_topics_data,
@@ -277,14 +277,15 @@ class EventsDigestStrategy(DigestStrategy):
         )
         
         # Update digest metadata
-        digest.introduction = introduction['content']
+        digest.headline = introduction_result['headline']
+        digest.introduction = introduction_result['introduction']
         digest.articles_processed = metrics['total_articles_processed']
         digest.events_included = metrics['total_events_included']
         digest.topics_included = len(selected_topics_data)
-        digest.generation_cost_usd = metrics['total_cost'] + Decimal(str(introduction['cost']))
-        digest.tokens_input = metrics['total_input_tokens'] + introduction['tokens_input']
-        digest.tokens_output = metrics['total_output_tokens'] + introduction['tokens_output']
-        digest.ai_model_used = introduction.get('model_used', 'gpt-4o-mini')
+        digest.generation_cost_usd = metrics['total_cost'] + Decimal(str(introduction_result['cost']))
+        digest.tokens_input = metrics['total_input_tokens'] + introduction_result['tokens_input']
+        digest.tokens_output = metrics['total_output_tokens'] + introduction_result['tokens_output']
+        digest.ai_model_used = introduction_result.get('model_used', 'gpt-4o-mini')
         digest.save()
         
         self.logger.info(

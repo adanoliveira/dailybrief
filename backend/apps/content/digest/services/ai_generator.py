@@ -53,9 +53,9 @@ class DigestAIGenerator:
     
     def generate_digest_introduction(self, digest_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate overall digest introduction summarizing the day's news.
+        Generate overall digest headline and introduction summarizing the day's news.
         
-        Creates a friendly, informative introduction that gives users a preview
+        Creates a compelling headline and friendly, informative introduction that gives users a preview
         of what's in their personalized digest.
         
         Args:
@@ -63,11 +63,12 @@ class DigestAIGenerator:
             
         Returns:
             Dict with:
+            - headline: Generated headline text
             - introduction: Generated introduction text
             - cost: Cost of AI generation
             - tokens_input/output: Token usage
         """
-        self.logger.info("Generating digest introduction")
+        self.logger.info("Generating digest headline and introduction")
         
         # Extract topic summaries for the introduction
         topic_summaries = []
@@ -79,37 +80,32 @@ class DigestAIGenerator:
         topics_data = digest_data.get('topics_data', [])
         strategy = digest_data.get('strategy', 'unknown')
         
-        # Prefer digest_topics if available (for articles-based strategy with abstracts)
-        if digest_topics:
+        # Process topic summaries based on strategy
+        if strategy == 'articles_based_comprehensive':
+            # Handle articles-based strategy with DigestTopic objects
             for digest_topic in digest_topics:
                 topic_summaries.append({
                     'name': digest_topic.topic.name,
                     'topic_abstract': digest_topic.topic_abstract,
-                    'story_count': len(digest_topic.main_facts) if digest_topic.main_facts else 1,
-                    'article_count': digest_topic.article_count
+                    'story_count': digest_topic.stories.count()
                 })
-                total_events += len(digest_topic.main_facts) if digest_topic.main_facts else 1
-                total_articles += digest_topic.article_count
-        
-        # Fallback to original approach for events-based or if no digest_topics
-        elif topics_data:
+                total_articles += digest_topic.stories.count()
+        else:
+            # Handle both old and new data structures
             for topic_data in topics_data:
-                topic = topic_data['topic']
+                topic = topic_data.get('topic')
                 
                 # Handle articles-based strategy
-                if strategy == 'articles_based_comprehensive' or 'articles' in topic_data:
+                if strategy == 'articles_based_comprehensive' and 'articles' in topic_data:
                     articles = topic_data.get('articles', [])
-                    article_count = len(articles)
-                    total_articles += article_count
+                    total_articles += len(articles)
                     
-                    # Create topic preview for articles-based approach
+                    # Create brief topic preview
                     topic_summaries.append({
                         'name': topic.name,
-                        'event_count': 1,  # Represent as 1 comprehensive summary
-                        'article_count': article_count,
-                        'top_events': [f'{article_count} articles covering latest developments in {topic.name}']
+                        'article_count': len(articles),
+                        'articles': [article.headline for article in articles[:2]]  # Top 2 articles
                     })
-                    total_events += 1  # One comprehensive summary per topic
                 
                 # Handle events-based strategy
                 else:
@@ -154,21 +150,71 @@ class DigestAIGenerator:
             
             self._update_costs(cost, tokens_in, tokens_out)
             
-            introduction = response.content.strip()
-            
-            self.logger.info(f"Generated digest introduction ({len(introduction)} chars)")
-            
-            return {
-                'content': introduction,
-                'cost': Decimal(str(cost)),
-                'tokens_input': tokens_in,
-                'tokens_output': tokens_out
-            }
+            # Parse the JSON response
+            try:
+                import json
+                import re
+                
+                # Clean the response content - remove markdown code blocks and extra whitespace
+                content = response.content.strip()
+                
+                # Remove markdown code blocks if present
+                if content.startswith('```'):
+                    # Extract content between ```json and ``` or just between ``` and ```
+                    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+                    if json_match:
+                        content = json_match.group(1).strip()
+                    else:
+                        # Fallback: remove first and last lines if they start with ```
+                        lines = content.split('\n')
+                        if lines[0].startswith('```'):
+                            lines = lines[1:]
+                        if lines and lines[-1].startswith('```'):
+                            lines = lines[:-1]
+                        content = '\n'.join(lines).strip()
+                
+                parsed_response = json.loads(content)
+                headline = parsed_response.get('headline', '').strip()
+                introduction = parsed_response.get('introduction', '').strip()
+                
+                # Validate that we got both parts
+                if not headline or not introduction:
+                    raise ValueError("Missing headline or introduction in response")
+                
+                self.logger.info(f"Generated digest headline ({len(headline)} chars) and introduction ({len(introduction)} chars)")
+                
+                return {
+                    'headline': headline,
+                    'introduction': introduction,
+                    'cost': Decimal(str(cost)),
+                    'tokens_input': tokens_in,
+                    'tokens_output': tokens_out
+                }
+                
+            except (json.JSONDecodeError, ValueError, KeyError) as e:
+                # Fallback: treat entire response as introduction, generate simple headline
+                self.logger.warning(f"Failed to parse structured response, using fallback: {e}")
+                content = response.content.strip()
+                fallback_headline = f"Your Daily Brief for {total_events + total_articles} Stories"
+                
+                return {
+                    'headline': fallback_headline,
+                    'introduction': content,
+                    'cost': Decimal(str(cost)),
+                    'tokens_input': tokens_in,
+                    'tokens_output': tokens_out,
+                    'parsing_error': str(e)
+                }
             
         except Exception as e:
             self.logger.error(f"Failed to generate digest introduction: {e}")
+            # Generate fallback headline and introduction
+            fallback_headline = f"Your Daily Brief - {len(topic_summaries)} Topics"
+            fallback_intro = DigestFallbacks.get_fallback_introduction(topic_summaries, total_events)
+            
             return {
-                'content': DigestFallbacks.get_fallback_introduction(topic_summaries, total_events),
+                'headline': fallback_headline,
+                'introduction': fallback_intro,
                 'cost': Decimal('0.0'),
                 'tokens_input': 0,
                 'tokens_output': 0,
