@@ -17,9 +17,17 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(true)
   
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const desktopScrollContainerRef = useRef<HTMLDivElement>(null)
+  const mobileScrollContainerRef = useRef<HTMLDivElement>(null)
   const navigationRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
+
+  // Get the active scroll container based on screen size
+  const getActiveScrollContainer = () => {
+    // Check if we're on mobile by looking at window width
+    const isMobile = window.innerWidth < 768 // md breakpoint
+    return isMobile ? mobileScrollContainerRef.current : desktopScrollContainerRef.current
+  }
 
   // Smooth scroll to topic section
   const scrollToTopic = (topicId: string) => {
@@ -43,7 +51,7 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
 
   // Handle horizontal scrolling in the carousel
   const scrollCarousel = (direction: 'left' | 'right') => {
-    const container = scrollContainerRef.current
+    const container = getActiveScrollContainer()
     if (!container) return
 
     const scrollAmount = 200 // Adjust based on button width
@@ -59,13 +67,22 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
 
   // Update scroll button states
   const updateScrollButtons = () => {
-    const container = scrollContainerRef.current
-    if (!container) return
+    // For desktop arrows, only check the desktop container
+    const desktopContainer = desktopScrollContainerRef.current
+    if (!desktopContainer) {
+      setCanScrollLeft(false)
+      setCanScrollRight(false)
+      return
+    }
 
-    setCanScrollLeft(container.scrollLeft > 0)
-    setCanScrollRight(
-      container.scrollLeft < (container.scrollWidth - container.clientWidth - 1)
-    )
+    // Check if content extends beyond the left side (scrolled from start)
+    const canScrollToLeft = desktopContainer.scrollLeft > 0
+    
+    // Check if content extends beyond the right side (more content to scroll)
+    const canScrollToRight = desktopContainer.scrollLeft < (desktopContainer.scrollWidth - desktopContainer.clientWidth - 1)
+
+    setCanScrollLeft(canScrollToLeft)
+    setCanScrollRight(canScrollToRight)
   }
 
   // Set up sticky behavior detection
@@ -122,8 +139,8 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
       })
 
       // If we found a good entry, update the active topic
-      if (bestEntry) {
-        const topicId = (bestEntry.target as Element).id.replace('topic-', '')
+      if (bestEntry !== null) {
+        const topicId = (bestEntry.target as HTMLElement).id.replace('topic-', '')
         console.log('Setting active topic:', topicId, 'with ratio:', bestRatio) // Debug log
         setActiveTopicId(topicId)
       } else {
@@ -132,7 +149,7 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
         if (visibleEntries.length > 0) {
           // Sort by how close to the top of the viewport they are
           visibleEntries.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-          const topicId = (visibleEntries[0].target as Element).id.replace('topic-', '')
+          const topicId = (visibleEntries[0].target as HTMLElement).id.replace('topic-', '')
           console.log('Fallback: Setting active topic to closest to top:', topicId)
           setActiveTopicId(topicId)
         }
@@ -168,33 +185,51 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
 
   // Set up scroll event for carousel buttons
   useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
+    const desktopContainer = desktopScrollContainerRef.current
+    if (!desktopContainer) return
 
-    container.addEventListener('scroll', updateScrollButtons, { passive: true })
-    updateScrollButtons() // Initial check
+    // Only listen to desktop container for button state updates
+    desktopContainer.addEventListener('scroll', updateScrollButtons, { passive: true })
+    
+    // Initial check after content loads
+    updateScrollButtons()
+    
+    // Also check when content resizes (topics change)
+    const resizeObserver = new ResizeObserver(() => {
+      updateScrollButtons()
+    })
+    resizeObserver.observe(desktopContainer)
 
     return () => {
-      container.removeEventListener('scroll', updateScrollButtons)
+      desktopContainer.removeEventListener('scroll', updateScrollButtons)
+      resizeObserver.disconnect()
     }
-  }, [])
+  }, [topics]) // Re-run when topics change
 
   // Auto-scroll active topic into view in carousel
   useEffect(() => {
-    const container = scrollContainerRef.current
-    const activeButton = container?.querySelector(`[data-topic-id="${activeTopicId}"]`) as HTMLElement
+    const desktopContainer = desktopScrollContainerRef.current
+    const mobileContainer = mobileScrollContainerRef.current
     
-    if (container && activeButton) {
-      const containerRect = container.getBoundingClientRect()
-      const buttonRect = activeButton.getBoundingClientRect()
+    // Try both containers to find the active button
+    const containers = [desktopContainer, mobileContainer].filter(Boolean)
+    
+    for (const container of containers) {
+      const activeButton = container?.querySelector(`[data-topic-id="${activeTopicId}"]`) as HTMLElement
       
-      // Check if button is out of view
-      if (buttonRect.left < containerRect.left || buttonRect.right > containerRect.right) {
-        const scrollLeft = activeButton.offsetLeft - (container.clientWidth / 2) + (activeButton.clientWidth / 2)
-        container.scrollTo({
-          left: scrollLeft,
-          behavior: 'smooth'
-        })
+      if (container && activeButton) {
+        const containerRect = container.getBoundingClientRect()
+        const buttonRect = activeButton.getBoundingClientRect()
+        
+        // Check if button is out of view
+        if (buttonRect.left < containerRect.left || buttonRect.right > containerRect.right) {
+          const scrollLeft = activeButton.offsetLeft - (container.clientWidth / 2) + (activeButton.clientWidth / 2)
+          container.scrollTo({
+            left: scrollLeft,
+            behavior: 'smooth'
+          })
+        }
+        break // Found the active container, no need to check others
       }
     }
   }, [activeTopicId])
@@ -217,30 +252,83 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
           className
         )}
       >
-        <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto">
-          <div className="relative flex items-center py-3">
-            
-            {/* Left scroll button */}
-            {canScrollLeft && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => scrollCarousel('left')}
-                className="absolute left-0 z-10 h-8 w-8 p-0 bg-background/90 backdrop-blur-sm border border-muted/30 shadow-sm hover:bg-background"
-                aria-label="Scroll left"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-            )}
+        {/* Desktop: Standard container with padding for scroll buttons */}
+        <div className="hidden md:block">
+          <div className="container px-4 md:px-6 lg:px-8 max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-4xl mx-auto">
+            <div className="relative flex items-center py-3">
+              
+              {/* Left scroll button */}
+              {canScrollLeft && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => scrollCarousel('left')}
+                  className="absolute left-0 z-10 h-8 w-8 p-0 bg-background/90 backdrop-blur-sm border border-muted/30 shadow-sm hover:bg-background"
+                  aria-label="Scroll left"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              )}
 
-            {/* Topics carousel */}
+              {/* Topics carousel - Desktop */}
+              <div 
+                ref={desktopScrollContainerRef}
+                className={cn(
+                  "flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth",
+                  "px-10 -mx-10", // Padding for scroll buttons
+                  !canScrollLeft && "pl-0 -ml-0",
+                  !canScrollRight && "pr-0 -mr-0"
+                )}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {topics.map((topic, index) => (
+                  <Button
+                    key={topic.id}
+                    variant="ghost"
+                    size="sm"
+                    data-topic-id={topic.id}
+                    onClick={() => scrollToTopic(topic.id)}
+                    className={cn(
+                      "flex-shrink-0 whitespace-nowrap transition-all duration-200",
+                      "h-8 px-3 text-sm font-medium rounded-full",
+                      "border border-muted/30 hover:border-muted/50",
+                      "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+                      "active:scale-100 active:translate-y-0",
+                      activeTopicId === topic.id
+                        ? "bg-primary border-primary shadow-sm focus-visible:ring-primary/20 hover:bg-primary/90 focus:bg-primary active:bg-primary text-primary-foreground hover:text-primary-foreground focus:text-primary-foreground active:text-primary-foreground [&]:text-primary-foreground"
+                        : "bg-background hover:bg-muted/50 text-muted-foreground hover:text-foreground focus-visible:ring-muted/30 focus:bg-muted/30 focus:text-foreground active:bg-muted/30 active:text-foreground"
+                    )}
+                  >
+                    {topic.title}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Right scroll button */}
+              {canScrollRight && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => scrollCarousel('right')}
+                  className="absolute right-0 z-10 h-8 w-8 p-0 bg-background/90 backdrop-blur-sm border border-muted/30 shadow-sm hover:bg-background"
+                  aria-label="Scroll right"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile: Full-width carousel extending to screen edges */}
+        <div className="block md:hidden">
+          <div className="py-3">
+            {/* Topics carousel - Mobile (full width) */}
             <div 
-              ref={scrollContainerRef}
+              ref={mobileScrollContainerRef}
               className={cn(
                 "flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth",
-                "px-10 -mx-10", // Padding for scroll buttons
-                !canScrollLeft && "pl-0 -ml-0",
-                !canScrollRight && "pr-0 -mr-0"
+                "px-4" // Small padding from screen edges for first/last items
               )}
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
@@ -255,9 +343,7 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
                     "flex-shrink-0 whitespace-nowrap transition-all duration-200",
                     "h-8 px-3 text-sm font-medium rounded-full",
                     "border border-muted/30 hover:border-muted/50",
-                    // Focus styles that don't interfere with active state
                     "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-                    // Remove any default button text color overrides
                     "active:scale-100 active:translate-y-0",
                     activeTopicId === topic.id
                       ? "bg-primary border-primary shadow-sm focus-visible:ring-primary/20 hover:bg-primary/90 focus:bg-primary active:bg-primary text-primary-foreground hover:text-primary-foreground focus:text-primary-foreground active:text-primary-foreground [&]:text-primary-foreground"
@@ -268,19 +354,6 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
                 </Button>
               ))}
             </div>
-
-            {/* Right scroll button */}
-            {canScrollRight && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => scrollCarousel('right')}
-                className="absolute right-0 z-10 h-8 w-8 p-0 bg-background/90 backdrop-blur-sm border border-muted/30 shadow-sm hover:bg-background"
-                aria-label="Scroll right"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
           </div>
         </div>
       </div>
