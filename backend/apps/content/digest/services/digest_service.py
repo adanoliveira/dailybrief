@@ -107,6 +107,9 @@ class DigestService:
                 end_time = timezone.now()
                 duration_ms = int((end_time - start_time).total_seconds() * 1000)
                 
+                # Calculate and save reading time
+                digest.reading_time_minutes = digest.calculate_reading_time()
+                
                 digest.generation_status = 'completed'
                 digest.generation_duration_ms = duration_ms
                 digest.is_published = True

@@ -36,6 +36,7 @@ class Digest(models.Model):
     
     # Processing metadata
     articles_processed = models.IntegerField(default=0, help_text="Number of articles processed for this digest")
+    reading_time_minutes = models.IntegerField(default=0, help_text="Estimated reading time in minutes")
     events_included = models.IntegerField(default=0, help_text="Number of events included in this digest")
     topics_included = models.IntegerField(default=0, help_text="Number of topics included in this digest")
     generation_cost_usd = models.DecimalField(
@@ -78,6 +79,33 @@ class Digest(models.Model):
     
     def __str__(self):
         return f"{self.user.username}'s digest for {self.date} ({self.generation_status})"
+
+    def calculate_reading_time(self) -> int:
+        """
+        Calculate estimated reading time in minutes based on digest content.
+        Uses 200 words per minute as the average reading speed.
+        """
+        words_per_minute = 200
+        total_words = 0
+        
+        # Count words in introduction and conclusion
+        if self.introduction:
+            total_words += len(self.introduction.split())
+        if self.conclusion:
+            total_words += len(self.conclusion.split())
+        
+        # Count words in all digest topics and stories
+        for digest_topic in self.digest_topics.all():
+            if digest_topic.topic_abstract:
+                total_words += len(digest_topic.topic_abstract.split())
+            
+            for story in digest_topic.stories.all():
+                if story.enhanced_abstract:
+                    total_words += len(story.enhanced_abstract.split())
+                if story.key_facts:
+                    total_words += len(' '.join(story.key_facts).split())
+        
+        return max(1, round(total_words / words_per_minute))
 
 
 class DigestTopic(models.Model):

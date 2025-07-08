@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Newspaper, Clock, AlertCircle, RefreshCw, Sparkles, Users } from "lucide-react"
+import { Newspaper, Clock, AlertCircle, RefreshCw, Sparkles, Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { digestService, type Digest } from "@/lib/digest-service"
@@ -15,25 +15,27 @@ interface DailyDigestProps {
   className?: string
 }
 
-function DigestSkeleton() {
+function DigestLoading() {
   return (
-    <Card className="bg-gradient-to-r from-muted/20 to-muted/10 border-muted/30">
+    <Card className="border-muted bg-muted/30">
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <Skeleton className="h-5 w-5 rounded" />
-          <Skeleton className="h-6 w-32" />
-        </div>
-        <Skeleton className="h-4 w-48 mt-2" />
+          <Skeleton className="h-5 w-32" />
+        </CardTitle>
+        <CardDescription>
+          <Skeleton className="h-4 w-24" />
+        </CardDescription>
       </CardHeader>
       <CardContent className="pb-4">
         <div className="space-y-2">
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-4/5" />
-          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-3/5" />
         </div>
       </CardContent>
       <CardFooter className="flex justify-between pt-0">
-        <Skeleton className="h-9 w-28" />
+        <Skeleton className="h-9 w-32" />
         <Skeleton className="h-9 w-20" />
       </CardFooter>
     </Card>
@@ -49,7 +51,7 @@ function GeneratingDigest() {
             <Newspaper className="h-5 w-5 text-primary" />
             <Sparkles className="h-3 w-3 absolute -top-1 -right-1 text-primary animate-pulse" />
           </div>
-          <span className="font-semibold tracking-tight">Your Daily Brief</span>
+          <span className="font-semibold tracking-tight">Your Daily Digest</span>
         </CardTitle>
         <CardDescription className="text-sm">
           AI is crafting your personalized news digest...
@@ -79,7 +81,7 @@ function NoDigestAvailable({ onGenerate, message }: { onGenerate: () => void; me
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
           <Newspaper className="h-5 w-5 text-muted-foreground" />
-            Your Daily Brief
+            Your Daily Digest
           </CardTitle>
         <CardDescription>No digest available yet</CardDescription>
         </CardHeader>
@@ -90,14 +92,14 @@ function NoDigestAvailable({ onGenerate, message }: { onGenerate: () => void; me
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Users className="h-3 w-3" />
-            <span>Follow topics in your profile to enable daily briefs</span>
+            <span>Follow topics in your profile to enable daily digests</span>
             </div>
           </div>
         </CardContent>
       <CardFooter className="flex justify-between">
         <Button onClick={onGenerate} variant="default" size="sm">
           <Sparkles className="h-4 w-4 mr-2" />
-          Generate Today's Brief
+          Generate Today's Digest
         </Button>
         <Link href="/profile">
           <Button variant="ghost" size="sm">
@@ -122,7 +124,7 @@ function DigestError({ error, onRetry }: { error: string; onRetry: () => void })
     if (errorText.includes('generate')) {
       return {
         title: "Generation failed",
-        description: "We couldn't create your daily brief right now. Please try again in a moment.",
+        description: "We couldn't create your daily digest right now. Please try again in a moment.",
         action: "Retry generation"
       }
     }
@@ -140,7 +142,7 @@ function DigestError({ error, onRetry }: { error: string; onRetry: () => void })
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Newspaper className="h-5 w-5" />
-          Your Daily Brief
+          Your Daily Digest
         </CardTitle>
         <CardDescription>{errorInfo.title}</CardDescription>
       </CardHeader>
@@ -172,6 +174,31 @@ export function DailyDigest({ className }: DailyDigestProps) {
   const [generating, setGenerating] = useState(false)
   const [apiMessage, setApiMessage] = useState<string | null>(null)
 
+  // Get reading time from backend - moved before any conditional returns
+  const readingTime = React.useMemo(() => {
+    if (!digest) return 1
+    return digest.metrics.reading_time_minutes || 1
+  }, [digest])
+
+  // Format date for display - moved before any conditional returns
+  const digestDate = React.useMemo(() => {
+    if (!digest) return 'Today'
+    
+    const date = new Date(digest.date)
+    const today = new Date()
+    const diffTime = today.getTime() - date.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday' 
+    
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    })
+  }, [digest])
+
   const loadLatestDigest = async () => {
     try {
       setLoading(true)
@@ -188,39 +215,19 @@ export function DailyDigest({ className }: DailyDigestProps) {
       }
     } catch (err) {
       console.error('Failed to load latest digest:', err)
-      setError('Failed to load your daily brief. Please try again.')
+      setError('Failed to load your daily digest. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleGenerateDigest = async () => {
+  const generateDigest = async () => {
     try {
       setGenerating(true)
       setError(null)
-      
-      // Generate digest for today
-      const generateResponse = await digestService.generateDigest({})
-      
-      if (generateResponse.status === 'generating') {
-        // Poll for completion if we have a digest_id
-        if (generateResponse.digest_id) {
-          try {
-            await digestService.pollForDigestCompletion(generateResponse.digest_id)
-            // Reload the digest after completion
-            await loadLatestDigest()
-          } catch (pollError) {
-            console.error('Digest generation timed out:', pollError)
-            setError('Digest generation is taking longer than expected. Please check back in a few minutes.')
-          }
-        } else {
-          // No digest_id, just show generating state
-          setError('Digest generation started. Please check back in a few minutes.')
-        }
-      } else if (generateResponse.status === 'completed') {
-        // Reload the digest immediately
-        await loadLatestDigest()
-      }
+      await digestService.generateDigest()
+      // After generation request, reload to get the latest
+      await loadLatestDigest()
     } catch (err) {
       console.error('Failed to generate digest:', err)
       setError('Failed to generate digest. Please try again.')
@@ -229,82 +236,72 @@ export function DailyDigest({ className }: DailyDigestProps) {
     }
   }
 
-  const handleRetry = () => {
-    loadLatestDigest()
-  }
-
   useEffect(() => {
     loadLatestDigest()
   }, [])
 
   if (loading) {
-    return <DigestSkeleton />
+    return <DigestLoading />
+  }
+
+  if (error) {
+    return <DigestError error={error} onRetry={loadLatestDigest} />
   }
 
   if (generating) {
     return <GeneratingDigest />
   }
 
-  if (error) {
-    return <DigestError error={error} onRetry={handleRetry} />
-  }
-
   if (!digest) {
-    return <NoDigestAvailable onGenerate={handleGenerateDigest} message={apiMessage || undefined} />
+    return <NoDigestAvailable onGenerate={generateDigest} message={apiMessage || undefined} />
   }
-
-  // Calculate reading time
-  const readingTime = digestService.estimateReadingTime(digest)
-  
-  // Format date
-  const digestDate = digestService.getRelativeDigestDate(digest.date)
 
   return (
     <Card className={cn(
-      "bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20",
-      "transition-all duration-200 ease-in-out hover:shadow-md hover:shadow-primary/10",
-      "focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2",
-      className
+      "bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border-primary/30",
+      "transition-all duration-300 ease-out hover:shadow-lg hover:shadow-primary/20 hover:border-primary/40",
+      "focus-within:ring-2 focus-within:ring-primary/30 focus-within:ring-offset-2",
+      "relative overflow-hidden group",
     )}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <div className="relative">
-            <Newspaper className="h-5 w-5 text-primary" />
-            <div className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
-          </div>
-          <span className="font-semibold tracking-tight">Your Daily Brief</span>
-        </CardTitle>
-        <CardDescription className="flex items-center gap-2 text-sm">
-          <time className="font-medium">{digestDate}</time>
-          <span>•</span>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span>{readingTime} min read</span>
-          </div>
-        </CardDescription>
-      </CardHeader>
+      {/* Subtle background accent */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-50" />
       
-      <CardContent className="pb-4">
-        <div className="prose prose-sm max-w-none dark:prose-invert">
-          <p className="line-clamp-3 leading-relaxed text-muted-foreground m-0">
-            {digest.introduction}
-          </p>
+      <CardHeader className="pb-4 relative z-10">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
+            <span>Daily Digest</span>
+            <span>•</span>
+            <span>{digestDate}</span>
+            <span>•</span>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{readingTime} min read</span>
+            </div>
+          </div>
+          <CardTitle className="text-xl md:text-2xl font-bold leading-tight text-foreground group-hover:text-primary transition-colors">
+            {digest.headline || digest.title}
+          </CardTitle>
         </div>
+      </CardHeader>      
+      
+      <CardContent className="pb-5 relative z-10">
+        <p className="text-sm md:text-base leading-relaxed text-muted-foreground line-clamp-3 group-hover:text-foreground/90 transition-colors">
+          {digest.introduction}
+        </p>
       </CardContent>
       
-      <CardFooter className="flex justify-between pt-0">
-        <Link href="/digest/latest" className="flex-1 mr-2">
+      <CardFooter className="flex items-center justify-between pt-0 relative z-10">
+        <Link href="/digest/latest" className="flex-1 mr-3">
           <Button 
             className={cn(
-              "w-full bg-primary hover:bg-primary/90 text-primary-foreground",
-              "transition-all duration-200 ease-in-out",
-              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2",
-              "font-medium"
+              "w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm",
+              "transition-all duration-200 ease-out hover:shadow-md hover:scale-[1.02]",
+              "focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+              "font-medium group/btn"
             )}
-            size="sm"
           >
-            <Newspaper className="h-4 w-4 mr-2" />
-            Read Brief
+            <span>Read Digest</span>
+            <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover/btn:translate-x-0.5" />
           </Button>
         </Link>
         <Link href="/digest/archive">
@@ -312,12 +309,13 @@ export function DailyDigest({ className }: DailyDigestProps) {
             variant="ghost" 
             size="sm"
             className={cn(
-              "text-muted-foreground hover:text-primary hover:bg-muted/50",
-              "transition-colors duration-200 ease-in-out",
-              "focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-2"
+              "text-muted-foreground hover:text-primary hover:bg-primary/10",
+              "transition-all duration-200 ease-out",
+              "focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
+              "font-medium"
             )}
           >
-            Archive
+            View Archive
           </Button>
         </Link>
       </CardFooter>

@@ -270,21 +270,8 @@ function DigestStoryCard({ story, topicIndex, storyIndex }: DigestStoryCardProps
 }
 
 export function DigestReader({ digest, className }: DigestReaderProps) {
-  // Reading time calculation
-  const readingTime = React.useMemo(() => {
-    const wordsPerMinute = 200
-    let totalWords = digest.introduction.split(' ').length
-    
-    digest.topics.forEach(topic => {
-      totalWords += topic.abstract.split(' ').length
-      topic.stories.forEach(story => {
-        totalWords += story.abstract.split(' ').length
-        totalWords += story.key_facts.join(' ').split(' ').length
-      })
-    })
-    
-    return Math.max(1, Math.ceil(totalWords / wordsPerMinute))
-  }, [digest])
+  // Get reading time from backend
+  const readingTime = digest.metrics.reading_time_minutes || 1
 
   return (
     <div className="min-h-screen bg-background">

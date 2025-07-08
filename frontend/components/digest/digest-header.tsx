@@ -56,6 +56,7 @@ interface Digest {
     topics_included: number
     events_included: number
     articles_processed: number
+    reading_time_minutes: number
     generation_cost_usd: number
     generation_tokens_total: number
   }
@@ -90,21 +91,8 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
     loadData()
   }, [])
 
-  // Calculate reading time
-  const readingTime = React.useMemo(() => {
-    const wordsPerMinute = 200
-    let totalWords = digest.introduction.split(' ').length
-    
-    digest.topics.forEach(topic => {
-      totalWords += topic.abstract.split(' ').length
-      topic.stories.forEach(story => {
-        totalWords += story.abstract.split(' ').length
-        totalWords += story.key_facts.join(' ').split(' ').length
-      })
-    })
-    
-    return Math.max(1, Math.ceil(totalWords / wordsPerMinute))
-  }, [digest])
+  // Get reading time from backend
+  const readingTime = digest.metrics.reading_time_minutes || 1
 
   // Dynamic time period calculation using actual article dates
   const getTimeDescription = React.useMemo(() => {

@@ -283,6 +283,7 @@ def get_digest_status(request, digest_id):
             'topics_included': digest.topics_included,
             'events_included': digest.events_included,
             'articles_processed': digest.articles_processed,
+            'reading_time_minutes': digest.reading_time_minutes,
             'generation_cost_usd': float(digest.generation_cost_usd),
             'generation_tokens_total': digest.tokens_input + digest.tokens_output
         } if digest.generation_status == 'completed' else None,
@@ -451,6 +452,7 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
             'topics_included': digest.topics_included,
             'events_included': digest.events_included,
             'articles_processed': digest.articles_processed,
+            'reading_time_minutes': digest.reading_time_minutes,
             'generation_cost_usd': float(digest.generation_cost_usd),
             'generation_tokens_total': digest.tokens_input + digest.tokens_output
         }
@@ -470,5 +472,6 @@ def _serialize_digest_summary(digest: Digest) -> Dict[str, Any]:
         'topics_included': digest.topics_included,
         'events_included': digest.events_included,
         'articles_processed': digest.articles_processed,
+            'reading_time_minutes': digest.reading_time_minutes,
         'generation_cost_usd': float(digest.generation_cost_usd)
     }
