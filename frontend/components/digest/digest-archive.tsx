@@ -3,18 +3,15 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   Calendar,
   Clock,
-  TrendingUp,
   ChevronLeft,
   ChevronRight,
   AlertCircle,
-  Newspaper,
-  FileText
+  Newspaper
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -29,15 +26,6 @@ interface DigestSummaryCardProps {
 }
 
 function DigestSummaryCard({ digest }: DigestSummaryCardProps) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
-
   const getRelativeDate = (dateString: string) => {
     const digestDate = new Date(dateString)
     const today = new Date()
@@ -48,120 +36,70 @@ function DigestSummaryCard({ digest }: DigestSummaryCardProps) {
     if (diffDays === 1) return 'Yesterday'
     if (diffDays < 7) return `${diffDays} days ago`
     
-    return formatDate(dateString)
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    })
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed': return 'default'
-      case 'generating': return 'secondary'
-      case 'failed': return 'destructive'
-      default: return 'outline'
-    }
-  }
+  const readingTime = digest.reading_time_minutes || 1
 
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed': return 'Ready'
-      case 'generating': return 'Generating'
-      case 'failed': return 'Failed'
-      default: return status
-    }
-  }
-
-  const isClickable = digest.generation_status.toLowerCase() === 'completed'
-
-  const cardContent = (
-    <Card className={cn(
-      "transition-all duration-200",
-      isClickable && "hover:shadow-md hover:scale-[1.02] cursor-pointer",
-      !isClickable && "opacity-75"
-    )}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-lg leading-tight line-clamp-2">
-              {digest.title}
-            </CardTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
+  return (
+    <Link href={`/digest/date/${digest.date.split('T')[0]}`}>
+      <Card className={cn(
+        "transition-all duration-200 hover:shadow-md hover:scale-[1.01] cursor-pointer",
+        "bg-gradient-to-br from-primary/4 via-primary/2 to-transparent border-primary/20",
+        "hover:border-primary/30 hover:shadow-primary/10",
+        "relative overflow-hidden group"
+      )}>
+        {/* Subtle background accent */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/3 to-transparent opacity-50" />
+        
+        <CardHeader className="pb-3 relative z-10">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+              <span>Daily Digest</span>
+              <span>•</span>
               <span>{getRelativeDate(digest.date)}</span>
+              <span>•</span>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>{readingTime} min read</span>
+              </div>
             </div>
+            <CardTitle className="text-lg md:text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+              {digest.headline || digest.title}
+            </CardTitle>
           </div>
-          <Badge variant={getStatusColor(digest.generation_status)}>
-            {getStatusText(digest.generation_status)}
-          </Badge>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-3">
-          {digest.introduction}
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="text-xs">
-            <FileText className="h-3 w-3 mr-1" />
-            {digest.topics_included} topics
-          </Badge>
-          <Badge variant="outline" className="text-xs">
-            <TrendingUp className="h-3 w-3 mr-1" />
-            {digest.events_included} stories
-          </Badge>
-          <Badge variant="outline" className="text-xs">
-            <Newspaper className="h-3 w-3 mr-1" />
-            {digest.articles_processed} articles
-          </Badge>
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2">
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            <span>Created {new Date(digest.created_at).toLocaleDateString()}</span>
-          </div>
-          {digest.generation_cost_usd > 0 && (
-            <span>${digest.generation_cost_usd.toFixed(4)}</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        
+        <CardContent className="relative z-10">
+          <p className="text-sm md:text-base leading-relaxed text-muted-foreground line-clamp-3 group-hover:text-foreground/90 transition-colors">
+            {digest.introduction}
+          </p>
+        </CardContent>
+      </Card>
+    </Link>
   )
-
-  if (isClickable) {
-    return (
-      <Link href={`/digest/date/${digest.date.split('T')[0]}`}>
-        {cardContent}
-      </Link>
-    )
-  }
-
-  return cardContent
 }
 
 function DigestArchiveSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 6 }).map((_, index) => (
-        <Card key={index}>
+        <Card key={index} className="relative overflow-hidden">
           <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-2 flex-1">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-              <Skeleton className="h-6 w-16" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-6 w-3/4" />
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-4/5" />
               <Skeleton className="h-4 w-2/3" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-5 w-16" />
-              <Skeleton className="h-5 w-16" />
-              <Skeleton className="h-5 w-16" />
             </div>
           </CardContent>
         </Card>
@@ -178,7 +116,7 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   
-  const pageSize = 10
+  const pageSize = 12
 
   const loadDigests = async (page: number) => {
     try {
@@ -187,9 +125,14 @@ export function DigestArchive({ className }: DigestArchiveProps) {
       
       const response: DigestListResponse = await digestService.listDigests(page, pageSize)
       
-      setDigests(response.digests)
+      // Filter to only show completed digests
+      const completedDigests = response.digests.filter(
+        digest => digest.generation_status.toLowerCase() === 'completed'
+      )
+      
+      setDigests(completedDigests)
       setTotalPages(response.pagination.total_pages)
-      setTotalCount(response.pagination.total_count)
+      setTotalCount(completedDigests.length)
       setCurrentPage(page)
     } catch (err) {
       console.error('Failed to load digests:', err)
@@ -222,10 +165,6 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   if (loading) {
     return (
       <div className={cn("space-y-6", className)}>
-        <div className="space-y-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-64" />
-        </div>
         <DigestArchiveSkeleton />
       </div>
     )
@@ -234,11 +173,6 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   if (error) {
     return (
       <div className={cn("space-y-6", className)}>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Digest Archive</h2>
-          <p className="text-muted-foreground">Your daily brief history</p>
-        </div>
-        
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
@@ -255,18 +189,13 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   if (digests.length === 0) {
     return (
       <div className={cn("space-y-6", className)}>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Digest Archive</h2>
-          <p className="text-muted-foreground">Your daily brief history</p>
-        </div>
-        
-        <Card className="p-8 text-center">
+        <Card className="p-8 text-center bg-muted/20 border-muted">
           <div className="space-y-4">
-            <Newspaper className="h-12 w-12 mx-auto text-muted-foreground" />
+            <Newspaper className="h-12 w-12 mx-auto text-muted-foreground/60" />
             <div>
               <h3 className="text-lg font-medium">No digests yet</h3>
               <p className="text-muted-foreground">
-                Your daily briefs will appear here once they're generated.
+                Your daily digests will appear here once they're generated.
               </p>
             </div>
             <Link href="/home">
@@ -280,23 +209,14 @@ export function DigestArchive({ className }: DigestArchiveProps) {
 
   return (
     <div className={cn("space-y-6", className)}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Digest Archive</h2>
-          <p className="text-muted-foreground">
-            {totalCount} {totalCount === 1 ? 'digest' : 'digests'} in your history
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
+      <div className="grid gap-4">
         {digests.map((digest) => (
           <DigestSummaryCard key={digest.id} digest={digest} />
         ))}
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-4">
           <Button
             variant="outline"
             onClick={handlePreviousPage}
