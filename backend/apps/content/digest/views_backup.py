@@ -324,57 +324,6 @@ def get_digest_html(request, digest_id):
 
 # Helper functions for serialization
 
-
-def _get_fallback_image_from_content_blocks(article) -> str:
-    """
-    Extract the first suitable image from article content blocks as fallback.
-    
-    Args:
-        article: Article instance with content_blocks
-        
-    Returns:
-        Image URL string or None if no suitable image found
-    """
-    if not article.content_blocks:
-        return None
-    
-    # Look for image content blocks
-    for block in article.content_blocks:
-        if not isinstance(block, dict):
-            continue
-            
-        block_type = block.get('type', '')
-        metadata = block.get('metadata', {})
-        
-        # Check for img or figure blocks with valid src
-        if block_type in ['img', 'image', 'figure']:
-            image_src = metadata.get('src', '').strip()
-            if image_src and image_src.startswith(('http://', 'https://')):
-                # Additional validation: ensure it's not a tiny/icon image
-                width = metadata.get('width')
-                height = metadata.get('height')
-                
-                # Skip very small images (likely icons/logos)
-                if width and height:
-                    try:
-                        w, h = int(width), int(height)
-                        if w < 100 or h < 100:
-                            continue
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Check alt text for profile/author indicators (skip these)
-                alt_text = metadata.get('alt', '').lower()
-                author_indicators = ['headshot', 'profile', 'avatar', 'author', 'byline', 'contributor']
-                if any(indicator in alt_text for indicator in author_indicators):
-                    continue
-                
-                # This looks like a good content image
-                return image_src
-    
-    return None
-
-
 def _serialize_digest(digest: Digest) -> Dict[str, Any]:
     """Serialize complete digest data including topics and stories."""
     
@@ -395,7 +344,7 @@ def _serialize_digest(digest: Digest) -> Dict[str, Any]:
                     'id': str(article.public_id),
                     'title': article.title,
                     'url': article.url,
-                    'imageUrl': article.image_url or _get_fallback_image_from_content_blocks(article),
+                    'imageUrl': article.image_url,  # Add image URL for frontend display
                     'publication': article.publication.name if article.publication else None,
                     'publicationLogoUrl': article.publication.logo_url if article.publication else None,
                     'published_at': article.published_at.isoformat() if article.published_at else None,
