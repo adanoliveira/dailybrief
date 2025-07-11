@@ -410,8 +410,8 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 # AI Rate Limiting Configuration
 # Updated for 2M TPM limit (10x increase from 200k TPM)
 # With content extraction averaging ~20k tokens per call
-AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '120'))  # Increased from 80 to 120 (~1.8M tokens/min, 90% of limit)
-AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '40'))  # Increased burst capacity for parallel processing
+AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '150'))  # Increased from 80 to 150 (~2.7M tokens/min, 90% of limit)
+AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '50'))  # Increased burst capacity for parallel processing
 
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch
