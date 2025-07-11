@@ -241,10 +241,10 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Don't prefetch too many tasks
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    # Top Headlines - Twice daily at 5am and 2pm
+    # Top Headlines - Twice daily at 4am and 2pm
     'sync-top-headlines-morning': {
         'task': 'newsapi.sync_headlines',
-        'schedule': crontab(hour=5, minute=0),  # 5:00 AM
+        'schedule': crontab(hour=4, minute=0),  # 4:00 AM
     },
     'sync-top-headlines-afternoon': {
         'task': 'newsapi.sync_headlines',
@@ -265,20 +265,20 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'update_existing': True},
     },
     
-    # Content Fetching Tasks
+    # Content Fetching Tasks - DISABLED: Use content-enrichment pipeline only for complete control
     # Process pending articles for content fetching - Every 15 minutes (increased frequency)
-    'process-pending-articles': {
-        'task': 'apps.content.fetcher.tasks.fetch_pending_articles',  # Fixed: was 'content.process_pending_articles'
-        'schedule': crontab(minute='*/15'),  # Every 15 minutes (was 30)
-        'kwargs': {'limit': 100},  # Increased from 50
-    },
+    # 'process-pending-articles': {
+    #     'task': 'apps.content.fetcher.tasks.fetch_pending_articles',  # Fixed: was 'content.process_pending_articles'
+    #     'schedule': crontab(minute='*/15'),  # Every 15 minutes (was 30)
+    #     'kwargs': {'limit': 100},  # Increased from 50
+    # },
     
     # Retry failed content fetches - Every hour (increased frequency)
-    'retry-failed-fetches': {
-        'task': 'apps.content.fetcher.tasks.retry_failed_fetches',  # Fixed: was 'content.retry_failed_fetches'
-        'schedule': crontab(minute=0, hour='*'),  # Every hour (was 2 hours)
-        'kwargs': {'max_retries': 3},  # Fixed: was 'limit', should be 'max_retries'
-    },
+    # 'retry-failed-fetches': {
+    #     'task': 'apps.content.fetcher.tasks.retry_failed_fetches',  # Fixed: was 'content.retry_failed_fetches'
+    #     'schedule': crontab(minute=0),  # Every hour
+    #     'kwargs': {'limit': 50},
+    # },
     
     # Update content metrics - Daily at 6:00 AM
     'update-content-metrics': {
@@ -293,43 +293,41 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'days_to_keep': 30},
     },
     
-    # ===== CONTENT ENRICHMENT PIPELINE FOR TOP HEADLINES =====
-    # Run after sync-top-headlines to process articles through the 4-stage pipeline
-    
-    # TEMPORARY TESTING SCHEDULE - ALL TASKS AT 3:30 PM
+    # CONTENT ENRICHMENT PIPELINE - PRODUCTION SCHEDULE
+    # Distributed throughout the day for optimal processing
     'content-enrichment-morning': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=15, minute=30),  # TEMP: 3:30 PM for testing
+        'schedule': crontab(hour=4, minute=0),  # 4:00 AM UTC
         'kwargs': {'limit': 80},  # Increased from 50
     },
     
     'content-enrichment-afternoon': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=15, minute=32),  # TEMP: 3:32 PM for testing (2 min later)
+        'schedule': crontab(hour=14, minute=0),  # 2:00 PM UTC (afternoon)
         'kwargs': {'limit': 80},  # Increased from 50
     },
     
     'content-enrichment-followup-morning': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=15, minute=34),  # TEMP: 3:34 PM for testing (4 min later)
+        'schedule': crontab(hour=5, minute=0),  # 5:00 AM UTC (followup morning)
         'kwargs': {'limit': 80},  # Increased from 30
     },
     
     'content-enrichment-followup-afternoon': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=15, minute=36),  # TEMP: 3:36 PM for testing (6 min later)
+        'schedule': crontab(hour=15, minute=0),  # 3:00 PM UTC (followup afternoon)
         'kwargs': {'limit': 80},  # Increased from 30
     },
     
     'content-enrichment-evening': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline',
-        'schedule': crontab(hour=15, minute=38),  # TEMP: 3:38 PM for testing (8 min later)
+        'schedule': crontab(hour=20, minute=0),  # 8:00 PM UTC (evening)
         'kwargs': {'limit': 100},  # Higher limit for peak day handling
     },
     
     'content-enrichment-late-evening': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline', 
-        'schedule': crontab(hour=15, minute=40),  # TEMP: 3:40 PM for testing (10 min later)
+        'schedule': crontab(hour=21, minute=0),  # 11:00 PM UTC (late evening)
         'kwargs': {'limit': 100},  # Higher limit for peak day handling
     },
     
@@ -356,17 +354,17 @@ CELERY_BEAT_SCHEDULE = {
     },
     
     # ===== DIGEST GENERATION TASKS =====
-    # TEMPORARY TESTING SCHEDULE - Generate daily digests at 3:42 PM
+    # Generate daily digests at 6:00 AM UTC after content enrichment completes
     'generate-daily-digests': {
         'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
-        'schedule': crontab(hour=15, minute=42),  # TEMP: 3:42 PM for testing (12 min after pipeline start)
+        'schedule': crontab(hour=6, minute=0),  # 6:00 AM UTC (1 hour after content enrichment starts)
         'kwargs': {'force_regenerate': False},
     },
     
-    # TEMPORARY TESTING SCHEDULE - Regenerate failed digests at 3:44 PM
+    # Regenerate failed digests at 7:00 AM UTC
     'regenerate-failed-digests': {
         'task': 'apps.content.digest.tasks.regenerate_failed_digests',
-        'schedule': crontab(hour=15, minute=44),  # TEMP: 3:44 PM for testing (14 min after pipeline start)
+        'schedule': crontab(hour=7, minute=0),  # 7:00 AM UTC (1 hour after content enrichment starts)
     },
     
     # Cleanup old digests - Weekly on Sunday at 1:00 AM
