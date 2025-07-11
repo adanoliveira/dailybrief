@@ -114,9 +114,6 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
         const todayNormalized = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
         const diffFromToday = Math.floor((todayNormalized.getTime() - minDay.getTime()) / (1000 * 60 * 60 * 24))
         
-        // Debug: Log the key decision point
-        console.log(`[DEBUG] Articles all from same day (${minDate.toDateString()}), ${diffFromToday} days ago`)
-        
         if (diffFromToday === 0) {
           return 'Today'
         } else if (diffFromToday === 1) {
@@ -195,8 +192,6 @@ export function DigestHeader({ digest }: DigestHeaderProps) {
     
     // Calculate difference in days
     const diffDays = Math.floor((latestDay.getTime() - earliestDay.getTime()) / (1000 * 60 * 60 * 24))
-    
-    console.log(`[DEBUG] Fallback: ${publishedDates.length} articles span ${diffDays} days`)
     
     if (diffDays === 0) {
       // All articles from the same day - use the actual article date, not the digest date

@@ -90,11 +90,9 @@ async function syncUserWithBackend(user: any): Promise<any> {
     if (typeof window === 'undefined') {
       // Server-side: Use backend service name or localhost
       baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      console.log("Server-side sync - using baseUrl:", baseUrl);
     } else {
       // Client-side: Use browser-accessible URL
       baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      console.log("Client-side sync - using baseUrl:", baseUrl);
     }
     
     // Construct the API URL properly
@@ -108,14 +106,7 @@ async function syncUserWithBackend(user: any): Promise<any> {
       apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
     }
     
-    console.log(`Syncing user with backend at: ${apiUrl}`);
-    console.log("Sync payload:", JSON.stringify({
-      email: user.email,
-      name: user.name || user.email.split("@")[0],
-      provider: user.provider || "email",
-      nextauth_id: user.id,
-      image: user.image || "",
-    }));
+    console.log(`Syncing user with backend: ${user.email}`);
     
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -142,7 +133,6 @@ async function syncUserWithBackend(user: any): Promise<any> {
     }
     
     const data = await response.json();
-    console.log("Backend sync success - received data keys:", Object.keys(data));
     
     // Validate the token format before returning
     if (data.django_token) {
@@ -155,7 +145,7 @@ async function syncUserWithBackend(user: any): Promise<any> {
         throw new Error("Invalid token format received from backend");
       }
       
-      console.log("Valid JWT token received from backend - length:", token.length);
+      // JWT token validated successfully
     } else {
       console.error("No django_token in backend response:", data);
       throw new Error("No django_token received from backend");
@@ -201,7 +191,7 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
       apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
     }
     
-    console.log(`Checking user status at: ${apiUrl}`);
+    // Checking onboarding status with backend
     
     const response = await fetch(apiUrl, {
       method: "GET",
@@ -221,7 +211,6 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     }
     
     const data = await response.json();
-    console.log(`User status response:`, data);
     return !!data.has_completed_onboarding;
   } catch (error) {
     console.error("Error checking user status:", error);
@@ -307,13 +296,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user, account }): Promise<JWT> {
-      // Add debugging for incoming token and user data
-      console.log("JWT callback received:", JSON.stringify({
-        hasToken: !!token,
-        hasUser: !!user,
-        hasAccount: !!account,
-        accountProvider: account?.provider
-      }));
+      // JWT callback: Processing authentication data
       
       // Add user data to token when first signing in
       if (user) {
@@ -328,10 +311,7 @@ export const authOptions: NextAuthOptions = {
               provider: account.provider
             });
             
-            console.log("Backend sync response:", JSON.stringify({
-              ...backendUser,
-              django_token: backendUser?.django_token ? "[PRESENT]" : "[MISSING]"
-            }));
+            // Backend sync completed successfully
             
             if (backendUser) {
               token.django_user_id = backendUser.id;
@@ -365,13 +345,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
       
-      // Log the token being returned
-      console.log("JWT callback returning token with:", JSON.stringify({
-        user_id: (token.user as any)?.id || "not set",
-        django_user_id: token.django_user_id || "not set",
-        django_token: token.django_token ? "[PRESENT]" : "[MISSING]",
-        has_completed_onboarding: token.has_completed_onboarding
-      }));
+      // JWT token prepared for session
       
       return token;
     },
@@ -398,36 +372,24 @@ export const authOptions: NextAuthOptions = {
         session.user.has_completed_onboarding = token.has_completed_onboarding;
       }
       
-      // Add debugging info
-      console.log("Session callback returning:", JSON.stringify({
-        user: {
-          ...session.user,
-          django_token: session.user.django_token ? "[PRESENT]" : "[MISSING]",
-        }
-      }));
+      // Session prepared for client
       
       return session;
     },
     async redirect({ url, baseUrl, token }: { url: string; baseUrl: string; token?: JWT }) {
-      // Simplified redirect logic - only handle core auth flows
-      console.log(`NextAuth redirect callback: url=${url}, hasToken=${!!token}`);
-      
-      // Handle only authentication-specific URLs
+      // Handle authentication-specific URLs
       
       // For callback and sign-in URLs, redirect to auth page (client will handle further routing)
       if (url.includes("/api/auth/callback") || url.includes("/api/auth/signin")) {
-        console.log("NextAuth redirect: Auth flow completed, redirecting to /auth");
         return `${baseUrl}/auth`;
       }
       
       // For verification and error URLs, keep them as is
       if (url.includes("/auth/verify-request") || url.includes("/auth/error")) {
-        console.log("NextAuth redirect: Allowing auth verification or error page");
         return url;
       }
       
       // For all other URLs, don't interfere with the destination
-      console.log(`NextAuth redirect: Passing through to destination: ${url}`);
       return url;
     },
   },

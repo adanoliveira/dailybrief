@@ -147,24 +147,7 @@ def get_publications(request):
     
     return create_response(result)
 
-@api_view(['GET'], authenticate=False)
-def debug_endpoint(request):
-    """
-    Debug endpoint to help isolate issues - returns hardcoded data.
-    Public endpoint for debugging purposes.
-    """
-    result = {
-        "status": "ok",
-        "message": "Debug endpoint working",
-        "timestamp": "2025-05-02T22:30:00Z",
-        "sample_data": {
-            "name": "Test Item",
-            "value": 42,
-            "is_active": True
-        }
-    }
-    logger.info("Debug endpoint success")
-    return create_response(result)
+# Debug endpoint removed for production
 
 @api_view(['GET'], authenticate=False)
 def basic_data(request):

@@ -85,3 +85,17 @@ logs/
 
 # Backup files
 *.bak 
+
+# DailyBrief specific development files
+# Large log files and generated content
+backend/debug.log
+backend/celerybeat-schedule*
+backend/venv/
+backend/staticfiles/
+
+# Development test files
+backend/test_pipeline.py
+
+# Frontend generated files  
+frontend/generated/
+frontend/.turbo/ 

@@ -55,7 +55,7 @@ export default function Home() {
     // If we have user status, check onboarding status
     if (userStatus) {
       if (!userStatus.has_completed_onboarding) {
-        console.log("Home: User has NOT completed onboarding, redirecting")
+        // User needs to complete onboarding
         router.replace('/onboarding?skip_check=true')
         return
       }
@@ -68,7 +68,7 @@ export default function Home() {
     if (!userStatus && session) {
       const hasDoneOnboarding = localStorage.getItem('has_completed_onboarding') === 'true'
       if (!hasDoneOnboarding) {
-        console.log("Home: User has NOT completed onboarding (localStorage), redirecting")
+        // User needs to complete onboarding
         router.replace('/onboarding?skip_check=true')
         return
       }

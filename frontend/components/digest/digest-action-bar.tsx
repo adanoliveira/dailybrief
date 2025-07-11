@@ -117,13 +117,13 @@ export function DigestActionBar({ digest }: DigestActionBarProps) {
   const handleLike = () => {
     setLiked(!liked);
     if (disliked) setDisliked(false);
-    // TODO: Implement backend API call
+    // TODO: Connect to backend API for digest likes/dislikes tracking
   };
 
   const handleDislike = () => {
     setDisliked(!disliked);
     if (liked) setLiked(false);
-    // TODO: Implement backend API call
+    // TODO: Connect to backend API for digest likes/dislikes tracking
   };
 
   const copyToClipboard = async () => {

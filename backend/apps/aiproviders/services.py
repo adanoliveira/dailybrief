@@ -359,7 +359,7 @@ class AIProviderService:
         """
         Make a call to Anthropic API (placeholder for future implementation).
         """
-        # TODO: Implement Anthropic integration when needed
+        # TODO: Add Claude models integration for cost optimization and feature diversity
         response_time = time.time() - start_time
         
         return LLMResponse(

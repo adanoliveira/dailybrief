@@ -7,6 +7,6 @@ urlpatterns = [
     path('languages/', views.get_languages, name='languages'),
     path('publications/', views.get_publications, name='publications'),
     path('reference-data/', views.get_reference_data, name='reference_data'),
-    path('debug/', views.debug_endpoint, name='debug_endpoint'),
+    # Debug endpoint removed for production
     path('basic-data/', views.basic_data, name='basic_data'),
 ] 

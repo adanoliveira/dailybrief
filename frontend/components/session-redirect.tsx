@@ -52,14 +52,8 @@ export default function SessionRedirect({ children }: SessionRedirectProps) {
     // Only run on client
     if (typeof window === "undefined") return
     
-    console.log("SessionRedirect: Basic protection check", {
-      path: pathname,
-      authStatus: sessionStatus,
-    })
-    
     // If session is still loading, wait
     if (sessionStatus === "loading") {
-      console.log("SessionRedirect: Session still loading, waiting...")
       return
     }
     
@@ -83,7 +77,6 @@ export default function SessionRedirect({ children }: SessionRedirectProps) {
     }
     
     // Otherwise, render the children
-    console.log("SessionRedirect: No protection needed, rendering page")
     setIsLoading(false)
   }, [sessionStatus, pathname, router])
   

@@ -126,13 +126,13 @@ export function ArticleActionBar({ article }: ArticleActionBarProps) {
   const handleLike = () => {
     setLiked(!liked);
     if (disliked) setDisliked(false);
-    // TODO: Implement backend API call
+    // TODO: Connect to backend API for article likes/dislikes tracking
   };
 
   const handleDislike = () => {
     setDisliked(!disliked);
     if (liked) setLiked(false);
-    // TODO: Implement backend API call
+    // TODO: Connect to backend API for article likes/dislikes tracking
   };
 
   const handleReadOriginal = () => {

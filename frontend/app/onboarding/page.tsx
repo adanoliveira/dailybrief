@@ -197,7 +197,6 @@ export default function OnboardingPage() {
       // Fetch options from API
       const loadOptions = async () => {
         try {
-          console.log("Onboarding page: Fetching preference options")
           setIsLoading(true)
           const data = await fetchOnboardingOptions()
           setOptions(data)
@@ -205,8 +204,6 @@ export default function OnboardingPage() {
           // Set smart defaults
           const defaultPrefs = getDefaultPreferences(data)
           setPreferences(defaultPrefs)
-          
-          console.log("Onboarding page: Options loaded, defaults set", defaultPrefs)
           setHasLoadedOptions(true)
         } catch (err) {
           console.error("Onboarding page: Failed to load options", err)
@@ -286,12 +283,10 @@ export default function OnboardingPage() {
   // Submit final preferences
   const submitPreferences = async () => {
     try {
-      console.log("Onboarding page: Submitting preferences", preferences)
       setIsSubmitting(true)
       setError(null)
       
       const response = await saveUserPreferences(preferences)
-      console.log("Onboarding page: Save response", response)
       
       // Update user context
       setOnboardingComplete(true)
@@ -303,10 +298,7 @@ export default function OnboardingPage() {
           headers: { 'Content-Type': 'application/json' }
         })
         
-        if (sessionResponse.ok) {
-          const updatedSession = await sessionResponse.json()
-          console.log("Onboarding page: Session updated", updatedSession)
-        } else {
+        if (!sessionResponse.ok) {
           console.error("Failed to update session: ", await sessionResponse.text())
         }
       } catch (sessionErr) {
@@ -314,11 +306,8 @@ export default function OnboardingPage() {
       }
       
       // Go to final step
-      console.log("Onboarding page: Moving to finish step")
       setCurrentStep("finish")
       setStepIndex(STEPS.indexOf("finish"))
-      
-      console.log("Onboarding page: Preferences saved successfully, showing finish step")
     } catch (err) {
       console.error("Onboarding page: Failed to save preferences", err)
       setError("Failed to save preferences. Please try again.")
@@ -329,7 +318,6 @@ export default function OnboardingPage() {
   
   // Handle finish
   const finishOnboarding = () => {
-    console.log("Onboarding page: finishOnboarding called, redirecting to /home")
     setIsRedirecting(true)
     
     // Add a small delay for a smoother transition
@@ -337,16 +325,6 @@ export default function OnboardingPage() {
       router.replace("/home")
     }, 100)
   }
-  
-  // Log step changes
-  useEffect(() => {
-    console.log(`Onboarding page: Step changed to "${currentStep}"`)
-    
-    // Special logging for finish step
-    if (currentStep === "finish") {
-      console.log("Onboarding page: Rendering finish step")
-    }
-  }, [currentStep])
   
   // Loading state
   if (isLoading || !options || isRedirecting) {

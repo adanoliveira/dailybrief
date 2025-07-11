@@ -141,7 +141,6 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
       // If we found a good entry, update the active topic
       if (bestEntry !== null) {
         const topicId = (bestEntry.target as HTMLElement).id.replace('topic-', '')
-        console.log('Setting active topic:', topicId, 'with ratio:', bestRatio) // Debug log
         setActiveTopicId(topicId)
       } else {
         // If no topic is intersecting well, find the one closest to the top
