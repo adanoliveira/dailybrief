@@ -3,6 +3,7 @@ Content Enrichment Pipeline Tasks
 
 Orchestrates the 4-stage content pipeline for articles, specifically targeting 
 top headlines from the last 72 hours that come from the sync-top-headlines task.
+Now filtered to only process articles from US and BR regions for cost optimization.
 
 Pipeline Flow:
 1. Fetcher → Extract raw content from article URLs
@@ -10,10 +11,15 @@ Pipeline Flow:
 3. Summariser → Generate headlines and abstracts
 4. Analyzer → Extract entities, topics, and metadata
 
-Scope: Only processes top headlines published within the last 72 hours.
+Scope: Only processes top headlines published within the last 72 hours from US and BR regions.
 Each stage processes articles ready for that stage and moves them to the next queue.
 Max retries: 3 per stage before removing from queue.
 Uses existing batch tasks from individual content apps (fetcher, processor, summariser, analyzer).
+
+Cost Optimization Strategy:
+- Sync all top headlines globally for broad coverage
+- Only run expensive AI processing on US and BR articles
+- Reduces processing costs while maintaining comprehensive news gathering
 """
 
 import logging
@@ -36,6 +42,7 @@ logger = logging.getLogger(__name__)
 # Constants
 PIPELINE_TIME_WINDOW_HOURS = 72
 MAX_RETRY_ATTEMPTS = 3
+TARGET_REGION_CODES = ['us', 'br']  # Only process US and Brazil articles
 
 
 def _get_time_threshold() -> timezone.datetime:
@@ -44,11 +51,17 @@ def _get_time_threshold() -> timezone.datetime:
 
 
 def _get_base_queryset():
-    """Get base queryset for top headlines within the time window."""
+    """
+    Get base queryset for top headlines within the time window and target regions.
+    
+    Filters to only include articles from US and BR regions to optimize processing costs
+    while still allowing global headline sync for broad coverage.
+    """
     return Article.objects.filter(
         is_top_headline=True,
-        published_at__gte=_get_time_threshold()
-    )
+        published_at__gte=_get_time_threshold(),
+        regions__code__in=TARGET_REGION_CODES  # Only US and BR regions
+    ).distinct()  # distinct() needed because of many-to-many relationship
 
 
 def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[int]:
@@ -270,7 +283,7 @@ def _process_stage4_analyze_top_headlines(limit: int) -> Dict[str, Any]:
 
 
 def _count_fully_processed_headlines() -> int:
-    """Count top headlines from last 72h that have completed all 4 pipeline stages."""
+    """Count top headlines from last 72h from US/BR regions that have completed all 4 pipeline stages."""
     return _get_base_queryset().filter(
         fetch_status=FetchStatus.COMPLETED,
         process_status=ProcessingStatus.COMPLETED,
@@ -284,7 +297,7 @@ def cleanup_failed_pipeline_articles(max_attempts: int = MAX_RETRY_ATTEMPTS) -> 
     """
     Clean up articles that have exceeded max retry attempts in any pipeline stage.
     
-    Only cleans up top headlines from the last 72 hours to match pipeline scope.
+    Only cleans up top headlines from the last 72 hours from US/BR regions to match pipeline scope.
     Articles that fail all retries are marked as failed and removed from processing queues.
     
     Args:
@@ -325,7 +338,7 @@ def cleanup_failed_pipeline_articles(max_attempts: int = MAX_RETRY_ATTEMPTS) -> 
             
             cleanup_stats['total_cleaned'] = sum(cleanup_stats[key] for key in cleanup_stats if key != 'total_cleaned')
         
-        logger.info(f"Cleanup completed: {cleanup_stats['total_cleaned']} articles marked as failed")
+        logger.info(f"Cleanup completed: {cleanup_stats['total_cleaned']} articles marked as failed (US/BR regions only)")
         return cleanup_stats
         
     except Exception as e:
@@ -340,7 +353,7 @@ def get_pipeline_status() -> Dict[str, Any]:
     Get comprehensive status of the content enrichment pipeline.
     
     Returns statistics about articles in each stage of the pipeline,
-    focusing on top headlines from the last 72 hours (pipeline scope).
+    focusing on top headlines from the last 72 hours from US and BR regions (pipeline scope).
     """
     try:
         base_queryset = _get_base_queryset()
@@ -372,6 +385,7 @@ def get_pipeline_status() -> Dict[str, Any]:
         pipeline_status = {
             'timestamp': timezone.now().isoformat(),
             'time_window': f'{PIPELINE_TIME_WINDOW_HOURS}h',
+            'target_regions': TARGET_REGION_CODES,
             'top_headlines_total': base_queryset.count(),
             'fully_processed': _count_fully_processed_headlines()
         }
@@ -400,7 +414,7 @@ def retry_failed_pipeline_stages(stage: str = 'all', limit: int = 20) -> Dict[st
     """
     Retry articles that failed in specific pipeline stages.
     
-    Only retries top headlines from the last 72 hours to match pipeline scope.
+    Only retries top headlines from the last 72 hours from US and BR regions to match pipeline scope.
     
     Args:
         stage: Which stage to retry ('fetch', 'process', 'summarize', 'analyze', 'all')
