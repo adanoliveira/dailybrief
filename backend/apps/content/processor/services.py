@@ -453,14 +453,20 @@ class ProcessingManager:
         
         # Process articles
         results = []
+        total_cost = 0.0
         for article in pending_articles:
             result = self.processor.process_article_content(article)
             results.append(result)
+            
+            # Extract cost from the article after processing (cost is stored in process_cost_usd)
+            if result.success:
+                article.refresh_from_db()  # Get updated cost from database
+                if article.process_cost_usd:
+                    total_cost += float(article.process_cost_usd)
         
         # Compile statistics
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
-        total_cost = sum(r.cost_usd for r in results)
         
         return {
             'processed': len(results),
@@ -496,13 +502,19 @@ class ProcessingManager:
         
         # Process articles
         results = []
+        total_cost = 0.0
         for article in failed_articles:
             result = self.processor.process_article_content(article)
             results.append(result)
+            
+            # Extract cost from the article after processing (cost is stored in process_cost_usd)
+            if result.success:
+                article.refresh_from_db()  # Get updated cost from database
+                if article.process_cost_usd:
+                    total_cost += float(article.process_cost_usd)
         
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
-        total_cost = sum(r.cost_usd for r in results)
         
         return {
             'processed': len(results),

@@ -72,6 +72,8 @@ docker-compose.override.yml
 *~
 .*.sw?
 docs/
+.cursorrules
+.gitignore
 
 # OS specific
 .DS_Store

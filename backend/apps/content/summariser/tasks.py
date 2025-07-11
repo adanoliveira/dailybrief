@@ -345,7 +345,7 @@ def cleanup_stuck_summarization_articles() -> Dict[str, Any]:
             'old_failed_articles': 0,
             'cleanup_completed': False,
             'error_message': str(e)
-        }
+    }
 
 
 @shared_task

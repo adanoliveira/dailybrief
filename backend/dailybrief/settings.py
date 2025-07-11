@@ -266,29 +266,29 @@ CELERY_BEAT_SCHEDULE = {
     },
     
     # Content Fetching Tasks
-    # Process pending articles for content fetching - Every 30 minutes
+    # Process pending articles for content fetching - Every 15 minutes (increased frequency)
     'process-pending-articles': {
-        'task': 'content.process_pending_articles',
-        'schedule': crontab(minute='*/30'),  # Every 30 minutes
-        'kwargs': {'limit': 50},
+        'task': 'apps.content.fetcher.tasks.fetch_pending_articles',  # Fixed: was 'content.process_pending_articles'
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes (was 30)
+        'kwargs': {'limit': 100},  # Increased from 50
     },
     
-    # Retry failed content fetches - Every 2 hours
+    # Retry failed content fetches - Every hour (increased frequency)
     'retry-failed-fetches': {
-        'task': 'content.retry_failed_fetches',
-        'schedule': crontab(minute=0, hour='*/2'),  # Every 2 hours
-        'kwargs': {'limit': 25},
+        'task': 'apps.content.fetcher.tasks.retry_failed_fetches',  # Fixed: was 'content.retry_failed_fetches'
+        'schedule': crontab(minute=0, hour='*'),  # Every hour (was 2 hours)
+        'kwargs': {'max_retries': 3},  # Fixed: was 'limit', should be 'max_retries'
     },
     
     # Update content metrics - Daily at 6:00 AM
     'update-content-metrics': {
-        'task': 'content.update_content_metrics',
+        'task': 'apps.content.fetcher.tasks.get_fetch_statistics',  # Fixed: was 'content.update_content_metrics'
         'schedule': crontab(hour=6, minute=0),  # 6:00 AM daily
     },
     
     # Cleanup old fetch logs - Weekly on Monday at 2:00 AM
     'cleanup-old-fetch-logs': {
-        'task': 'content.cleanup_old_fetch_logs',
+        'task': 'apps.content.fetcher.tasks.cleanup_old_fetch_attempts',  # Fixed: was 'content.cleanup_old_fetch_logs'
         'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday at 2:00 AM
         'kwargs': {'days_to_keep': 30},
     },
@@ -296,67 +296,77 @@ CELERY_BEAT_SCHEDULE = {
     # ===== CONTENT ENRICHMENT PIPELINE FOR TOP HEADLINES =====
     # Run after sync-top-headlines to process articles through the 4-stage pipeline
     
-    # Content enrichment for morning headlines - 15 minutes after sync
+    # TEMPORARY TESTING SCHEDULE - ALL TASKS AT 3:30 PM
     'content-enrichment-morning': {
-        'task': 'content.process_top_headlines_pipeline',
-        'schedule': crontab(hour=5, minute=15),  # 5:15 AM (15 min after morning sync)
-        'kwargs': {'limit': 50},
+        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
+        'schedule': crontab(hour=15, minute=30),  # TEMP: 3:30 PM for testing
+        'kwargs': {'limit': 80},  # Increased from 50
     },
     
-    # Content enrichment for afternoon headlines - 15 minutes after sync  
     'content-enrichment-afternoon': {
-        'task': 'content.process_top_headlines_pipeline',
-        'schedule': crontab(hour=14, minute=15),  # 2:15 PM (15 min after afternoon sync)
-        'kwargs': {'limit': 50},
+        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
+        'schedule': crontab(hour=15, minute=32),  # TEMP: 3:32 PM for testing (2 min later)
+        'kwargs': {'limit': 80},  # Increased from 50
     },
     
-    # Follow-up pipeline runs to catch any missed articles - 1 hour after initial run
     'content-enrichment-followup-morning': {
-        'task': 'content.process_top_headlines_pipeline', 
-        'schedule': crontab(hour=6, minute=15),  # 6:15 AM (1 hour after first run)
-        'kwargs': {'limit': 30},
+        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
+        'schedule': crontab(hour=15, minute=34),  # TEMP: 3:34 PM for testing (4 min later)
+        'kwargs': {'limit': 80},  # Increased from 30
     },
     
     'content-enrichment-followup-afternoon': {
-        'task': 'content.process_top_headlines_pipeline',
-        'schedule': crontab(hour=15, minute=15),  # 3:15 PM (1 hour after first run)
-        'kwargs': {'limit': 30},
+        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
+        'schedule': crontab(hour=15, minute=36),  # TEMP: 3:36 PM for testing (6 min later)
+        'kwargs': {'limit': 80},  # Increased from 30
+    },
+    
+    'content-enrichment-evening': {
+        'task': 'apps.content.tasks.process_top_headlines_pipeline',
+        'schedule': crontab(hour=15, minute=38),  # TEMP: 3:38 PM for testing (8 min later)
+        'kwargs': {'limit': 100},  # Higher limit for peak day handling
+    },
+    
+    'content-enrichment-late-evening': {
+        'task': 'apps.content.tasks.process_top_headlines_pipeline', 
+        'schedule': crontab(hour=15, minute=40),  # TEMP: 3:40 PM for testing (10 min later)
+        'kwargs': {'limit': 100},  # Higher limit for peak day handling
     },
     
     # Pipeline maintenance and monitoring tasks
     
     # Clean up failed articles that exceeded max retries - Daily at 1:00 AM
     'cleanup-failed-pipeline-articles': {
-        'task': 'content.cleanup_failed_pipeline_articles',
+        'task': 'apps.content.tasks.cleanup_failed_pipeline_articles',  # Fixed: was 'content.cleanup_failed_pipeline_articles'
         'schedule': crontab(hour=1, minute=0),  # 1:00 AM daily
         'kwargs': {'max_attempts': 3},
     },
     
-    # Retry previously failed articles - Every 6 hours
+    # Retry previously failed articles - Every 3 hours (increased frequency)
     'retry-failed-pipeline-stages': {
-        'task': 'content.retry_failed_pipeline_stages', 
-        'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
-        'kwargs': {'stage': 'all', 'limit': 20},
+        'task': 'apps.content.tasks.retry_failed_pipeline_stages',  # Fixed: was 'content.retry_failed_pipeline_stages'
+        'schedule': crontab(minute=0, hour='*/3'),  # Every 3 hours (was 6)
+        'kwargs': {'stage': 'all', 'limit': 50},  # Increased from 20
     },
     
     # Pipeline status monitoring - Every 2 hours for debugging
     'pipeline-status-check': {
-        'task': 'content.get_pipeline_status',
+        'task': 'apps.content.tasks.get_pipeline_status',  # Fixed: was 'content.get_pipeline_status'
         'schedule': crontab(minute=30, hour='*/2'),  # Every 2 hours at :30
     },
     
     # ===== DIGEST GENERATION TASKS =====
-    # Generate daily digests for all users - Daily at 7:00 AM
+    # TEMPORARY TESTING SCHEDULE - Generate daily digests at 3:42 PM
     'generate-daily-digests': {
         'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
-        'schedule': crontab(hour=7, minute=0),  # 7:00 AM daily
+        'schedule': crontab(hour=15, minute=42),  # TEMP: 3:42 PM for testing (12 min after pipeline start)
         'kwargs': {'force_regenerate': False},
     },
     
-    # Regenerate failed digests - Daily at 8:00 AM (1 hour after main generation)
+    # TEMPORARY TESTING SCHEDULE - Regenerate failed digests at 3:44 PM
     'regenerate-failed-digests': {
         'task': 'apps.content.digest.tasks.regenerate_failed_digests',
-        'schedule': crontab(hour=8, minute=0),  # 8:00 AM daily
+        'schedule': crontab(hour=15, minute=44),  # TEMP: 3:44 PM for testing (14 min after pipeline start)
     },
     
     # Cleanup old digests - Weekly on Sunday at 1:00 AM
@@ -402,8 +412,8 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 # AI Rate Limiting Configuration
 # Updated for 2M TPM limit (10x increase from 200k TPM)
 # With content extraction averaging ~20k tokens per call
-AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '80'))  # ~1.6M tokens/min (80% of limit)
-AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '20'))  # Higher burst capacity for parallel processing
+AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '120'))  # Increased from 80 to 120 (~1.8M tokens/min, 90% of limit)
+AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '40'))  # Increased burst capacity for parallel processing
 
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch
