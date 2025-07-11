@@ -1,7 +1,7 @@
 # DailyBrief - AI-Powered News Reader
 
 > **CS50 Web Programming Final Project**  
-> A modern news aggregation platform that goes beyond course specifications to practice contemporary web development approaches while fully complying with capstone requirements.
+> A modern news aggregation platform that goes beyond course specifications to practice contemporary web development approaches while complying with capstone requirements.
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
 [![Django](https://img.shields.io/badge/Django-5.0-green?logo=django)](https://djangoproject.com/)
@@ -14,13 +14,13 @@ DailyBrief is an intelligent news reader that transforms how users consume infor
 
 ### **Distinctiveness from Course Projects**
 
-DailyBrief is fundamentally different from typical CS50 Web projects:
+DailyBrief is different from previous CS50 Web projects:
 
 - **Not a social network**: Unlike projects focused on user interactions, posts, and social features, DailyBrief is a content aggregation and AI processing platform
 - **Not e-commerce**: No shopping cart, payments, or product catalog functionality
 - **Unique value proposition**: AI-powered news summarization and digest generation with sophisticated content processing
 
-**Core Innovation**: A 4-stage AI content pipeline that fetches, processes, summarizes, and analyzes news articles to create personalized daily digests—functionality not covered in any course project.
+**Core Innovation**: A 5-stage AI content pipeline that fetches, processes, summarizes, analyzes and digests news articles to create personalized daily digests.
 
 ### **Technical Complexity Beyond Course Requirements**
 
@@ -45,34 +45,21 @@ DailyBrief is fundamentally different from typical CS50 Web projects:
 - **Stage 1**: Multi-source content fetching (RSS, News API)
 - **Stage 2**: AI-powered content processing and extraction
 - **Stage 3**: Intelligent summarization with configurable models
-- **Stage 4**: Semantic event clustering and daily digest creation
+- **Stage 4**: Semantic event clustering and article feature extraction
 
 #### **3. Modern Full-Stack Implementation**
 - **Backend**: Django 5 REST API with Celery task processing
 - **Frontend**: Next.js 15 with React 19 Server Components
 - **Database**: PostgreSQL with vector embeddings (pgvector)
-- **Authentication**: NextAuth.js with Google, Apple, Email magic links
-- **Deployment**: Docker containerization with Vercel hosting
+- **Authentication**: NextAuth.js with Google, Apple (TBD), Email magic links
+- **Deployment**: Docker containerization (for ease of deployment)
 
 #### **4. Production-Ready Features**
-- Mobile PWA with service worker and offline capabilities
+- Mobile PWA with service worker and offline capabilities (TBD)
 - Real-time background processing with Redis/Celery
 - Comprehensive error handling and logging
 - API rate limiting and CORS management
 - Responsive design with Tailwind CSS and shadcn/ui
-
-#### **5. Advanced Data Management**
-- Vector embeddings for semantic article clustering  
-- Complex event deduplication algorithms
-- Multi-tenant feed management with publication relationships
-- Intelligent content quality evaluation
-
-**Complexity Metrics**:
-- **23,000+ lines of code** across backend and frontend
-- **8 specialized Django apps** with distinct responsibilities
-- **50+ database tables** with complex relationships
-- **15+ AI integration points** for content processing
-- **3 external APIs** integrated (OpenAI, Anthropic, News API)
 
 ## 📁 Project Structure
 
@@ -135,7 +122,7 @@ backend/
 
 ```bash
 frontend/
-├── app/                   # Next.js 15 App Router
+├── app/                  # Next.js 15 App Router
 │   ├── (authenticated)/  # Protected route groups
 │   │   ├── (main)/       # Main app navigation
 │   │   │   ├── home/     # Dashboard & recent articles
