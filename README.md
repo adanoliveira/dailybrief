@@ -24,7 +24,7 @@ DailyBrief is different from previous CS50 Web projects:
 
 ### **Technical Complexity Beyond Course Requirements**
 
-#### **1. Advanced Architecture (8 Django Apps)**
+#### **1. Advanced Architecture (Multiple Django Apps)**
 ```
 📁 Modular Monolith Architecture
 ├── accounts/     → User management & authentication
@@ -38,11 +38,11 @@ DailyBrief is different from previous CS50 Web projects:
 │   └── digest/      → Daily digest generation
 ├── newsapi/      → External API integration
 ├── aiproviders/  → AI model configuration
-└── notifications/ → User notification system
+└── notifications/ → User notification system (TBD)
 ```
 
 #### **2. Sophisticated AI Processing Pipeline**
-- **Stage 1**: Multi-source content fetching (RSS, News API)
+- **Stage 1**: Multi-source content fetching: RSS (TBD) and NewsAPI
 - **Stage 2**: AI-powered content processing and extraction
 - **Stage 3**: Intelligent summarization with configurable models
 - **Stage 4**: Semantic event clustering and article feature extraction
