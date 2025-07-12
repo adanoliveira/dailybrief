@@ -73,7 +73,6 @@ docker-compose.override.yml
 .*.sw?
 docs/
 .cursorrules
-.gitignore
 
 # OS specific
 .DS_Store
@@ -92,9 +91,6 @@ backend/debug.log
 backend/celerybeat-schedule*
 backend/venv/
 backend/staticfiles/
-
-# Development test files
-backend/test_pipeline.py
 
 # Frontend generated files  
 frontend/generated/

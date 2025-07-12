@@ -217,7 +217,6 @@ frontend/
 4. **Access the application**:
    - **Frontend**: http://localhost:3000
    - **Backend API**: http://localhost:8000
-   - **Django Admin**: http://localhost:8000/admin
 
 ### **Option 2: Local Development**
 
@@ -379,38 +378,23 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-## 🧪 Testing (TBD)
+## 📄 License & Usage Restrictions
 
-```bash
-# Backend tests
-./docker.sh django test
+This project is developed as a CS50 Web Programming final project and is **shared for evaluation purposes only**. 
 
-# Frontend tests  
-cd frontend && npm test
+**⚠️ IMPORTANT NOTICE:**
+- This code is provided exclusively for academic evaluation by CS50 course staff
+- **Copying, sharing, or distributing this code is strictly prohibited**
+- The code cannot be used as reference material for other CS50 submissions
+- All rights reserved by the author
 
-# API testing
-./docker.sh django test_pipeline  # Custom pipeline test
-```
-
-## 🤝 Contributing
-
-This project follows modern development practices:
-
-- **SOLID Principles**: Clean architecture with clear separation of concerns
-- **Modular Design**: Each Django app has a single responsibility
-- **Type Safety**: TypeScript throughout frontend, Python type hints in backend
-- **Code Quality**: Black formatting, ESLint, comprehensive testing
-
-## 📄 License
-
-This project is developed as a CS50 Web Programming final project and is available for educational purposes.
+This project demonstrates original work created specifically for CS50 Web Programming capstone requirements and maintains academic integrity standards.
 
 ---
 
-**Created by**: Adan Oliveira
-**Course**: CS50 Web Programming with Python and JavaScript  
-**Institution**: Harvard University  
-**Year**: 2025
+- **Created by**: Adan Oliveira
+- **Course**: CS50 Web Programming with Python and JavaScript  
+- **Year**: 2025
 
 ---
 
