@@ -33,20 +33,21 @@ DailyBrief is fundamentally different from previous CS50 Web projects:
 ### Technical Complexity Beyond Course Requirements
 
 **Advanced Architecture (Multiple Django Apps)**:
+DailyBrief implements a modular monolith architecture that combines the simplicity of a single deployable unit with the organizational benefits of microservices. This approach provides better code maintainability and organization while keeping operational overhead low. The complete architectural details are covered in the Implementation Details section.
 ```
 Modular Monolith Architecture
-├── accounts/     → User management & authentication
-├── feeds/        → RSS feed management & publication tracking  
-├── articles/     → Central article repository
-├── content/      → AI processing pipeline (5 sub-apps)
-│   ├── fetcher/     → News content extraction
-│   ├── processor/   → AI content processing (content structuring & cleaning)
-│   ├── summariser/  → AI-powered summarization
-│   ├── analyzer/    → Event clustering & analysis
-│   └── digest/      → Daily digest generation
-├── newsapi/      → External API integration
-├── aiproviders/  → AI model configuration
-└── notifications/ → User notification system (TBD)
+├── accounts/
+├── feeds/
+├── articles/
+├── content/
+│   ├── fetcher/
+│   ├── processor/
+│   ├── summariser/
+│   ├── analyzer/
+│   └── digest/
+├── newsapi/
+├── aiproviders/
+└── notifications/
 ```
 
 **Sophisticated AI Processing Pipeline**:
@@ -98,6 +99,10 @@ Modular Monolith Architecture
 - **pgvector**: Required for semantic article clustering and similarity matching
 
 ### Project Architecture
+
+**Modular Monolith Approach**:
+
+DailyBrief implements a modular monolith architecture that combines the simplicity of a single deployable unit with the organizational benefits of microservices.
 
 **Modular Monolith Structure**:
 ```
