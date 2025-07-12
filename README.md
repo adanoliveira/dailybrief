@@ -8,13 +8,21 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue?logo=postgresql)](https://postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Containerized-blue?logo=docker)](https://docker.com/)
 
-DailyBrief is an intelligent news reader that transforms how users consume information by providing AI-generated summaries, personalized daily digests, and a clean mobile-first interface. The platform aggregates news from multiple sources and processes them through a sophisticated 4-stage AI pipeline to deliver concise, relevant content.
+## Introduction
 
-## 🎯 Distinctiveness and Complexity
+DailyBrief is an intelligent news reader that transforms how users consume information by providing AI-generated summaries, personalized daily digests, and a clean mobile-first interface. The platform aggregates news from multiple sources and processes them through a sophisticated 5-stage AI pipeline to deliver concise, relevant content.
 
-### **Distinctiveness from Course Projects**
+### Project Motivation
 
-DailyBrief is different from previous CS50 Web projects:
+I decided to create a project that would come as close as possible to a real-world application that I could extend and potentially publish to real users. The goal was to apply modern tech stack and architecture patterns, keeping the implementation as lean and simple as possible for a proof of concept while demonstrating advanced full-stack development skills that satisfies and even exceed the capstone project scope.
+
+This approach allowed me to practice contemporary web development techniques including service-oriented architecture concepts, AI integration, real-time processing, and production-ready patterns while building something genuinely useful and innovative.
+
+## Distinctiveness and Complexity
+
+### Distinctiveness from Course Projects
+
+DailyBrief is fundamentally different from previous CS50 Web projects:
 
 - **Not a social network**: Unlike projects focused on user interactions, posts, and social features, DailyBrief is a content aggregation and AI processing platform
 - **Not e-commerce**: No shopping cart, payments, or product catalog functionality
@@ -22,17 +30,17 @@ DailyBrief is different from previous CS50 Web projects:
 
 **Core Innovation**: A 5-stage AI content pipeline that fetches, processes, summarizes, analyzes and digests news articles to create personalized daily digests.
 
-### **Technical Complexity Beyond Course Requirements**
+### Technical Complexity Beyond Course Requirements
 
-#### **1. Advanced Architecture (Multiple Django Apps)**
+**Advanced Architecture (Multiple Django Apps)**:
 ```
-📁 Modular Monolith Architecture
+Modular Monolith Architecture
 ├── accounts/     → User management & authentication
 ├── feeds/        → RSS feed management & publication tracking  
-├── articles/     → Article storage & metadata
-├── content/
-│   ├── fetcher/     → News source aggregation
-│   ├── processor/   → AI content processing
+├── articles/     → Central article repository
+├── content/      → AI processing pipeline (5 sub-apps)
+│   ├── fetcher/     → News content extraction
+│   ├── processor/   → AI content processing (content structuring & cleaning)
 │   ├── summariser/  → AI-powered summarization
 │   ├── analyzer/    → Event clustering & analysis
 │   └── digest/      → Daily digest generation
@@ -41,29 +49,84 @@ DailyBrief is different from previous CS50 Web projects:
 └── notifications/ → User notification system (TBD)
 ```
 
-#### **2. Sophisticated AI Processing Pipeline**
-- **Stage 1**: Multi-source content fetching: RSS (TBD) and NewsAPI
-- **Stage 2**: AI-powered content processing and extraction
-- **Stage 3**: Intelligent summarization with configurable models
-- **Stage 4**: Semantic event clustering and article feature extraction
+**Sophisticated AI Processing Pipeline**:
+1. **Fetching**: Multi-source news aggregation from News API, RSS feeds (TBD)
+2. **Processing**: AI content extraction and structuring
+3. **Summarization**: Intelligent summary generation
+4. **Analysis**: Semantic event clustering and article feature extraction
+5. **Digestion**: Daily digest creation
 
-#### **3. Modern Full-Stack Implementation**
+**Modern Full-Stack Implementation**:
 - **Backend**: Django 5 REST API with Celery task processing
 - **Frontend**: Next.js 15 with React 19 Server Components
 - **Database**: PostgreSQL with vector embeddings (pgvector)
 - **Authentication**: NextAuth.js with Google, Apple (TBD), Email magic links
-- **Deployment**: Docker containerization (for ease of deployment)
+- **Deployment**: Docker containerization for ease of deployment
 
-#### **4. Production-Ready Features**
+**Production-Ready Features**:
 - Mobile PWA with service worker and offline capabilities (TBD)
 - Real-time background processing with Redis/Celery
 - Comprehensive error handling and logging
 - API rate limiting and CORS management
 - Responsive design with Tailwind CSS and shadcn/ui
 
-## 📁 Project Structure
+## Implementation Details
 
-### **Backend (`/backend/`)**
+### Technology Stack and Dependencies
+
+**Backend Architecture**:
+- **Django 5**: REST API with modular monolith architecture
+- **Celery + Redis**: Background task processing and scheduling  
+- **PostgreSQL + pgvector**: Database with vector embeddings for semantic search
+- **OpenAI & Anthropic APIs**: AI content processing and summarization
+- **News API**: External news source integration
+- **spaCy + langdetect**: Cost-optimized natural language processing
+
+**Frontend Architecture**:
+- **Next.js 15**: React framework with App Router and Server Components
+- **TypeScript**: Type-safe JavaScript development throughout
+- **NextAuth.js**: Authentication with Google and Email magic links (Apple - TBD)
+- **Tailwind CSS + shadcn/ui**: Modern UI components and responsive design
+- **Prisma**: Database ORM for frontend authentication layer
+
+**Key Dependencies Justification**:
+- **Django over FastAPI**: Not only a capstone requirement: provides mature ORM, admin UI, and extensive ecosystem
+- **Custom API layer over DRF**: Avoids serialization complexity, provides explicit control
+- **Next.js 15 with App Router**: Enables React Server Components and optimized performance
+- **TypeScript everywhere**: Provides type safety crucial for large codebase maintenance. TypeScript and Next.js are used as modern applications of JavaScript, following contemporary industry practices.
+- **Celery**: Essential for background AI processing tasks that take minutes to complete
+- **pgvector**: Required for semantic article clustering and similarity matching
+
+### Project Architecture
+
+**Modular Monolith Structure**:
+```
+DailyBrief Architecture
+├── accounts/          → User management & authentication
+├── feeds/             → RSS feed management & publication tracking  
+├── articles/          → Central article repository
+├── content/           → AI processing pipeline (5 sub-apps)
+│   ├── fetcher/          → News content extraction
+│   ├── processor/        → AI content processing (content structuring & cleaning)
+│   ├── summariser/       → 4-stage AI summarization pipeline
+│   ├── analyzer/         → 8-stage analysis (entities, events, topics)
+│   └── digest/           → Daily digest generation with multiple strategies
+├── newsapi/           → News API client & request tracking
+├── aiproviders/       → AI provider abstraction & usage tracking
+├── notifications/     → User notification system (TBD)
+└── core/              → Shared API utilities & authentication
+```
+
+**5-Stage Content Processing Pipeline**:
+1. **Fetching**: Intelligent content extraction from public news articles pages
+2. **Processing**: AI-powered content cleaning and structuring using LLM or algorithmic routes
+3. **Summarization**: 4-stage AI pipeline (RBC → Summary → Critic → Embeddings)
+4. **Analysis**: 8-stage cost-optimized pipeline combining free tools (spaCy, langdetect) with targeted LLM usage
+5. **Digestion**: Daily digest creation with multiple strategies
+
+### Project Structure
+
+**Backend (`/backend/`)**:
 
 ```bash
 backend/
@@ -118,7 +181,7 @@ backend/
 └── Dockerfile            # Backend containerization
 ```
 
-### **Frontend (`/frontend/`)**
+**Frontend (`/frontend/`)**:
 
 ```bash
 frontend/
@@ -163,7 +226,7 @@ frontend/
 └── Dockerfile           # Frontend containerization
 ```
 
-### **Key Configuration Files**
+**Key Configuration Files**:
 
 - **`docker-compose.yml`**: Multi-service development environment
 - **`docker.sh`**: Development command wrapper script
@@ -171,35 +234,145 @@ frontend/
 - **`/docs/`**: Project documentation and implementation planning
 - **`/infra/`**: Infrastructure and deployment configurations
 
-## 🚀 How to Run the Application
+### Data Models and Relationships
 
-### **Prerequisites**
+**Core Models Overview**:
 
-- **Docker & Docker Compose** (recommended)
-- **Python 3.11+** (if running without Docker)
-- **Node.js 18+** (if running without Docker)  
-- **PostgreSQL 15+** (if running without Docker)
+**User Management**:
+- **User**: Django's built-in user model extended with profile
+- **UserProfile**: User preferences, timezone, onboarding status, digest settings
+  - Key fields: `public_id` (UUID), `timezone`, `onboarding_completed`, `digest_preferences` (JSON)
+
+**Content Classification**:
+- **Publication**: News sources with metadata and authority scoring
+  - Key fields: `name`, `news_api_id`, `domain`, `authority`, `logo_url`
+  - Relationships: Many-to-many with Topic, Language, Region
+- **Topic**: Content categories (business, technology, sports, etc.)
+- **Region**: Geographic classification (US, BR, UK, etc.)  
+- **Language**: Supported languages with ISO codes
+
+**Article Pipeline**:
+- **Article**: Central content model with 4-stage processing status
+  - Core fields: `title`, `content`, `url`, `published_at`, `image_url`
+  - Processing status: `fetch_status`, `process_status`, `summarization_status`, `analyzer_status`
+  - Classification: Foreign keys to `Publication`, `Language`; Many-to-many with `Topic`, `Region`
+  - AI analysis: `keywords`, `entities` (JSON), `sentiment_score`, `readability_score`
+  - Content versions: `raw_html`, `basic_content`, `clean_content`
+
+**AI Processing Models**:
+- **ArticleRBC**: Rich Bullet Compression (first summarization stage)
+  - Fields: `bullets` (JSON), `processing_metrics`, `quality_indicators`
+- **ArticleSummary**: Structured summary output
+  - Key fields: `headline`, `abstract`, `longer_abstract`, `facts` (JSON), `opinions` (JSON), `impact` (JSON)
+- **ArticleEmbedding**: Vector embeddings for semantic similarity
+  - Fields: `embedding` (VectorField 1536-dim), `model_used`, `similarity_threshold`
+
+**Analysis and Events**:
+- **Entity**: Master entity catalog with deduplication
+  - Fields: `canonical_name`, `display_name`, `entity_type`, `embedding` (VectorField)
+  - Types: Person, Organization, Location, Event, etc.
+- **Event**: Clustered article groupings representing real-world events
+  - Fields: `title`, `description`, `event_hash`, `centroid_embed` (Vector), `article_count`
+  - Relationships: Many-to-many with Article, Entity
+- **ArticleAnalysis**: Comprehensive analysis metadata
+  - Fields: `language_detected`, `readability_score`, `style_tone`, `processing_cost`
+
+**Digest System**:
+- **Digest**: Daily personalized news summary
+  - Fields: `title`, `date`, `introduction`, `html_content`, `generation_status`
+  - Metrics: `reading_time_minutes`, `events_included`, `generation_cost_usd`
+- **DigestTopic**: Topic sections within digests
+- **DigestStory**: Individual stories with AI-enhanced summaries
+  - Fields: `enhanced_abstract`, `key_facts` (JSON), `perspectives` (JSON)
+
+**Infrastructure Models**:
+- **AIProviderUsage**: Tracks AI costs and performance across providers
+- **FetchLog**: Content fetching attempts and success rates  
+- **ProcessingLog**: AI processing performance and error tracking
+- **QualityScoring**: Content quality assessment results
+
+**Key Relationships**:
+- `Publication` → `Article` (one-to-many): Source attribution
+- `Article` → `ArticleSummary` (one-to-one): AI-generated summaries
+- `Article` → `Event` (many-to-many): Event clustering for related stories
+- `Event` → `DigestStory` (one-to-one): Events featured in daily digests
+- `User` → `Digest` (one-to-many): Personalized daily summaries
+
+### Architecture Patterns Applied
+
+**SOLID Principles Implementation**:
+- **Single Responsibility**: Each Django app handles one domain (articles, summarization, analysis)
+- **Open/Closed**: Extensible AI provider system via strategy pattern
+- **Liskov Substitution**: AI providers implement common interface
+- **Interface Segregation**: Focused service contracts per domain
+- **Dependency Inversion**: Services depend on abstractions, not concrete implementations
+
+**Design Patterns**:
+- **Strategy Pattern**: Multiple AI providers (OpenAI, Anthropic) with unified `AIProviderService`
+- **Factory Pattern**: Dynamic AI client instantiation based on configuration
+- **Service Layer Pattern**: Domain services (SummarizationService, AnalyzerService) encapsulate business logic
+- **Repository Pattern**: Django models with service layer abstraction
+- **Observer Pattern**: Pipeline stages trigger subsequent processing
+
+**Development Practices**:
+- **API-First Design**: Custom `@api_view` decorator with automatic CORS and authentication
+- **Type Safety**: TypeScript frontend, Python type hints throughout backend
+- **Error Handling**: Comprehensive logging with structured error responses
+- **Cost Optimization**: Intelligent routing between free tools and paid AI services
+- **Monitoring**: Detailed usage tracking for AI providers and processing performance
+
+## User Experience
+
+### Onboarding Flow
+1. **Authentication**: Sign in with Google, Apple (TBD), or Email magic link
+2. **Language Selection**: Choose preferred languages for content consumption
+3. **Topic & Region Settings**: Customize content focus areas and geographic scope
+4. **Publication Preferences**: Select trusted news sources from curated list
+
+### Daily Workflow
+1. **Morning Digest**: AI-generated summary of yesterday's most important news, personalized by user preferences
+2. **Headlines Feed**: Real-time top stories with AI-generated summaries from followed sources
+3. **Category Browsing**: Explore General, Technology, Business, Science, Health and Sports news with intelligent filtering
+4. **Article Reading**: Clean, distraction-free reading experience with structured AI summaries
+
+### Key Features
+- **Personalized Daily Digests**: AI-curated summary of yesterday's news with multi-perspective coverage
+- **Intelligent Summaries**: Every article includes structured summaries (headline, abstract, key facts, opinions, impact)
+- **Offline Reading**: PWA capabilities for offline content access (TBD)
+
+## How to Run the Application
+
+### Prerequisites
+
+- **Docker & Docker Compose** (recommended for development)
+- **Python 3.11+** and **Node.js 18+** (if running without Docker)  
+- **PostgreSQL 15+** with pgvector extension (if running without Docker)
 - **Redis** (for Celery task processing)
 
-### **Option 1: Docker Development (Recommended)**
+### Environment Configuration
 
-1. **Clone the repository**:
+**Required API Keys**:
+```bash
+OPENAI_API_KEY=your_openai_key          # For AI content processing
+ANTHROPIC_API_KEY=your_anthropic_key    # Alternative AI provider  
+NEWS_API_KEY=your_newsapi_key           # For news article fetching
+```
+
+### Option 1: Docker Development (Recommended)
+
+1. **Clone and setup**:
    ```bash
    git clone <repository-url>
    cd dailybrief
-   ```
-
-2. **Environment setup**:
-   ```bash
-   # Copy environment template
+   
+   # Copy environment templates
    cp backend/.env.example backend/.env
    cp frontend/.env.example frontend/.env
    
-   # Edit environment files with your API keys
-   # Required: OPENAI_API_KEY, ANTHROPIC_API_KEY, NEWS_API_KEY
+   # Edit .env files with your API keys
    ```
 
-3. **Start all services**:
+2. **Start application**:
    ```bash
    # Build and start all containers
    ./docker.sh up
@@ -214,11 +387,11 @@ frontend/
    ./docker.sh django createsuperuser
    ```
 
-4. **Access the application**:
+3. **Access points**:
    - **Frontend**: http://localhost:3000
    - **Backend API**: http://localhost:8000
 
-### **Option 2: Local Development**
+### Option 2: Local Development
 
 1. **Backend setup**:
    ```bash
@@ -233,37 +406,21 @@ frontend/
    python manage.py runserver
    ```
 
-2. **Frontend setup** (in new terminal):
+2. **Frontend setup** (new terminal):
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
 
-3. **Celery workers** (in new terminal):
+3. **Background workers** (new terminal):
    ```bash
    cd backend
    celery -A dailybrief worker --loglevel=info
    celery -A dailybrief beat --loglevel=info
    ```
 
-### **Initial Data Population**
-
-```bash
-# Fetch latest articles
-./docker.sh django fetch_articles
-
-# Process articles through AI pipeline
-./docker.sh django process_articles
-
-# Generate summaries
-./docker.sh django generate_summaries
-
-# Create daily digest
-./docker.sh django generate_digest
-```
-
-## 🔧 Development Commands
+### Development Commands
 
 ```bash
 # Development workflow
@@ -276,77 +433,63 @@ frontend/
 ./docker.sh django migrate                    # Apply migrations
 ./docker.sh django makemigrations           # Create migrations
 ./docker.sh django shell                    # Django shell
-./docker.sh postgres                        # PostgreSQL shell
 
-# Content pipeline
-./docker.sh django fetch_articles           # Fetch new articles
-./docker.sh django process_articles         # AI processing
-./docker.sh django generate_summaries       # Create summaries
-./docker.sh django analyze_events           # Event clustering
-./docker.sh django generate_digest          # Daily digest
+# Content pipeline operations
+./docker.sh django fetch_articles           # Fetch new articles from News API
+./docker.sh django process_articles         # Stage 2: AI content processing
+./docker.sh django generate_summaries       # Stage 3: AI summarization
+./docker.sh django analyze_events           # Stage 4: Event clustering and analysis
+./docker.sh django generate_digest          # Create personalized daily digest
 
-# System maintenance
-./docker.sh django cleanup_stuck_articles   # Reset failed processing
+# Pipeline monitoring and maintenance
+./docker.sh django test_pipeline --status   # Check pipeline health and status
+./docker.sh django cleanup_stuck_articles   # Reset failed processing attempts
 ./docker.sh django reset_failed_to_fetch_pending  # Retry failed articles
 ```
 
-## 🏗️ Architecture & Technical Implementation
+### Initial Data Population
 
-### **AI Processing Pipeline**
+```bash
+# Fetch latest articles from News API
+./docker.sh django fetch_articles
 
-The core innovation of DailyBrief is its 5-stage content processing pipeline:
+# Process articles through complete AI pipeline
+./docker.sh django process_articles
 
-1. **Fetching**: Multi-source aggregation: News API, RSS feeds (TBD)
-2. **Processing**: AI content extraction and structuring
-3. **Summarization**: Intelligent summary generation
-4. **Analysis**: Semantic event clustering and article feature extraction
-5. **Digestion**: Daily digest creation
+# Generate AI summaries for processed articles
+./docker.sh django generate_summaries
 
-### **Authentication Flow**
+# Analyze articles and cluster into events
+./docker.sh django analyze_events
 
-- **NextAuth.js** integration with Google, Apple (TBD), and Email providers
-- **Magic link** email authentication (no passwords)
-- **JWT tokens** for API authentication
-- **Session management** across frontend and backend
+# Create personalized daily digest
+./docker.sh django generate_digest
+```
 
-### **Mobile PWA Features (TBD)**
+### Key Configuration Files
 
-- **Service Worker** for offline content access
-- **App manifest** for home screen installation
-- **Responsive design** optimized for mobile consumption
-- **Touch-friendly** interface with gesture navigation
+**Backend Configuration**:
+- `backend/.env`: API keys, database URL, Redis URL, Django settings
+- `backend/requirements.txt`: Python dependencies with AI/ML libraries
+- `backend/dailybrief/settings.py`: Django configuration with modular app setup
+- `backend/dailybrief/celery.py`: Background task processing configuration
+- `docker-compose.yml`: Multi-service development environment
 
-### **Data Management**
+**Frontend Configuration**:
+- `frontend/.env`: NextAuth configuration, API endpoints
+- `frontend/package.json`: Node.js dependencies and build scripts
+- `frontend/next.config.js`: Next.js configuration with API routes
+- `frontend/tailwind.config.js`: Tailwind CSS with custom design system
+- `frontend/lib/auth.ts`: NextAuth.js provider configuration
 
-- **PostgreSQL** with pgvector extension for semantic search
-- **Vector embeddings** for article similarity and clustering
-- **Complex relationships** between articles, events, and digests
-- **Automated cleanup** and data retention policies
+**Infrastructure**:
+- `docker.sh`: Development command wrapper script for common operations
+- `.gitignore`: Comprehensive ignore patterns for development files
+- `docs/`: Project documentation and implementation planning
 
-## 📱 User Experience
+### Environment Variables
 
-### **Onboarding Flow**
-1. **Authentication**: Sign in with Google, Apple, or Email
-2. **Language Selection**: Choose preferred languages
-3. **Publication Preferences**: Select trusted news sources
-4. **Region Settings**: Customize geographical focus
-
-### **Daily Workflow**
-1. **Morning Digest**: AI-generated summary of yesterday's news
-2. **Headlines**: Real-time top stories with AI summaries
-3. **Category Browsing**: Explore World, Technology, Business news
-4. **Article Reading**: Clean, distraction-free reading experience
-
-### **Key Features**
-- **Daily Digests**: AI-generated summary of yesterday's news
-- **AI Summaries**: Every article includes intelligent summary
-- **Event Clustering**: Related articles grouped into events
-- **Offline Reading**: PWA capabilities for offline access
-- **Personalization**: Customizable feeds and preferences
-
-## 🔑 Environment Variables
-
-### **Backend (`backend/.env`)**
+**Backend (`backend/.env`)**:
 ```bash
 # AI Services
 OPENAI_API_KEY=your_openai_key
@@ -358,7 +501,7 @@ NEWS_API_KEY=your_newsapi_key
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/dailybrief
 
-# Redis
+# Redis (for Celery)
 REDIS_URL=redis://localhost:6379/0
 
 # Django
@@ -366,7 +509,7 @@ SECRET_KEY=your_secret_key
 DEBUG=True
 ```
 
-### **Frontend (`frontend/.env`)**
+**Frontend (`frontend/.env`)**:
 ```bash
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8000
@@ -378,11 +521,11 @@ GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-## 📄 License & Usage Restrictions
+## License & Usage Restrictions
 
 This project is developed as a CS50 Web Programming final project and is **shared for evaluation purposes only**. 
 
-**⚠️ IMPORTANT NOTICE:**
+**Important Notice:**
 - This code is provided exclusively for academic evaluation by CS50 course staff
 - **Copying, sharing, or distributing this code is strictly prohibited**
 - The code cannot be used as reference material for other CS50 submissions
@@ -392,10 +535,10 @@ This project demonstrates original work created specifically for CS50 Web Progra
 
 ---
 
-- **Created by**: Adan Oliveira
-- **Course**: CS50 Web Programming with Python and JavaScript  
-- **Year**: 2025
+This project serves as both a capstone demonstration and a foundation for a potentially viable news aggregation service, embodying the goal of building something genuinely useful while mastering complex web development concepts.
 
 ---
 
-> This project demonstrates advanced full-stack development skills by implementing a production-ready news platform with AI integration, modern authentication, and mobile PWA capabilities, exceeding course project scope while meeting all capstone requirements. TypeScript and Next.js are used as modern applications of JavaScript, following contemporary industry practices.
+**Created by**: Adan Oliveira  
+**Course**: CS50 Web Programming with Python and JavaScript  
+**Year**: 2025
