@@ -132,6 +132,9 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF configuration for cross-origin requests
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
+
 ROOT_URLCONF = 'dailybrief.urls'
 
 TEMPLATES = [

@@ -4,7 +4,6 @@ from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 import uuid
 import json
 import logging
@@ -485,6 +484,9 @@ def generate_article_summary(request, public_id):
     Generate or refresh the summary for a specific article.
     POST /articles/<public_id>/generate-summary/
     """
+    
+    # Initialize variables to prevent scope issues
+    force_regenerate = False
 
     try:
         article_uuid = uuid.UUID(public_id)
@@ -511,7 +513,8 @@ def generate_article_summary(request, public_id):
     if parse_error:
         return parse_error
     
-        force_regenerate = body.get('forceRegenerate', False)
+    # Get force_regenerate option from request body
+    force_regenerate = body.get('forceRegenerate', False)
 
     # Validate article can be summarized
     from apps.articles.models import SummarizationStatus

@@ -52,16 +52,16 @@ def similar_articles(request, article_id):
         
         # Get and validate query parameters
         try:
-        threshold = float(request.GET.get('threshold', 0.22))
-        limit = int(request.GET.get('limit', 5))
+            threshold = float(request.GET.get('threshold', 0.22))
+            limit = int(request.GET.get('limit', 5))
         except ValueError:
             return create_error_response(
                 "Invalid parameter format",
                 status=400,
                 error_code="INVALID_PARAMETER_FORMAT",
                 details={
-                    "threshold": "Must be a float between 0 and 1",
-                    "limit": "Must be an integer between 1 and 50"
+                    "threshold": request.GET.get('threshold', 0.22),
+                    "limit": request.GET.get('limit', 5)
                 }
             )
         

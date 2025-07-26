@@ -323,7 +323,9 @@ def api_view(
     
     def decorator(view_func):
         from functools import wraps
+        from django.views.decorators.csrf import csrf_exempt
         
+        @csrf_exempt  # API endpoints use JWT auth, not CSRF tokens
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             # Handle OPTIONS requests for CORS preflight
