@@ -18,7 +18,7 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
-  const { userStatus, isLoading: isLoadingUser } = useUser()
+  const { userStatus, userPreferences, isLoading: isLoadingUser } = useUser()
   const { toast } = useToast()
   const [isVerifying, setIsVerifying] = useState(true)
   

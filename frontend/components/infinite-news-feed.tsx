@@ -4,7 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Check, Coffee, Newspaper, AlertTriangle } from "lucide-react"
-import { getPersonalizedFeed, getWorldFeed, getPublicWorldFeed, ArticleQueryParams } from "@/lib/api"
+import { ArticleQueryParams } from "@/lib/api"
+import { cachedApi } from "@/lib/cached-api"
 import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NewsCard, ArticlePreviewWithTopics } from "@/components/news-card"
@@ -57,17 +58,12 @@ export function InfiniteNewsFeed({
         params.search = searchQuery
       }
       
-      // Choose the appropriate API based on feed type and mode
-      let data;
-      if (feedType === 'world') {
-        if (publicMode) {
-          data = await getPublicWorldFeed(params);
-        } else {
-          data = await getWorldFeed(params);
-        }
-      } else {
-        data = await getPersonalizedFeed(params);
-      }
+      // Use cached API for better performance
+      const data = await cachedApi.getFeed(feedType, params, {
+        forceRefresh: false,
+        loadMore: pageNum > 1,
+        publicMode
+      })
       
       if (reset) {
         setArticles(data.articles)
@@ -86,6 +82,9 @@ export function InfiniteNewsFeed({
       } else {
         setHasMore(true)
         setReachedEnd(false)
+        
+        // Preload next page in background
+        cachedApi.preloadNextPage(feedType, params, publicMode)
       }
       
       return data.articles.length
