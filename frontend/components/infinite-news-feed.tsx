@@ -253,15 +253,8 @@ export function InfiniteNewsFeed({
 
   // Show sync status in development
   const renderSyncStatus = () => {
-    if (process.env.NODE_ENV !== 'development' || !lastSyncAt) return null
-
-    return (
-      <div className="text-xs text-muted-foreground text-center py-2 border-b">
-        Last synced: {formatDistanceToNow(lastSyncAt, { addSuffix: true })} 
-        {!isOnline && <span className="ml-2 text-amber-600">(Offline mode)</span>}
-        {totalItems !== undefined && <span className="ml-2">({totalItems} total)</span>}
-      </div>
-    )
+    // Sync status indicator removed per user request
+    return null
   }
 
   // Render content based on state
