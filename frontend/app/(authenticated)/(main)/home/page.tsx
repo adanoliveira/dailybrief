@@ -3,22 +3,23 @@
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useUser } from "@/lib/user-context"
+import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, Search } from "lucide-react"
+import { Filter, Search, Wifi, WifiOff } from "lucide-react"
 import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 import { useToast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function Home() {
   // Declare all hooks at the top level
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
-  const { userStatus, isLoading: isLoadingUser } = useUser()
   const { toast } = useToast()
   const [isVerifying, setIsVerifying] = useState(true)
   
@@ -27,6 +28,18 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'relevance' | 'newest' | 'oldest'>('relevance')
+  
+  // Use local storage hooks - NO direct API calls
+  const { 
+    data: userPreferences, 
+    isLoading: isLoadingUser, 
+    error: userError 
+  } = useUserPreferences({ backgroundSync: true })
+  
+  const { isOnline, wasOffline } = useOfflineStatus()
+  
+  // Enable background sync for this page
+  useBackgroundSync(10 * 60 * 1000) // 10 minutes
   
   // Handle search debounce
   useEffect(() => {
@@ -53,8 +66,8 @@ export default function Home() {
     }
     
     // If we have user status, check onboarding status
-    if (userStatus) {
-      if (!userStatus.has_completed_onboarding) {
+    if (userPreferences) {
+      if (!userPreferences.has_completed_onboarding) {
         // User needs to complete onboarding
         router.replace('/onboarding?skip_check=true')
         return
@@ -65,7 +78,7 @@ export default function Home() {
     }
     
     // If user status isn't available yet but session is, check localStorage as fallback
-    if (!userStatus && session) {
+    if (!userPreferences && session) {
       const hasDoneOnboarding = localStorage.getItem('has_completed_onboarding') === 'true'
       if (!hasDoneOnboarding) {
         // User needs to complete onboarding
@@ -76,7 +89,7 @@ export default function Home() {
       // Onboarding is complete according to localStorage, allow access to home
       setIsVerifying(false)
     }
-  }, [userStatus, isLoadingUser, session, router, searchParams])
+  }, [userPreferences, isLoadingUser, session, router, searchParams])
 
   // Check if user just completed onboarding
   useEffect(() => {
@@ -99,7 +112,17 @@ export default function Home() {
   const renderVerifying = () => (
     <div className="container py-6">
       <div className="flex justify-center items-center min-h-[50vh]">
-        <p className="text-muted-foreground">Loading your personalized feed...</p>
+        <div className="text-center space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-10 w-full sm:w-[300px]" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -107,8 +130,23 @@ export default function Home() {
   const renderMainContent = () => (
     <div className="container py-6">
       <div className="flex flex-col gap-6">
+        {/* Header with offline indicator */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-2xl font-bold tracking-tight">Your News</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Your News</h1>
+            {!isOnline && (
+              <div className="flex items-center gap-1 text-amber-600 text-sm">
+                <WifiOff className="h-4 w-4" />
+                <span>Offline</span>
+              </div>
+            )}
+            {isOnline && wasOffline && (
+              <div className="flex items-center gap-1 text-green-600 text-sm">
+                <Wifi className="h-4 w-4" />
+                <span>Back online</span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative w-full sm:w-[260px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -136,6 +174,25 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Offline notice */}
+        {!isOnline && (
+          <Alert>
+            <WifiOff className="h-4 w-4" />
+            <AlertDescription>
+              You're offline. Showing cached articles. Connect to the internet to get the latest updates.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* User preferences error notice */}
+        {userError && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Failed to load your preferences: {userError}. Some features may not work properly.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <DailyDigest />
 
         <Tabs 
@@ -145,12 +202,13 @@ export default function Home() {
         >
           <TabsList className="mb-4 overflow-auto py-1 w-full justify-start">
             <TabsTrigger value="for-you">For You</TabsTrigger>
-            {userStatus?.topics_details?.map(topic => (
+            {userPreferences?.topics_details?.map(topic => (
               <TabsTrigger key={topic.id} value={topic.slug}>{topic.name}</TabsTrigger>
             ))}
           </TabsList>
           <TabsContent value={selectedTopic}>
             <InfiniteNewsFeed 
+              feedType="personalized"
               topicSlug={selectedTopic} 
               searchQuery={debouncedSearch}
               sortOrder={sortOrder}

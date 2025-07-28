@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, Coffee, Newspaper, AlertTriangle } from "lucide-react"
-import { getPersonalizedFeed, getWorldFeed, getPublicWorldFeed, ArticleQueryParams } from "@/lib/api"
+import { Check, Coffee, Newspaper, AlertTriangle, RefreshCw } from "lucide-react"
+import { useFeed, useOfflineStatus } from "@/lib/use-local-data"
 import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NewsCard, ArticlePreviewWithTopics } from "@/components/news-card"
@@ -14,7 +14,7 @@ interface InfiniteNewsFeedProps {
   topicSlug?: string;
   searchQuery?: string;
   sortOrder?: 'relevance' | 'newest' | 'oldest';
-  publicMode?: boolean; // New prop for public/unauthenticated mode
+  publicMode?: boolean; // For backwards compatibility, but not used with local storage
 }
 
 export function InfiniteNewsFeed({ 
@@ -24,120 +24,61 @@ export function InfiniteNewsFeed({
   sortOrder = 'relevance',
   publicMode = false 
 }: InfiniteNewsFeedProps) {
-  const [articles, setArticles] = useState<ArticlePreviewWithTopics[]>([])
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true) // Start with loading
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(true)
-  const [reachedEnd, setReachedEnd] = useState(false)
+  const { isOnline, wasOffline } = useOfflineStatus()
   const observer = useRef<IntersectionObserver | null>(null)
 
-  // Function to load articles
-  const loadArticles = useCallback(async (pageNum: number, reset: boolean = false) => {
-    setLoading(true)
-    setError(null)
-    
-    try {
-      const params: ArticleQueryParams = {
-        page: pageNum,
-        page_size: 10,
-      }
+  // Use the new local-first hook for feed data
+  const {
+    articles,
+    isLoading,
+    isLoadingMore,
+    error,
+    hasMore,
+    totalItems,
+    lastSyncAt,
+    loadMore,
+    refresh,
+    backgroundRefresh
+  } = useFeed(feedType, topicSlug, searchQuery, sortOrder, {
+    backgroundSync: true // Enable background sync for smooth UX
+  })
 
-      // Add sort parameter only for personalized feed
-      if (feedType === 'personalized') {
-        params.sort = sortOrder
-      }
-      
-      if (topicSlug && topicSlug !== 'for-you' && topicSlug !== 'all') {
-        params.topic = topicSlug
-      }
-      
-      if (searchQuery) {
-        params.search = searchQuery
-      }
-      
-      // Choose the appropriate API based on feed type and mode
-      let data;
-      if (feedType === 'world') {
-        if (publicMode) {
-          data = await getPublicWorldFeed(params);
-        } else {
-          data = await getWorldFeed(params);
-        }
-      } else {
-        data = await getPersonalizedFeed(params);
-      }
-      
-      if (reset) {
-        setArticles(data.articles)
-      } else {
-        setArticles(prev => [...prev, ...data.articles])
-      }
-      
-      if (!data.pagination.hasNext) {
-        setHasMore(false)
-        if (data.articles.length === 0 && pageNum === 1) {
-          // No articles found
-          setReachedEnd(false)
-        } else {
-        setReachedEnd(true)
-        }
-      } else {
-        setHasMore(true)
-        setReachedEnd(false)
-      }
-      
-      return data.articles.length
-    } catch (err) {
-      console.error("Error fetching articles:", err)
-      setError(err instanceof Error ? err.message : "Failed to load articles")
-      return 0
-    } finally {
-      setLoading(false)
-      setInitialLoading(false)
-    }
-  }, [feedType, topicSlug, searchQuery, sortOrder, publicMode])
-
-  // Handle search/filter changes
-  useEffect(() => {
-    setPage(1)
-    setHasMore(true)
-    setReachedEnd(false)
-    setInitialLoading(true)
-    loadArticles(1, true)
-  }, [topicSlug, searchQuery, sortOrder, loadArticles])
-
-  // Set up the intersection observer for infinite scroll
+  // Set up intersection observer for infinite scroll
   const lastArticleRef = useCallback(
     (node: HTMLDivElement | null) => {
-      if (loading) return
+      if (isLoadingMore) return
 
       if (observer.current) observer.current.disconnect()
 
       observer.current = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && hasMore) {
-          setPage(prevPage => prevPage + 1)
+          console.log('InfiniteNewsFeed: Loading more articles via intersection observer')
+          loadMore()
         }
       })
 
       if (node) observer.current.observe(node)
     },
-    [loading, hasMore],
+    [isLoadingMore, hasMore, loadMore],
   )
 
-  // Load more articles when page changes
+  // Trigger background refresh when app comes back online
   useEffect(() => {
-    if (page > 1) {
-      loadArticles(page)
+    if (isOnline && wasOffline) {
+      console.log('InfiniteNewsFeed: App back online, triggering background refresh')
+      backgroundRefresh()
     }
-  }, [page, loadArticles])
+  }, [isOnline, wasOffline, backgroundRefresh])
 
-  // Handle retry
-  const handleRetry = () => {
-    setError(null)
-    loadArticles(page, page === 1)
-  }
+  // Handle manual refresh
+  const handleRefresh = useCallback(async () => {
+    console.log('InfiniteNewsFeed: Manual refresh requested')
+    try {
+      await refresh()
+    } catch (err) {
+      console.error('InfiniteNewsFeed: Manual refresh failed:', err)
+    }
+  }, [refresh])
 
   // Render empty state
   const renderEmptyState = () => (
@@ -151,15 +92,25 @@ export function InfiniteNewsFeed({
         <h3 className="text-lg font-medium mb-2">
           {feedType === 'world' ? 'No headlines found' : 'No articles found'}
         </h3>
-        <p className="text-muted-foreground">
-          {searchQuery 
-            ? `No ${feedType === 'world' ? 'headlines' : 'articles'} match your search criteria. Try a different search term.`
-            : topicSlug !== 'for-you' && topicSlug !== 'all'
-              ? `No ${feedType === 'world' ? 'headlines' : 'articles'} found in this topic. Try a different topic or check back later.`
-              : feedType === 'world' 
-                ? "We couldn't find any headlines. Check back later for the latest news."
-                : "We couldn't find any articles for your preferences. Update your interests or check back later."}
+        <p className="text-muted-foreground mb-4">
+          {!isOnline ? (
+            "You're offline. Connect to the internet to load fresh content."
+          ) : searchQuery ? (
+            `No ${feedType === 'world' ? 'headlines' : 'articles'} match your search criteria. Try a different search term.`
+          ) : topicSlug !== 'for-you' && topicSlug !== 'all' ? (
+            `No ${feedType === 'world' ? 'headlines' : 'articles'} found in this topic. Try a different topic or check back later.`
+          ) : feedType === 'world' ? (
+            "We couldn't find any headlines. Check back later for the latest news."
+          ) : (
+            "We couldn't find any articles for your preferences. Update your interests or check back later."
+          )}
         </p>
+        {isOnline && (
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
@@ -177,11 +128,18 @@ export function InfiniteNewsFeed({
           Failed to load {feedType === 'world' ? 'headlines' : 'articles'}
         </h3>
         <p className="text-muted-foreground mb-4">
-          {error || "Something went wrong. Please try again."}
+          {!isOnline ? (
+            "You're offline and no cached content is available."
+          ) : (
+            error || "Something went wrong. Please try again."
+          )}
         </p>
-        <Button onClick={handleRetry} variant="outline">
-          Try again
-        </Button>
+        <div className="flex gap-2 justify-center">
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try again
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )
@@ -227,34 +185,79 @@ export function InfiniteNewsFeed({
     }
   }
 
+  // Show sync status in development
+  const renderSyncStatus = () => {
+    if (process.env.NODE_ENV !== 'development' || !lastSyncAt) return null
+
+    return (
+      <div className="text-xs text-muted-foreground text-center py-2 border-b">
+        Last synced: {formatDistanceToNow(lastSyncAt, { addSuffix: true })} 
+        {!isOnline && <span className="ml-2 text-amber-600">(Offline mode)</span>}
+        {totalItems !== undefined && <span className="ml-2">({totalItems} total)</span>}
+      </div>
+    )
+  }
+
   // Render content based on state
-  if (initialLoading) {
-    return renderSkeletons()
+  if (isLoading) {
+    return (
+      <>
+        {renderSyncStatus()}
+        {renderSkeletons()}
+      </>
+    )
   }
   
   if (error && articles.length === 0) {
-    return renderErrorState()
+    return (
+      <>
+        {renderSyncStatus()}
+        {renderErrorState()}
+      </>
+    )
   }
   
-  if (!loading && articles.length === 0) {
-    return renderEmptyState()
+  if (!isLoading && articles.length === 0) {
+    return (
+      <>
+        {renderSyncStatus()}
+        {renderEmptyState()}
+      </>
+    )
   }
 
   return (
     <div className="space-y-4">
+      {renderSyncStatus()}
+      
       {articles.map((article, index) => {
+        // Add local storage fields to match NewsCard expectations
+        const articleWithTopics = {
+          ...article,
+          topics: article.topics || []
+        } as ArticlePreviewWithTopics
+
         if (articles.length === index + 1) {
           return (
             <div ref={lastArticleRef} key={article.id}>
-              <NewsCard article={article} formatDate={formatDate} />
+              <NewsCard 
+                article={articleWithTopics} 
+                formatDate={formatDate}
+              />
             </div>
           )
         } else {
-          return <NewsCard key={article.id} article={article} formatDate={formatDate} />
+          return (
+            <NewsCard 
+              key={article.id} 
+              article={articleWithTopics} 
+              formatDate={formatDate}
+            />
+          )
         }
       })}
 
-      {loading && !initialLoading && (
+      {isLoadingMore && (
         <div className="flex justify-center py-4">
           <div className="animate-pulse flex space-x-2">
             <div className="rounded-full bg-muted h-2 w-2"></div>
@@ -266,13 +269,14 @@ export function InfiniteNewsFeed({
 
       {error && articles.length > 0 && (
         <div className="flex justify-center py-4">
-          <Button onClick={handleRetry} variant="outline" size="sm">
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
             Failed to load more. Retry?
           </Button>
         </div>
       )}
 
-      {reachedEnd && !publicMode && (
+      {!hasMore && !isLoading && articles.length > 0 && (
         <Card className="bg-primary/5 border-primary/20 text-center">
           <CardContent className="pt-6 pb-4">
             <div className="flex justify-center mb-4">
@@ -281,7 +285,7 @@ export function InfiniteNewsFeed({
               </div>
             </div>
             <h3 className="text-lg font-medium mb-2">You're all caught up!</h3>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               {feedType === 'world' 
                 ? "You've seen all the top headlines for now. Check back later for more updates."
                 : "You've read all the top stories for now. Check back later for more updates."}
@@ -290,6 +294,12 @@ export function InfiniteNewsFeed({
               <Coffee className="h-5 w-5 text-muted-foreground" />
               <Newspaper className="h-5 w-5 text-muted-foreground" />
             </div>
+            {isOnline && (
+              <Button onClick={handleRefresh} variant="outline" size="sm" className="mt-4">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh for new content
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
