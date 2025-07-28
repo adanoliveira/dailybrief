@@ -73,7 +73,6 @@ export default function RootLayout({
                   
                   if (savedPosition) {
                     const position = parseInt(savedPosition, 10);
-                    console.log('🚀 Inline restoration: ' + position + 'px for ' + cacheKey);
                     
                     // Restore immediately - no animation to prevent flash
                     window.scrollTo(0, position);

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef, useCallback, useState } from "react"
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, Coffee, Newspaper, AlertTriangle, RefreshCw } from "lucide-react"
+import { Check, Coffee, Newspaper, AlertTriangle, RefreshCw, RotateCcw } from "lucide-react"
 import { useFeed, useOfflineStatus } from "@/lib/use-local-data"
 import { initClientScrollRestoration } from "@/lib/client-scroll-restoration"
 import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
@@ -29,6 +29,15 @@ export function InfiniteNewsFeed({
   const observer = useRef<IntersectionObserver | null>(null)
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasRestoredScroll = useRef(false)
+  const isRestoringScroll = useRef(false)
+  const lastSavedPosition = useRef<number | null>(null)
+  const topPositionTimer = useRef<NodeJS.Timeout | null>(null)
+  
+  // Pull-to-refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [pullStartY, setPullStartY] = useState(0)
+  const [pullDistance, setPullDistance] = useState(0)
+  const pullThreshold = 80 // Pixels to trigger refresh
 
   // Use the new local-first hook for feed data
   const {
@@ -56,7 +65,8 @@ export function InfiniteNewsFeed({
       if (observer.current) observer.current.disconnect()
 
       observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore) {
+        // Don't trigger during scroll restoration to prevent unwanted loading
+        if (entries[0].isIntersecting && hasMore && !isRestoringScroll.current) {
           console.log('InfiniteNewsFeed: Loading more articles via intersection observer')
           loadMore()
         }
@@ -77,13 +87,19 @@ export function InfiniteNewsFeed({
 
   // Client-side scroll restoration on mount (handles Next.js navigation)
   useEffect(() => {
-    console.log(`📱 InfiniteNewsFeed mounted for ${feedType}/${topicSlug}`)
     initClientScrollRestoration()
   }, []) // Run only on mount
   
   // Reset scroll restoration flag when feed changes
   useEffect(() => {
     hasRestoredScroll.current = false
+    lastSavedPosition.current = null // Reset position tracking for new feed
+    
+    // Clear any pending timers for the new feed
+    if (topPositionTimer.current) {
+      clearTimeout(topPositionTimer.current)
+      topPositionTimer.current = null
+    }
   }, [feedType, topicSlug])
 
   // Scroll position restoration - restore when articles are loaded and we haven't restored yet
@@ -95,21 +111,30 @@ export function InfiniteNewsFeed({
       const wasRestoredImmediately = (typeof window !== 'undefined' && (window as any).__scrollRestored === expectedCacheKey)
       
       if (wasRestoredImmediately) {
-        console.log(`✅ Scroll already restored immediately for ${feedType}, skipping React restoration`)
         hasRestoredScroll.current = true
+        // Initialize lastSavedPosition from the restored position
+        const savedScrollPosition = getScrollPosition()
+        lastSavedPosition.current = savedScrollPosition
         return
       }
       
       // Fallback to React-based restoration
       const savedScrollPosition = getScrollPosition()
-      if (savedScrollPosition) {
-        console.log(`🔄 React fallback: restoring scroll position to ${savedScrollPosition}`)
+      if (savedScrollPosition !== null) {
+        isRestoringScroll.current = true
+        // Remember what position we're restoring to
+        lastSavedPosition.current = savedScrollPosition
         setTimeout(() => {
           window.scrollTo({ top: savedScrollPosition, behavior: 'auto' })
           hasRestoredScroll.current = true
+          // Allow intersection observer to work again after restoration
+          setTimeout(() => {
+            isRestoringScroll.current = false
+          }, 200)
         }, 50) // Reduced delay since immediate restoration failed
       } else {
         hasRestoredScroll.current = true // Mark as restored even if no saved position
+        lastSavedPosition.current = null
       }
     }
   }, [articles.length, isLoading, getScrollPosition, feedType, topicSlug])
@@ -122,9 +147,28 @@ export function InfiniteNewsFeed({
     
     scrollTimeoutRef.current = setTimeout(() => {
       const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
-      // Only save meaningful scroll positions (not 0 which occurs during transitions)
-      if (scrollPosition > 50) {
+      
+      // Clear any pending top position timer since user is actively scrolling
+      if (topPositionTimer.current) {
+        clearTimeout(topPositionTimer.current)
+        topPositionTimer.current = null
+      }
+      
+      if (scrollPosition === 0) {
+        // Only save position 0 if user was already near the top (within 150px)
+        // This prevents saving 0 when jumping from far down the page (transition artifacts)
+        if (lastSavedPosition.current === null || lastSavedPosition.current <= 150) {
+          // User was already near top, safe to save position 0 after brief delay
+          topPositionTimer.current = setTimeout(() => {
+            saveScrollPosition(0)
+            lastSavedPosition.current = 0
+          }, 500) // Longer delay to be more conservative
+        }
+        // If user was far down (>150px), ignore this position 0 (likely transition artifact)
+      } else {
+        // Always save non-zero positions immediately
         saveScrollPosition(scrollPosition)
+        lastSavedPosition.current = scrollPosition
       }
     }, 150) // Throttle scroll events
   }, [saveScrollPosition])
@@ -137,6 +181,9 @@ export function InfiniteNewsFeed({
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current)
       }
+      if (topPositionTimer.current) {
+        clearTimeout(topPositionTimer.current)
+      }
     }
   }, [handleScroll])
 
@@ -144,9 +191,21 @@ export function InfiniteNewsFeed({
   useEffect(() => {
     return () => {
       const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
-      if (scrollPosition > 50) {
+      
+      // Clear any pending timers
+      if (topPositionTimer.current) {
+        clearTimeout(topPositionTimer.current)
+      }
+      
+      // Be conservative on unmount: only save position 0 if we were already near top
+      if (scrollPosition === 0) {
+        if (lastSavedPosition.current === null || lastSavedPosition.current <= 150) {
+          saveScrollPosition(scrollPosition)
+        }
+        // Otherwise ignore position 0 on unmount (likely browser reset during navigation)
+      } else {
+        // Always save non-zero positions
         saveScrollPosition(scrollPosition)
-        console.log(`📤 Component unmount: saved scroll position ${scrollPosition}`)
       }
     }
   }, [saveScrollPosition])
@@ -154,21 +213,67 @@ export function InfiniteNewsFeed({
   // Handle article click - save scroll position immediately
   const handleArticleClick = useCallback(() => {
     const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
-    if (scrollPosition > 50) {
+    
+    // Clear any pending top position timer
+    if (topPositionTimer.current) {
+      clearTimeout(topPositionTimer.current)
+    }
+    
+    // Article click is a deliberate user action, but still be conservative with position 0
+    if (scrollPosition === 0) {
+      if (lastSavedPosition.current === null || lastSavedPosition.current <= 150) {
+        saveScrollPosition(scrollPosition)
+        lastSavedPosition.current = scrollPosition
+      }
+    } else {
       saveScrollPosition(scrollPosition)
-      console.log(`🎯 Article click: saved scroll position ${scrollPosition}`)
+      lastSavedPosition.current = scrollPosition
     }
   }, [saveScrollPosition])
 
   // Handle manual refresh
   const handleRefresh = useCallback(async () => {
-    console.log('InfiniteNewsFeed: Manual refresh requested')
+    if (isRefreshing) return
+    
+    setIsRefreshing(true)
     try {
       await refresh()
     } catch (err) {
       console.error('InfiniteNewsFeed: Manual refresh failed:', err)
+    } finally {
+      setIsRefreshing(false)
+      setPullDistance(0)
     }
-  }, [refresh])
+  }, [refresh, isRefreshing])
+
+  // Pull-to-refresh handlers for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setPullStartY(e.touches[0].clientY)
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (pullStartY === 0 || window.scrollY > 0) return
+    
+    const currentY = e.touches[0].clientY
+    const distance = Math.max(0, currentY - pullStartY)
+    
+    if (distance > 0) {
+      setPullDistance(Math.min(distance, pullThreshold * 1.5))
+      // Prevent scrolling when pulling
+      e.preventDefault()
+    }
+  }, [pullStartY, pullThreshold])
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullDistance >= pullThreshold && !isRefreshing) {
+      handleRefresh()
+    } else {
+      setPullDistance(0)
+    }
+    setPullStartY(0)
+  }, [pullDistance, pullThreshold, isRefreshing, handleRefresh])
 
   // Render empty state
   const renderEmptyState = () => (
@@ -310,7 +415,31 @@ export function InfiniteNewsFeed({
   }
 
   return (
-    <div className="space-y-4">
+    <div 
+      className="space-y-4" 
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {pullDistance > 0 && (
+        <div 
+          className="fixed top-0 left-0 right-0 z-50 flex justify-center items-center bg-background/80 backdrop-blur-sm border-b transition-all duration-200"
+          style={{ 
+            height: Math.min(pullDistance, pullThreshold),
+            opacity: pullDistance / pullThreshold 
+          }}
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RotateCcw 
+              className={`h-4 w-4 ${pullDistance >= pullThreshold ? 'animate-spin' : ''}`} 
+            />
+            {pullDistance >= pullThreshold ? 'Release to refresh' : 'Pull to refresh'}
+          </div>
+        </div>
+      )}
+      
+      
       {renderSyncStatus()}
       
       {articles.map((article, index) => {
@@ -354,9 +483,14 @@ export function InfiniteNewsFeed({
 
       {error && articles.length > 0 && (
         <div className="flex justify-center py-4">
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Failed to load more. Retry?
+          <Button 
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            variant="outline" 
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Retrying...' : 'Failed to load more. Retry?'}
           </Button>
         </div>
       )}
@@ -380,9 +514,15 @@ export function InfiniteNewsFeed({
               <Newspaper className="h-5 w-5 text-muted-foreground" />
             </div>
             {isOnline && (
-              <Button onClick={handleRefresh} variant="outline" size="sm" className="mt-4">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh for new content
+              <Button 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh for new content'}
               </Button>
             )}
           </CardContent>

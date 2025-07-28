@@ -4,9 +4,10 @@ import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
+import { dataManager } from "@/lib/data-manager"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, Search, Wifi, WifiOff } from "lucide-react"
+import { Filter, Search, Wifi, WifiOff, RefreshCw } from "lucide-react"
 import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -29,6 +30,9 @@ export default function Home() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortOrder, setSortOrder] = useState<'relevance' | 'newest' | 'oldest'>('relevance')
   
+  // Refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  
   // Use local storage hooks - NO direct API calls
   const { 
     data: userPreferences, 
@@ -40,6 +44,28 @@ export default function Home() {
   
   // Enable background sync for this page
   useBackgroundSync(10 * 60 * 1000) // 10 minutes
+  
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+    
+    setIsRefreshing(true)
+    try {
+      // Refresh the current feed
+      const topicSlug = selectedTopic === 'for-you' ? undefined : selectedTopic
+      await dataManager.getFeed(
+        'personalized', 
+        topicSlug,
+        1, // page 1
+        10, // page size
+        { forceRefresh: true }
+      )
+    } catch (error) {
+      console.error('Failed to refresh feed:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
   
   // Handle search debounce
   useEffect(() => {
@@ -132,8 +158,21 @@ export default function Home() {
       <div className="flex flex-col gap-6">
         {/* Header with offline indicator */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">Your News</h1>
+            
+            {/* Desktop refresh button */}
+            <Button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              variant="ghost"
+              size="sm"
+              className="hidden md:flex text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Updating...' : 'Refresh'}
+            </Button>
+            
             {!isOnline && (
               <div className="flex items-center gap-1 text-amber-600 text-sm">
                 <WifiOff className="h-4 w-4" />

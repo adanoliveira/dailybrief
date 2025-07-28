@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Wifi, WifiOff } from "lucide-react"
+import { Search, Wifi, WifiOff, RefreshCw } from "lucide-react"
 import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
+import { dataManager } from "@/lib/data-manager"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -14,6 +16,9 @@ export default function World() {
   const [selectedTopic, setSelectedTopic] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  
+  // Refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false)
   
   // Use local storage hooks - NO direct API calls
   const { 
@@ -26,6 +31,28 @@ export default function World() {
   
   // Enable background sync for this page
   useBackgroundSync(10 * 60 * 1000) // 10 minutes
+  
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    if (isRefreshing) return
+    
+    setIsRefreshing(true)
+    try {
+      // Refresh the current world feed
+      const topicSlug = selectedTopic === 'all' ? undefined : selectedTopic
+      await dataManager.getFeed(
+        'world', 
+        topicSlug,
+        1, // page 1
+        10, // page size
+        { forceRefresh: true }
+      )
+    } catch (error) {
+      console.error('Failed to refresh world feed:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
   
   // Handle search debounce
   useEffect(() => {
@@ -62,7 +89,21 @@ export default function World() {
       <div className="container py-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+              
+              {/* Desktop refresh button */}
+              <Button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                variant="ghost"
+                size="sm"
+                className="hidden md:flex text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Updating...' : 'Refresh'}
+              </Button>
+            </div>
           </div>
           <Alert variant="destructive">
             <AlertDescription>
@@ -80,7 +121,21 @@ export default function World() {
       <div className="container py-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+              
+              {/* Desktop refresh button */}
+              <Button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                variant="ghost"
+                size="sm"
+                className="hidden md:flex text-muted-foreground hover:text-foreground"
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Updating...' : 'Refresh'}
+              </Button>
+            </div>
           </div>
           <Alert>
             <AlertDescription>
@@ -97,8 +152,21 @@ export default function World() {
       <div className="flex flex-col gap-6">
         {/* Header with offline indicator */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+            
+            {/* Desktop refresh button */}
+            <Button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              variant="ghost"
+              size="sm"
+              className="hidden md:flex text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Updating...' : 'Refresh'}
+            </Button>
+            
             {!isOnline && (
               <div className="flex items-center gap-1 text-amber-600 text-sm">
                 <WifiOff className="h-4 w-4" />

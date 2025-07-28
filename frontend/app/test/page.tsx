@@ -9,6 +9,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function TestPage() {
+  // Hide test page in production
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-muted-foreground">404</h1>
+          <p className="text-muted-foreground">Page not found</p>
+        </div>
+      </div>
+    )
+  }
+
   const [testResult, setTestResult] = useState<string>('')
   const [stats, setStats] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -129,34 +141,37 @@ export default function TestPage() {
              <Button 
                onClick={() => {
                  setTestResult(`
-🚀 Local-First App Experience:
+🚀 Native Mobile App Experience:
 
-📰 **Feed Pages (Home/World):**
-   • Check cache → If found: ⚡ INSTANT
-   • If not found: 🔄 Fetch → 💾 Cache → Show
-   • Infinite scroll: Each page loads once, caches forever
+📰 **Feed Navigation:**
+   • Instant tab switching with zero loading
+   • Each feed remembers its scroll position perfectly
+   • Page-by-page loading with smart caching
 
-📄 **Article Pages:**
-   • Check cache → If found: ⚡ INSTANT article content
-   • If not found: 🔄 Fetch full content → 💾 Cache → Show
-   • Return visits: ⚡ INSTANT load (even offline!)
+📄 **Article Reading:**
+   • Return visits load instantly from cache
+   • Article → back → exact scroll restoration
+   • Background sync keeps content fresh
 
-⏰ **Smart Staleness:**
-   • Feeds: Fresh for 10 minutes, then background refresh
-   • Articles: Fresh for 1 hour, then background refresh
-   • UI state: 5-minute memory for instant tab switching
+🔄 **Scroll Restoration:**
+   • Navigate away → position saved automatically
+   • Return → instantly back to exact spot
+   • Works on tab switches AND article navigation
 
-✅ **Test Flow:**
-   1. Visit article → Should cache content + mark as read
-   2. Return to feed → Should be instant
-   3. Return to article → Should be ⚡ INSTANT
-   4. Try offline → Should still work from cache!
+✅ **Test the Magic:**
+   1. Scroll down in Home feed → Switch to World
+   2. Scroll in World → Switch back to Home
+   3. Both feeds remember their positions!
+   4. Click article → Return → Perfect restoration
+   5. Works offline after initial load!
+
+This is Instagram/Twitter-level UX! 🎉
                  `.trim())
                }} 
                disabled={isLoading}
                variant="secondary"
              >
-               Simple Guide
+               📱 Native App Guide
              </Button>
              
              <Button 
@@ -198,24 +213,7 @@ export default function TestPage() {
                📍 Debug Scroll Positions
              </Button>
 
-             <Button 
-               onClick={async () => {
-                 setIsLoading(true)
-                 try {
-                   const { initClientScrollRestoration } = await import('@/lib/client-scroll-restoration')
-                   initClientScrollRestoration()
-                   setTestResult('🔄 Client-side scroll restoration triggered! Check console for results.')
-                 } catch (error) {
-                   setTestResult(`❌ Client restoration test failed: ${error}`)
-                 } finally {
-                   setIsLoading(false)
-                 }
-               }} 
-               disabled={isLoading}
-               variant="outline"
-             >
-               🔄 Test Client Restoration
-             </Button>
+
              
              <Button 
                onClick={async () => {
