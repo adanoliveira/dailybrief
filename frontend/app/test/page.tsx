@@ -129,23 +129,28 @@ export default function TestPage() {
              <Button 
                onClick={() => {
                  setTestResult(`
-🚀 Simple Page-by-Page Caching:
+🚀 Local-First App Experience:
 
-📄 Page 1 Load:
+📰 **Feed Pages (Home/World):**
    • Check cache → If found: ⚡ INSTANT
-   • If not found: 🔄 Fetch from backend → 💾 Cache → Show
+   • If not found: 🔄 Fetch → 💾 Cache → Show
+   • Infinite scroll: Each page loads once, caches forever
 
-🎯 Infinite Scroll:
-   • User hits bottom → Check next page in cache
-   • If cached: ⚡ INSTANT load
-   • If not cached: 🔄 Fetch from backend → 💾 Cache → Show
+📄 **Article Pages:**
+   • Check cache → If found: ⚡ INSTANT article content
+   • If not found: 🔄 Fetch full content → 💾 Cache → Show
+   • Return visits: ⚡ INSTANT load (even offline!)
 
-🛑 End of List:
-   • Only shows when backend returns no articles
-   • AND no more pages exist in cache
-   • Simple, predictable behavior
+⏰ **Smart Staleness:**
+   • Feeds: Fresh for 10 minutes, then background refresh
+   • Articles: Fresh for 1 hour, then background refresh
+   • UI state: 5-minute memory for instant tab switching
 
-✅ Test: Navigate and scroll - each page loads once, caches forever!
+✅ **Test Flow:**
+   1. Visit article → Should cache content + mark as read
+   2. Return to feed → Should be instant
+   3. Return to article → Should be ⚡ INSTANT
+   4. Try offline → Should still work from cache!
                  `.trim())
                }} 
                disabled={isLoading}
@@ -172,6 +177,25 @@ export default function TestPage() {
                variant="outline"
              >
                🔍 Debug Feed State
+             </Button>
+             
+             <Button 
+               onClick={async () => {
+                 setIsLoading(true)
+                 try {
+                   const { clearAllCaches } = await import('@/lib/test-database')
+                   clearAllCaches()
+                   setTestResult('🗑️ All caches (feeds, articles, preferences) cleared! Try loading content again.')
+                 } catch (error) {
+                   setTestResult(`❌ Clear caches failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="destructive"
+             >
+               🗑️ Clear All Caches
              </Button>
              <Button 
                onClick={async () => {

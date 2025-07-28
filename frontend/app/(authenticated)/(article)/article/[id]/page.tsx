@@ -6,8 +6,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AlertCircle, Clock, ExternalLink, Image, Video, Volume2, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { getArticleDetail, ArticleDetail } from "@/lib/api"
 import { format } from "date-fns"
+import { useArticleDetail } from "@/lib/use-local-data"
+import { ArticleDetail } from "@/lib/api"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RichArticleRenderer, withFormattingSupport, renderWithFormatting } from "@/components/rich-article-renderer"
 import { getBestTitle, shouldShowSummaryBlock, getContentQualityLevel, getProcessingStatusDescription } from "@/lib/article-utils"
@@ -19,9 +20,9 @@ import { BackToTop } from "@/components/ui/back-to-top"
 import { SummaryBlock } from "@/components/article/summary-block"
 
 export default function Article({ params }: { params: { id: string } }) {
-  const [article, setArticle] = useState<ArticleDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Use local-first article detail hook
+  const { data: article, isLoading: loading, error, refresh } = useArticleDetail(params.id, { backgroundSync: true })
+  
   const [heroImage, setHeroImage] = useState<string | null>(null)
   const [heroImageFallback, setHeroImageFallback] = useState<string | null>(null)
   const [heroImageError, setHeroImageError] = useState(false)
@@ -43,11 +44,8 @@ export default function Article({ params }: { params: { id: string } }) {
       const result = await generateArticleSummaryLogic(article.id, { async: true });
       
       if (result.success && result.status === 'completed') {
-        // Update the article with the new summary
-        setArticle(prev => prev ? {
-          ...prev,
-          summary: result.summary
-        } : null);
+        // Summary updated in backend, refresh to get updated data
+        refresh();
       } else if (!result.success) {
         setSummaryError(result.error);
       }
@@ -59,30 +57,16 @@ export default function Article({ params }: { params: { id: string } }) {
     }
   };
 
+  // Extract hero image and filter content blocks when article loads
   useEffect(() => {
-    const fetchArticle = async () => {
-      try {
-        setLoading(true)
-        const data = await getArticleDetail(params.id)
-        setArticle(data)
-        setError(null)
-        
-        // Extract hero image and filter content blocks
-        const { heroImage: extractedHeroImage, filteredBlocks: filtered } = getHeroImage(data)
-        setHeroImage(extractedHeroImage)
-        setHeroImageFallback(data.imageUrl || null) // Keep original imageUrl as fallback
-        setHeroImageError(false) // Reset error state
-        setFilteredBlocks(filtered)
-      } catch (err) {
-        console.error('Error fetching article:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load article')
-      } finally {
-        setLoading(false)
-      }
+    if (article) {
+      const { heroImage: extractedHeroImage, filteredBlocks: filtered } = getHeroImage(article)
+      setHeroImage(extractedHeroImage)
+      setHeroImageFallback(article.imageUrl || null) // Keep original imageUrl as fallback
+      setHeroImageError(false) // Reset error state
+      setFilteredBlocks(filtered)
     }
-
-    fetchArticle()
-  }, [params.id])
+  }, [article])
 
   // Format date
   const formatDate = (dateString: string) => {
