@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { testDatabase, testDataManager, testHooksInComponent } from '@/lib/test-database'
+import { testDatabase, testDataManager, testHooksInComponent, debugStorageHealth, testStorageCleanup } from '@/lib/test-database'
 import { localDB } from '@/lib/local-database'
 import { dataManager } from '@/lib/data-manager'
 import { useUserPreferences, useFeed, useOfflineStatus } from '@/lib/use-local-data'
@@ -211,6 +211,44 @@ This is Instagram/Twitter-level UX! 🎉
                variant="outline"
              >
                📍 Debug Scroll Positions
+             </Button>
+
+             <Button 
+               onClick={async () => {
+                 setIsLoading(true)
+                 try {
+                   await debugStorageHealth()
+                   setTestResult('💽 Storage health debug completed! Check console for detailed storage info, usage statistics, and database counts.')
+                 } catch (error) {
+                   setTestResult(`❌ Storage debug failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="outline"
+               className="text-blue-600 hover:text-blue-700"
+             >
+               💽 Debug Storage Health
+             </Button>
+
+             <Button 
+               onClick={async () => {
+                 setIsLoading(true)
+                 try {
+                   await testStorageCleanup()
+                   setTestResult('🧹 Storage cleanup test completed! Check console for cleanup results and updated storage statistics.')
+                 } catch (error) {
+                   setTestResult(`❌ Storage cleanup failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="outline"
+               className="text-orange-600 hover:text-orange-700"
+             >
+               🧹 Test Storage Cleanup
              </Button>
 
 
