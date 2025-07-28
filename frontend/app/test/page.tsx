@@ -178,6 +178,25 @@ export default function TestPage() {
              >
                🔍 Debug Feed State
              </Button>
+
+             <Button 
+               onClick={async () => {
+                 setIsLoading(true)
+                 try {
+                   const { debugScrollPositions } = await import('@/lib/test-database')
+                   debugScrollPositions()
+                   setTestResult('📍 Scroll positions debugged! Check browser console for saved scroll positions.')
+                 } catch (error) {
+                   setTestResult(`❌ Scroll debug failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="outline"
+             >
+               📍 Debug Scroll Positions
+             </Button>
              
              <Button 
                onClick={async () => {

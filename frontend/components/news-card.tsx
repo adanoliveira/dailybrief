@@ -29,9 +29,10 @@ interface ArticlePreviewWithTopics {
 interface NewsCardProps {
   article: ArticlePreviewWithTopics;
   formatDate: (date: string) => string;
+  onArticleClick?: () => void; // Add optional click handler
 }
 
-export function NewsCard({ article, formatDate }: NewsCardProps) {
+export function NewsCard({ article, formatDate, onArticleClick }: NewsCardProps) {
   const [imageError, setImageError] = useState(false);
   const hasImage = article.imageUrl && !imageError;
   
@@ -72,7 +73,7 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
   const TopicIcon = getTopicIcon(displayTopic.slug);
 
   return (
-    <Link href={`/article/${article.id}`} className="block">
+    <Link href={`/article/${article.id}`} className="block" onClick={onArticleClick}>
       <Card className={cn("overflow-hidden transition-all cursor-pointer hover:shadow-md dark:hover:shadow-white/15 dark:hover:shadow-lg")}>
         <div className="flex flex-col md:flex-row">
           {/* Image section - conditional rendering based on image availability */}

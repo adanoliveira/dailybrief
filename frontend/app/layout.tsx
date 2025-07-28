@@ -42,6 +42,47 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Immediate scroll restoration - runs before React hydration
+              (function() {
+                try {
+                  // Only run on feed pages
+                  const path = window.location.pathname;
+                  const isFeedPage = path.includes('/home') || path.includes('/world') || path.includes('/headlines');
+                  
+                  if (!isFeedPage) return;
+                  
+                  // Parse feed type from URL
+                  let feedType = 'personalized';
+                  if (path.includes('/world') || path.includes('/headlines')) {
+                    feedType = 'world';
+                  }
+                  
+                  // Generate cache key (same format as React code)
+                  const cacheKey = feedType + ':relevance';
+                  const savedPosition = sessionStorage.getItem('scroll-' + cacheKey);
+                  
+                  if (savedPosition) {
+                    const position = parseInt(savedPosition, 10);
+                    console.log('🚀 Immediate scroll restoration: ' + position + 'px for ' + cacheKey);
+                    
+                    // Restore immediately - no animation to prevent flash
+                    window.scrollTo(0, position);
+                    
+                    // Mark as restored to prevent React from doing it again
+                    sessionStorage.setItem('scroll-restored-' + cacheKey, 'true');
+                  }
+                } catch (error) {
+                  console.warn('Failed to restore scroll immediately:', error);
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>

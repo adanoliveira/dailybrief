@@ -26,6 +26,8 @@ export function InfiniteNewsFeed({
 }: InfiniteNewsFeedProps) {
   const { isOnline, wasOffline } = useOfflineStatus()
   const observer = useRef<IntersectionObserver | null>(null)
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasRestoredScroll = useRef(false)
 
   // Use the new local-first hook for feed data
   const {
@@ -38,7 +40,9 @@ export function InfiniteNewsFeed({
     lastSyncAt,
     loadMore,
     refresh,
-    backgroundRefresh
+    backgroundRefresh,
+    saveScrollPosition,
+    getScrollPosition
   } = useFeed(feedType, topicSlug, searchQuery, sortOrder, {
     backgroundSync: true // Enable background sync for smooth UX
   })
@@ -69,6 +73,68 @@ export function InfiniteNewsFeed({
       backgroundRefresh()
     }
   }, [isOnline, wasOffline, backgroundRefresh])
+
+  // Reset scroll restoration flag when feed changes
+  useEffect(() => {
+    hasRestoredScroll.current = false
+  }, [feedType, topicSlug])
+
+  // Scroll position restoration - restore when articles are loaded and we haven't restored yet
+  useEffect(() => {
+    if (articles.length > 0 && !hasRestoredScroll.current && !isLoading) {
+      const savedScrollPosition = getScrollPosition()
+      if (savedScrollPosition) {
+        console.log(`InfiniteNewsFeed: Restoring scroll position to ${savedScrollPosition}`)
+        setTimeout(() => {
+          window.scrollTo({ top: savedScrollPosition, behavior: 'auto' })
+          hasRestoredScroll.current = true
+        }, 100) // Small delay to ensure DOM is ready
+      } else {
+        hasRestoredScroll.current = true // Mark as restored even if no saved position
+      }
+    }
+  }, [articles.length, isLoading, getScrollPosition])
+
+  // Save scroll position with throttling
+  const handleScroll = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current)
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
+      saveScrollPosition(scrollPosition)
+    }, 150) // Throttle scroll events
+  }, [saveScrollPosition])
+
+  // Set up scroll listener
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current)
+      }
+    }
+  }, [handleScroll])
+
+  // Save scroll position when component unmounts (user navigates away)
+  useEffect(() => {
+    return () => {
+      const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
+      if (scrollPosition > 0) {
+        saveScrollPosition(scrollPosition)
+        console.log(`InfiniteNewsFeed: Saved scroll position ${scrollPosition} on unmount`)
+      }
+    }
+  }, [saveScrollPosition])
+
+  // Handle article click - save scroll position immediately
+  const handleArticleClick = useCallback(() => {
+    const scrollPosition = window.pageYOffset || document.documentElement.scrollTop
+    saveScrollPosition(scrollPosition)
+    console.log(`InfiniteNewsFeed: Saved scroll position ${scrollPosition} on article click`)
+  }, [saveScrollPosition])
 
   // Handle manual refresh
   const handleRefresh = useCallback(async () => {
@@ -243,6 +309,7 @@ export function InfiniteNewsFeed({
               <NewsCard 
                 article={articleWithTopics} 
                 formatDate={formatDate}
+                onArticleClick={handleArticleClick}
               />
             </div>
           )
@@ -252,6 +319,7 @@ export function InfiniteNewsFeed({
               key={article.id} 
               article={articleWithTopics} 
               formatDate={formatDate}
+              onArticleClick={handleArticleClick}
             />
           )
         }
