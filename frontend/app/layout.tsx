@@ -57,23 +57,30 @@ export default function RootLayout({
                   
                   // Parse feed type from URL
                   let feedType = 'personalized';
+                  let topicSlug = undefined;
+                  
                   if (path.includes('/world') || path.includes('/headlines')) {
                     feedType = 'world';
+                    topicSlug = 'all';
+                  } else if (path.includes('/home')) {
+                    feedType = 'personalized';
+                    topicSlug = 'for-you';
                   }
                   
-                  // Generate cache key (same format as React code)
-                  const cacheKey = feedType + ':relevance';
+                  // Generate cache key (same format as React code: feedType:topicSlug::relevance)
+                  const cacheKey = feedType + ':' + (topicSlug || '') + '::relevance';
                   const savedPosition = sessionStorage.getItem('scroll-' + cacheKey);
                   
                   if (savedPosition) {
                     const position = parseInt(savedPosition, 10);
-                    console.log('🚀 Immediate scroll restoration: ' + position + 'px for ' + cacheKey);
+                    console.log('🚀 Inline restoration: ' + position + 'px for ' + cacheKey);
                     
                     // Restore immediately - no animation to prevent flash
                     window.scrollTo(0, position);
                     
                     // Mark as restored to prevent React from doing it again
                     sessionStorage.setItem('scroll-restored-' + cacheKey, 'true');
+                    window.__scrollRestored = cacheKey;
                   }
                 } catch (error) {
                   console.warn('Failed to restore scroll immediately:', error);

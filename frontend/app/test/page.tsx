@@ -197,6 +197,25 @@ export default function TestPage() {
              >
                📍 Debug Scroll Positions
              </Button>
+
+             <Button 
+               onClick={async () => {
+                 setIsLoading(true)
+                 try {
+                   const { initClientScrollRestoration } = await import('@/lib/client-scroll-restoration')
+                   initClientScrollRestoration()
+                   setTestResult('🔄 Client-side scroll restoration triggered! Check console for results.')
+                 } catch (error) {
+                   setTestResult(`❌ Client restoration test failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="outline"
+             >
+               🔄 Test Client Restoration
+             </Button>
              
              <Button 
                onClick={async () => {
