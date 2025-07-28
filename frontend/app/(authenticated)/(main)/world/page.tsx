@@ -5,15 +5,17 @@ import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search } from "lucide-react"
+import { getUserPreferences, UserPreferences } from "@/lib/api"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useUser } from "@/lib/user-context"
 
 export default function World() {
-  const { userPreferences, isPreferencesLoading } = useUser()
   const [selectedTopic, setSelectedTopic] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null)
+  const [preferencesLoading, setPreferencesLoading] = useState(true)
+  const [preferencesError, setPreferencesError] = useState<string | null>(null)
   
   // Handle search debounce
   useEffect(() => {
@@ -24,8 +26,27 @@ export default function World() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
+  // Fetch user preferences on mount
+  useEffect(() => {
+    const fetchPreferences = async () => {
+      try {
+        setPreferencesLoading(true)
+        setPreferencesError(null)
+        const preferences = await getUserPreferences()
+        setUserPreferences(preferences)
+      } catch (error) {
+        console.error('Failed to fetch user preferences:', error)
+        setPreferencesError('Failed to load user preferences')
+      } finally {
+        setPreferencesLoading(false)
+      }
+    }
+
+    fetchPreferences()
+  }, [])
+
   // Show loading state while preferences are being fetched
-  if (isPreferencesLoading) {
+  if (preferencesLoading) {
     return (
       <div className="container py-6">
         <div className="flex flex-col gap-6">
@@ -38,6 +59,22 @@ export default function World() {
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if preferences failed to load
+  if (preferencesError) {
+    return (
+      <div className="container py-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+          </div>
+          <div className="bg-destructive/10 text-destructive p-4 rounded-md">
+            <p>{preferencesError}. Please refresh the page to try again.</p>
           </div>
         </div>
       </div>
