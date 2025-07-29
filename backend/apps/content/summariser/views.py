@@ -116,10 +116,10 @@ def similar_articles(request, article_id):
                 try:
                     days_int = int(days)
                     cutoff_date = datetime.now() - timedelta(days=days_int)
-                enhanced_articles = [
-                    art for art in enhanced_articles 
-                    if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
-                ]
+                    enhanced_articles = [
+                        art for art in enhanced_articles 
+                        if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
+                    ]
                 except ValueError:
                     return create_error_response(
                         "Days parameter must be an integer",
