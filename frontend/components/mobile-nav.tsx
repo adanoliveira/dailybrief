@@ -62,7 +62,7 @@ function NavItem({ href, icon, label, isActive }: NavItemProps) {
       className={cn(
         "flex flex-col items-center justify-center transition-all duration-200",
         isActive 
-          ? "text-primary scale-105" 
+          ? "text-primary" 
           : "text-muted-foreground"
       )}
     >
