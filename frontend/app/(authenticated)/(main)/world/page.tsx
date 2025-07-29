@@ -9,7 +9,6 @@ import { Search, Wifi, WifiOff, RefreshCw } from "lucide-react"
 import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
 import { dataManager } from "@/lib/data-manager"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function World() {
@@ -63,25 +62,8 @@ export default function World() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Show loading state while preferences are being fetched
-  if (preferencesLoading) {
-    return (
-      <div className="container py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-10 w-full sm:w-[300px]" />
-          </div>
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Note: Loading state is now handled by InfiniteNewsFeed component
+  // No need for page-level loading skeleton
 
   // Show error state if preferences failed to load and we're online
   if (preferencesError && isOnline && !userPreferences) {

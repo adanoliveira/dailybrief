@@ -11,6 +11,8 @@ from django.core.management.base import BaseCommand
 import json
 from apps.content.tasks import (
     process_top_headlines_pipeline,
+    process_top_headlines_pipeline_continuous,
+    complete_remaining_articles_pipeline,
     get_pipeline_status, 
     cleanup_failed_pipeline_articles,
     retry_failed_pipeline_stages
@@ -48,19 +50,26 @@ class Command(BaseCommand):
             default=20,
             help='Limit number of articles to process (default: 20)',
         )
+        parser.add_argument(
+            '--continuous',
+            action='store_true',
+            help='Run the continuous processing pipeline',
+        )
 
     def handle(self, *args, **options):
         if options['status']:
             self.show_pipeline_status()
         elif options['run']:
             self.run_pipeline(options['limit'])
+        elif options['continuous']:
+            self.run_continuous_pipeline(options['limit'])
         elif options['cleanup']:
             self.cleanup_failed_articles()
         elif options['retry']:
             self.retry_failed_stages(options['retry'], options['limit'])
         else:
             self.stdout.write(
-                self.style.WARNING('Please specify an action: --status, --run, --cleanup, or --retry')
+                self.style.WARNING('Please specify an action: --status, --run, --continuous, --cleanup, or --retry')
             )
 
     def show_pipeline_status(self):
@@ -156,6 +165,56 @@ class Command(BaseCommand):
             
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'❌ Pipeline execution failed: {str(e)}'))
+
+    def run_continuous_pipeline(self, limit):
+        """Run the continuous processing pipeline."""
+        self.stdout.write(self.style.SUCCESS(f'🔄 Running Continuous Processing Pipeline (limit: {limit})'))
+        self.stdout.write('=' * 60)
+        
+        try:
+            # Import the new continuous task
+            from apps.content.tasks import process_top_headlines_pipeline_continuous
+            
+            # Run the continuous pipeline
+            task = process_top_headlines_pipeline_continuous.delay(
+                limit_per_stage=limit, 
+                max_total_limit=limit * 4
+            )
+            self.stdout.write('⏳ Continuous pipeline task started, waiting for completion...')
+            
+            result = task.get()  # Wait for completion
+            
+            if 'pipeline_error' in result:
+                self.stdout.write(self.style.ERROR(f'❌ Continuous pipeline failed: {result["pipeline_error"]}'))
+                return
+            
+            # Display results
+            self.stdout.write(self.style.SUCCESS('✅ Continuous pipeline completed!'))
+            self.stdout.write('')
+            self.stdout.write(f'📊 Summary:')
+            self.stdout.write(f'  • Cycles completed: {result["cycles_completed"]}')
+            self.stdout.write(f'  • Total articles processed: {result["total_articles_processed"]}')
+            self.stdout.write(f'  • Articles remaining: {result["articles_remaining"]}')
+            self.stdout.write(f'  • Completion status: {result["completion_status"]}')
+            self.stdout.write(f'  • Duration: {result["pipeline_duration_ms"]}ms')
+            self.stdout.write('')
+            
+            # Show cycle details
+            for i, cycle_result in enumerate(result['stage_results'], 1):
+                self.stdout.write(f'🔄 Cycle {i}: {cycle_result["cycle_processed"]} articles processed')
+                if cycle_result['cycle_processed'] > 0:
+                    self.stdout.write(f'  • Fetch: {cycle_result["stage_1_fetch"].get("processed", 0)}')
+                    self.stdout.write(f'  • Process: {cycle_result["stage_2_process"].get("processed", 0)}')
+                    self.stdout.write(f'  • Summarize: {cycle_result["stage_3_summarize"].get("processed", 0)}')
+                    self.stdout.write(f'  • Analyze: {cycle_result["stage_4_analyze"].get("processed", 0)}')
+            
+            if result['articles_remaining'] == 0:
+                self.stdout.write(self.style.SUCCESS('🎉 All articles completed! Pipeline fully caught up.'))
+            else:
+                self.stdout.write(self.style.WARNING(f'⚠️  {result["articles_remaining"]} articles still need processing'))
+            
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Continuous pipeline execution failed: {str(e)}'))
 
     def cleanup_failed_articles(self):
         """Clean up articles that exceeded max retry attempts."""

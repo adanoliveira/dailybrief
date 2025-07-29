@@ -436,14 +436,13 @@ function ArticleMetadata({ article, variant }: ArticleMetadataProps) {
           </>
         )}
         <span>{formatDate(article.publishedAt)}</span>
-        {article.readTime && (
-          <>
-            <span>•</span>
-            <span>
-              {article.readTime} min read
-            </span>
-          </>
-        )}
+        {/* Always show reading time with 1 min minimum */}
+        <>
+          <span>•</span>
+          <span>
+            {Math.max(1, Math.round(article.readTime || 1))} min read
+          </span>
+        </>
       </div>
     </div>
   );

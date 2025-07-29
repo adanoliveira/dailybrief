@@ -123,12 +123,11 @@ export function NewsCard({ article, formatDate, onArticleClick }: NewsCardProps)
                 <PublicationBadge source={article.source} size="md" />
                 <span>•</span>
                 <span>{formatDate(article.publishedAt)}</span>
-                {article.readTime && (
-                  <>
-                    <span>•</span>
-                    <span>{article.readTime} min read</span>
-                  </>
-                )}
+                {/* Always show reading time with 1 min minimum */}
+                <>
+                  <span>•</span>
+                  <span>{Math.max(1, Math.round(article.readTime || 1))} min read</span>
+                </>
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">

@@ -9,6 +9,7 @@ import { initClientScrollRestoration } from "@/lib/client-scroll-restoration"
 import { format, formatDistanceToNow, isWithinInterval, subDays } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { NewsCard, ArticlePreviewWithTopics } from "@/components/news-card"
+import { NewArticlesNotification } from "@/components/new-articles-notification"
 
 interface InfiniteNewsFeedProps {
   feedType?: 'personalized' | 'world';
@@ -35,6 +36,7 @@ export function InfiniteNewsFeed({
   
   // Pull-to-refresh state
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshSuccess, setRefreshSuccess] = useState(false)
   const [pullStartY, setPullStartY] = useState(0)
   const [pullDistance, setPullDistance] = useState(0)
   const pullThreshold = 80 // Pixels to trigger refresh
@@ -52,7 +54,11 @@ export function InfiniteNewsFeed({
     refresh,
     backgroundRefresh,
     saveScrollPosition,
-    getScrollPosition
+    getScrollPosition,
+    // Pending articles functionality
+    pendingArticles,
+    isLoadingPending,
+    loadPendingArticles
   } = useFeed(feedType, topicSlug, searchQuery, sortOrder, {
     backgroundSync: true // Enable background sync for smooth UX
   })
@@ -236,8 +242,16 @@ export function InfiniteNewsFeed({
     if (isRefreshing) return
     
     setIsRefreshing(true)
+    setRefreshSuccess(false)
     try {
       await refresh()
+      
+      // Show success feedback
+      setRefreshSuccess(true)
+      setTimeout(() => {
+        setRefreshSuccess(false)
+      }, 2000) // Show success for 2 seconds
+      
     } catch (err) {
       console.error('InfiniteNewsFeed: Manual refresh failed:', err)
     } finally {
@@ -301,9 +315,18 @@ export function InfiniteNewsFeed({
           )}
         </p>
         {isOnline && (
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+          <Button onClick={handleRefresh} variant="outline" size="sm" disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {refreshSuccess ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Updated!
+              </>
+            ) : isRefreshing ? (
+              'Refreshing...'
+            ) : (
+              'Refresh'
+            )}
           </Button>
         )}
       </CardContent>
@@ -330,9 +353,18 @@ export function InfiniteNewsFeed({
           )}
         </p>
         <div className="flex gap-2 justify-center">
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try again
+          <Button onClick={handleRefresh} variant="outline" size="sm" disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {refreshSuccess ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Updated!
+              </>
+            ) : isRefreshing ? (
+              'Refreshing...'
+            ) : (
+              'Try again'
+            )}
           </Button>
         </div>
       </CardContent>
@@ -441,6 +473,13 @@ export function InfiniteNewsFeed({
       
       
       {renderSyncStatus()}
+      
+      {/* New articles notification */}
+      <NewArticlesNotification
+        newArticlesCount={pendingArticles.newArticlesCount}
+        updatedArticlesCount={pendingArticles.updatedArticlesCount}
+        onLoadNewArticles={loadPendingArticles}
+      />
       
       {articles.map((article, index) => {
         // Add local storage fields to match NewsCard expectations

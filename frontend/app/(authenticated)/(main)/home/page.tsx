@@ -7,14 +7,13 @@ import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/u
 import { dataManager } from "@/lib/data-manager"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, Search, Wifi, WifiOff, RefreshCw } from "lucide-react"
+import { Filter, Search, Wifi, WifiOff, RefreshCw, Check } from "lucide-react"
 import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Skeleton } from "@/components/ui/skeleton"
 
 export default function Home() {
   // Declare all hooks at the top level
@@ -32,6 +31,7 @@ export default function Home() {
   
   // Refresh state
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [refreshSuccess, setRefreshSuccess] = useState(false)
   
   // Use local storage hooks - NO direct API calls
   const { 
@@ -50,6 +50,7 @@ export default function Home() {
     if (isRefreshing) return
     
     setIsRefreshing(true)
+    setRefreshSuccess(false)
     try {
       // Refresh the current feed
       const topicSlug = selectedTopic === 'for-you' ? undefined : selectedTopic
@@ -60,6 +61,13 @@ export default function Home() {
         10, // page size
         { forceRefresh: true }
       )
+      
+      // Show success feedback
+      setRefreshSuccess(true)
+      setTimeout(() => {
+        setRefreshSuccess(false)
+      }, 2000) // Show success for 2 seconds
+      
     } catch (error) {
       console.error('Failed to refresh feed:', error)
     } finally {
@@ -139,15 +147,7 @@ export default function Home() {
     <div className="container py-6">
       <div className="flex justify-center items-center min-h-[50vh]">
         <div className="text-center space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-10 w-full sm:w-[300px]" />
-          </div>
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
+          <p className="text-muted-foreground">Loading your personalized news...</p>
         </div>
       </div>
     </div>
@@ -169,8 +169,17 @@ export default function Home() {
               size="sm"
               className="hidden md:flex text-muted-foreground hover:text-foreground"
             >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Updating...' : 'Refresh'}
+              {refreshSuccess ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" />
+                  Updated!
+                </>
+              ) : (
+                <>
+                  <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  {isRefreshing ? 'Updating...' : 'Refresh'}
+                </>
+              )}
             </Button>
             
             {!isOnline && (

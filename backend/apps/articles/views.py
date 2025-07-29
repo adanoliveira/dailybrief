@@ -13,7 +13,7 @@ from apps.core.api_utils import (
     api_view, create_response, create_error_response, 
     create_success_response, parse_request_body
 )
-from apps.feeds.models import UserTopic, UserRegion, UserPublication
+from apps.feeds.models import UserTopic, UserRegion, UserPublication, UserLanguage
 from .models import Article, UserArticleInteraction
 from apps.content.summariser.models import ArticleSummary
 
@@ -53,7 +53,10 @@ def get_best_content(article):
 @api_view(['GET'], authenticate=True)
 def personalized_feed(request):
     """
-    Get personalized feed articles based on user preferences
+    Get personalized feed of top headlines based on user preferences
+    
+    Returns only top headlines with completed analysis, filtered by user's preferred topics, languages, and publications.
+    (Note: analyzer_status='completed' filter is temporary for initial version)
     
     Query parameters:
     - page: page number (default: 1)
@@ -61,6 +64,9 @@ def personalized_feed(request):
     - sort: sorting method (relevance, newest, oldest) (default: relevance)
     - topic: filter by topic slug (optional)
     - search: search term (optional)
+    - since: ISO timestamp - get only articles published after this time
+    - count_only: boolean - return just the count of new articles (no article data)
+    - latest_article_id: article public_id - alternative reference point to 'since'
     """
     user = request.user
     
@@ -70,12 +76,19 @@ def personalized_feed(request):
     sort = request.GET.get('sort', 'relevance')
     topic_slug = request.GET.get('topic')
     search_query = request.GET.get('search')
+    since = request.GET.get('since')  # ISO timestamp
+    count_only = request.GET.get('count_only', '').lower() == 'true'
+    latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get all articles
-    queryset = Article.objects.select_related('language', 'publication').prefetch_related('topics')
+    # Base query - get top headlines only with completed analysis (temporary filter for initial version)
+    queryset = Article.objects.filter(
+        is_top_headline=True,
+        analyzer_status='completed'
+    ).select_related('language', 'publication').prefetch_related('topics')
     
-    # Filter by user preferences (topics AND publications if available)
+    # Filter by user preferences (topics, languages, AND publications)
     user_topic_ids = UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
+    user_language_codes = UserLanguage.objects.filter(user=user).values_list('language__iso_code', flat=True)
     user_publication_ids = UserPublication.objects.filter(user=user).values_list('publication_id', flat=True)
     
     # Always filter by user's preferred topics
@@ -84,6 +97,10 @@ def personalized_feed(request):
     else:
         # If user has no topic preferences, return empty queryset
         queryset = queryset.none()
+    
+    # Filter by user's preferred languages if available
+    if user_language_codes:
+        queryset = queryset.filter(language__iso_code__in=user_language_codes)
     
     # Additionally filter by publications if user has publication preferences
     if user_publication_ids:
@@ -104,6 +121,42 @@ def personalized_feed(request):
             Q(clean_content__icontains=search_query) |
             Q(basic_content__icontains=search_query)
         )
+    
+    # Apply time-based filtering for new article detection
+    reference_time = None
+    if since:
+        try:
+            from django.utils.dateparse import parse_datetime
+            reference_time = parse_datetime(since)
+            if reference_time:
+                queryset = queryset.filter(published_at__gt=reference_time)
+        except (ValueError, TypeError):
+            pass  # Invalid timestamp, ignore
+    elif latest_article_id:
+        try:
+            latest_article = Article.objects.get(public_id=latest_article_id)
+            reference_time = latest_article.published_at
+            queryset = queryset.filter(published_at__gt=reference_time)
+        except Article.DoesNotExist:
+            pass  # Article not found, ignore
+    
+    # For count_only requests, return early with just the count
+    if count_only:
+        new_articles_count = queryset.count()
+        return create_success_response({
+            'articles': [],
+            'pagination': {
+                'page': 1,
+                'pageSize': 0,
+                'totalPages': 0,
+                'totalItems': new_articles_count,
+                'hasNext': False,
+                'hasPrevious': False
+            },
+            'new_articles_count': new_articles_count,
+            'has_newer_content': new_articles_count > 0,
+            'reference_time': reference_time.isoformat() if reference_time else None
+        }, message=f"Found {new_articles_count} new analyzed personalized headlines")
     
     # Apply sorting
     if sort == 'newest':
@@ -150,7 +203,16 @@ def personalized_feed(request):
             'topics': topics,
         })
     
-    # Build response with pagination metadata
+    # Calculate new articles count for enhanced response
+    new_articles_count = 0
+    if reference_time or since or latest_article_id:
+        # Count how many articles in this result set are "new" (published after reference time)
+        if reference_time:
+            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+        else:
+            new_articles_count = len(articles_data)  # All articles are considered new
+    
+    # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
         'pagination': {
@@ -160,12 +222,15 @@ def personalized_feed(request):
             'totalItems': paginator.count,
             'hasNext': page_obj.has_next(),
             'hasPrevious': page_obj.has_previous(),
-        }
+        },
+        'new_articles_count': new_articles_count,
+        'has_newer_content': new_articles_count > 0,
+        'reference_time': reference_time.isoformat() if reference_time else None
     }
     
     return create_success_response(
         response_data,
-        message=f"Retrieved {len(articles_data)} personalized articles"
+        message=f"Retrieved {len(articles_data)} analyzed personalized headlines"
     )
 
 @api_view(['GET'], authenticate=True)
@@ -173,11 +238,17 @@ def world_feed(request):
     """
     Get world feed articles (top headlines from user's preferred regions)
     
+    Returns only top headlines with completed analysis from user's preferred regions.
+    (Note: analyzer_status='completed' filter is temporary for initial version)
+    
     Query parameters:
     - page: page number (default: 1)
     - page_size: number of articles per page (default: 10)
     - topic: filter by topic slug (optional)
     - search: search term (optional)
+    - since: ISO timestamp - get only articles published after this time
+    - count_only: boolean - return just the count of new articles (no article data)
+    - latest_article_id: article public_id - alternative reference point to 'since'
     """
     user = request.user
 
@@ -186,9 +257,15 @@ def world_feed(request):
     page_size = int(request.GET.get('page_size', 10))
     topic_slug = request.GET.get('topic')
     search_query = request.GET.get('search')
+    since = request.GET.get('since')  # ISO timestamp
+    count_only = request.GET.get('count_only', '').lower() == 'true'
+    latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get top headlines
-    queryset = Article.objects.filter(is_top_headline=True).select_related('language', 'publication').prefetch_related('topics')
+    # Base query - get top headlines with completed analysis (temporary filter for initial version)
+    queryset = Article.objects.filter(
+        is_top_headline=True,
+        analyzer_status='completed'
+    ).select_related('language', 'publication').prefetch_related('topics')
     
     # Filter by user's preferred regions
     user_region_codes = UserRegion.objects.filter(user=user).values_list('region__code', flat=True)
@@ -209,6 +286,42 @@ def world_feed(request):
             Q(clean_content__icontains=search_query) |
             Q(basic_content__icontains=search_query)
         )
+    
+    # Apply time-based filtering for new article detection
+    reference_time = None
+    if since:
+        try:
+            from django.utils.dateparse import parse_datetime
+            reference_time = parse_datetime(since)
+            if reference_time:
+                queryset = queryset.filter(published_at__gt=reference_time)
+        except (ValueError, TypeError):
+            pass  # Invalid timestamp, ignore
+    elif latest_article_id:
+        try:
+            latest_article = Article.objects.get(public_id=latest_article_id)
+            reference_time = latest_article.published_at
+            queryset = queryset.filter(published_at__gt=reference_time)
+        except Article.DoesNotExist:
+            pass  # Article not found, ignore
+    
+    # For count_only requests, return early with just the count
+    if count_only:
+        new_articles_count = queryset.count()
+        return create_success_response({
+            'articles': [],
+            'pagination': {
+                'page': 1,
+                'pageSize': 0,
+                'totalPages': 0,
+                'totalItems': new_articles_count,
+                'hasNext': False,
+                'hasPrevious': False
+            },
+            'new_articles_count': new_articles_count,
+            'has_newer_content': new_articles_count > 0,
+            'reference_time': reference_time.isoformat() if reference_time else None
+        }, message=f"Found {new_articles_count} new analyzed world headlines")
     
     # Sort by published date (newest first)
     queryset = queryset.order_by('-published_at')
@@ -245,7 +358,16 @@ def world_feed(request):
             'topics': topics,
         })
     
-    # Build response with pagination metadata
+    # Calculate new articles count for enhanced response
+    new_articles_count = 0
+    if reference_time or since or latest_article_id:
+        # Count how many articles in this result set are "new" (published after reference time)
+        if reference_time:
+            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+        else:
+            new_articles_count = len(articles_data)  # All articles are considered new
+    
+    # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
         'pagination': {
@@ -255,19 +377,23 @@ def world_feed(request):
             'totalItems': paginator.count,
             'hasNext': page_obj.has_next(),
             'hasPrevious': page_obj.has_previous(),
-        }
+        },
+        'new_articles_count': new_articles_count,
+        'has_newer_content': new_articles_count > 0,
+        'reference_time': reference_time.isoformat() if reference_time else None
     }
     
     return create_success_response(
         response_data,
-        message=f"Retrieved {len(articles_data)} world headlines"
+        message=f"Retrieved {len(articles_data)} analyzed world headlines"
     )
 
 @api_view(['GET'], authenticate=False)
 def public_world_feed(request):
     """
     Get public world feed articles (top US headlines for unauthenticated users)
-    Limited to latest 20 articles from US publications for marketing page.
+    Limited to latest 20 articles with completed analysis from US publications for marketing page.
+    (Note: analyzer_status='completed' filter is temporary for initial version)
     
     Query parameters:
     - page: page number (default: 1)
@@ -281,9 +407,10 @@ def public_world_feed(request):
     topic_slug = request.GET.get('topic')
     search_query = request.GET.get('search')
     
-    # Base query - get top headlines from US publications only
+    # Base query - get top headlines from US publications only with completed analysis (temporary filter for initial version)
     queryset = Article.objects.filter(
         is_top_headline=True,
+        analyzer_status='completed',
         publication__regions__code='us'  # Only US publications
     ).select_related('language', 'publication').prefetch_related('topics').distinct()
     
@@ -361,7 +488,7 @@ def public_world_feed(request):
     
     return create_success_response(
         response_data,
-        message=f"Retrieved {len(articles_data)} latest US headlines"
+        message=f"Retrieved {len(articles_data)} latest analyzed US headlines"
     )
 
 @api_view(['GET'], authenticate=False)
