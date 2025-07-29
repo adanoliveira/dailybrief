@@ -469,12 +469,13 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
 ⏰ Background Sync Timer Test:
 
 🔄 **Automatic Background Sync Info:**
-• Runs every 10 minutes on Home/World pages
-• Uses useBackgroundSync(10 * 60 * 1000) hook
+• Runs every 10 minutes on all authenticated pages (moved to layout level)
+• Uses useBackgroundSync(10 * 60 * 1000) hook in AuthenticatedShell component
+• Only one instance runs globally to prevent authentication loops
 • Should show "useBackgroundSync: Performing comprehensive background sync..." in console
 
 🧪 **To Test Automatic Sync:**
-1. Leave app open on Home/World page
+1. Leave app open on any authenticated page
 2. Wait 10+ minutes (or check existing logs)
 3. Look for these console messages:
    - "useBackgroundSync: Performing comprehensive background sync..."
@@ -641,14 +642,113 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
               📊 Get Stats
             </Button>
             <Button 
-              onClick={clearDatabase} 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('🔍 Testing persistent pending articles...')
+                  
+                  const session = await import('next-auth/react').then(m => m.getSession())
+                  const userId = session?.user?.django_user_id?.toString()
+                  
+                  if (!userId) {
+                    setTestResult('❌ Please log in first')
+                    return
+                  }
+
+                  // Check if any feed sync has persisted pending data
+                  const { localDB } = await import('@/lib/local-database')
+                  const feedSyncs = await localDB.feedSyncs.toArray()
+                  const feedSyncWithPending = feedSyncs.find(fs => fs.pendingArticlesData)
+                  
+                  if (feedSyncWithPending) {
+                    try {
+                      const parsedData = JSON.parse(feedSyncWithPending.pendingArticlesData!)
+                      setTestResult(`✅ Found persisted pending articles!\n\nFeedSyncId: ${feedSyncWithPending.id}\nNew: ${parsedData.newArticles?.length || 0}\nUpdated: ${parsedData.updatedArticles?.length || 0}\n\n📄 This data survives page refreshes!\n\n🔄 Try refreshing the page - the "See X new stories" button should still work.`)
+                    } catch (error) {
+                      setTestResult(`❌ Found persisted data but failed to parse: ${error}`)
+                    }
+                  } else {
+                    // Get pending articles count from FeedSync
+                    const pendingFeeds = feedSyncs.filter(fs => (fs.pendingNewArticles || 0) > 0 || (fs.pendingUpdatedArticles || 0) > 0)
+                    if (pendingFeeds.length > 0) {
+                      const totalNew = pendingFeeds.reduce((sum, fs) => sum + (fs.pendingNewArticles || 0), 0)
+                      const totalUpdated = pendingFeeds.reduce((sum, fs) => sum + (fs.pendingUpdatedArticles || 0), 0)
+                      setTestResult(`ℹ️ Found pending counts but no persisted data.\n\nCounts: ${totalNew} new, ${totalUpdated} updated\n\n⚠️ This is the OLD BUG - counts exist but data is lost on refresh!\n\n💡 The fix now persists the actual article data to survive refreshes.`)
+                    } else {
+                      setTestResult(`ℹ️ No pending articles found.\n\n💡 Try running background sync first to detect new articles.`)
+                    }
+                  }
+                  
+                } catch (error) {
+                  console.error('Test failed:', error)
+                  setTestResult(`❌ Test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }} 
               disabled={isLoading}
-              variant="destructive"
+              variant="outline"
               className="w-full text-xs sm:text-sm"
               size="sm"
             >
-              💥 Clear All
-            </Button>
+                             🔄 Test Pending
+             </Button>
+             <Button 
+               onClick={async () => {
+                 try {
+                   setIsLoading(true)
+                   setTestResult('🧹 Clearing stale pending articles...')
+                   
+                   const session = await import('next-auth/react').then(m => m.getSession())
+                   const userId = session?.user?.django_user_id?.toString()
+                   
+                   if (!userId) {
+                     setTestResult('❌ Please log in first')
+                     return
+                   }
+
+                   // Get all feed syncs and clear pending data
+                   const { localDB } = await import('@/lib/local-database')
+                   const feedSyncs = await localDB.feedSyncs.toArray()
+                   
+                   let clearedCount = 0
+                   for (const feedSync of feedSyncs) {
+                     if (feedSync.pendingNewArticles || feedSync.pendingUpdatedArticles) {
+                       await localDB.saveFeedSync({
+                         ...feedSync,
+                         pendingNewArticles: 0,
+                         pendingUpdatedArticles: 0,
+                         pendingArticlesData: undefined
+                       })
+                       clearedCount++
+                     }
+                   }
+                                     
+                  setTestResult(`✅ Cleared stale pending data from ${clearedCount} feed syncs.\n\n🔄 The "See X new stories" button should now disappear if there are no actual new articles from the backend.\n\n🛡️ Server-side storage errors should also be fixed!`)
+                  
+                 } catch (error) {
+                   console.error('Clear pending failed:', error)
+                   setTestResult(`❌ Clear failed: ${error}`)
+                 } finally {
+                   setIsLoading(false)
+                 }
+               }} 
+               disabled={isLoading}
+               variant="outline"
+               className="w-full text-xs sm:text-sm"
+               size="sm"
+             >
+               🧹 Clear Stale
+             </Button>
+             <Button 
+               onClick={clearDatabase} 
+               disabled={isLoading}
+               variant="destructive"
+               className="w-full text-xs sm:text-sm"
+               size="sm"
+             >
+               💥 Clear All
+             </Button>
           </div>
 
           {testResult && (

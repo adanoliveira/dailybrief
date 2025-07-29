@@ -61,10 +61,10 @@ export default function Article({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (article) {
       const { heroImage: extractedHeroImage, filteredBlocks: filtered } = getHeroImage(article)
-      setHeroImage(extractedHeroImage)
+        setHeroImage(extractedHeroImage)
       setHeroImageFallback(article.imageUrl || null) // Keep original imageUrl as fallback
-      setHeroImageError(false) // Reset error state
-      setFilteredBlocks(filtered)
+        setHeroImageError(false) // Reset error state
+        setFilteredBlocks(filtered)
     }
   }, [article])
 

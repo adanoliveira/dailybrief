@@ -3,15 +3,16 @@
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
+import { useUserPreferences, useOfflineStatus } from "@/lib/use-local-data"
 import { dataManager } from "@/lib/data-manager"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, Search, Wifi, WifiOff, RefreshCw, Check } from "lucide-react"
+import { Filter, Search, Wifi, WifiOff } from "lucide-react"
 import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
+import { FeedRefreshButton, type FeedRefreshResult } from "@/components/feed-refresh-button"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -30,8 +31,7 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<'relevance' | 'newest' | 'oldest'>('relevance')
   
   // Refresh state
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [refreshSuccess, setRefreshSuccess] = useState(false)
+  // Refresh state now handled by FeedRefreshButton component
   
   // Use local storage hooks - NO direct API calls
   const { 
@@ -42,37 +42,40 @@ export default function Home() {
   
   const { isOnline, wasOffline } = useOfflineStatus()
   
-  // Enable background sync for this page
-  useBackgroundSync(10 * 60 * 1000) // 10 minutes
+  // Background sync moved to layout level to prevent multiple instances
   
-  // Handle manual refresh
+  // Handle manual refresh - returns promise for FeedRefreshButton component
   const handleRefresh = async () => {
-    if (isRefreshing) return
+    const topicSlug = selectedTopic === 'for-you' ? undefined : selectedTopic
     
-    setIsRefreshing(true)
-    setRefreshSuccess(false)
-    try {
-      // Refresh the current feed
-      const topicSlug = selectedTopic === 'for-you' ? undefined : selectedTopic
-      await dataManager.getFeed(
-        'personalized', 
-        topicSlug,
-        1, // page 1
-        10, // page size
-        { forceRefresh: true }
-      )
-      
-      // Show success feedback
-      setRefreshSuccess(true)
-      setTimeout(() => {
-        setRefreshSuccess(false)
-      }, 2000) // Show success for 2 seconds
-      
-    } catch (error) {
-      console.error('Failed to refresh feed:', error)
-    } finally {
-      setIsRefreshing(false)
-    }
+    // Get current article count before refresh
+    const beforeRefresh = await dataManager.getFeed(
+      'personalized', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: false }
+    )
+    const countBefore = beforeRefresh?.articles.length || 0
+    
+    // Force refresh the feed
+    const afterRefresh = await dataManager.getFeed(
+      'personalized', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: true }
+    )
+    const countAfter = afterRefresh?.articles.length || 0
+    
+    // Determine if we got new data by checking if content changed
+    // For page 1, if we have different articles or different timestamps, consider it new data
+    const hasNewData = countAfter !== countBefore || 
+      (afterRefresh && beforeRefresh && 
+       JSON.stringify(afterRefresh.articles.slice(0, 3).map(a => a.id)) !== 
+       JSON.stringify(beforeRefresh.articles.slice(0, 3).map(a => a.id))) || false
+    
+    return { hasNewData }
   }
   
   // Handle search debounce
@@ -162,25 +165,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold tracking-tight">Your News</h1>
             
             {/* Desktop refresh button */}
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              variant="ghost"
-              size="sm"
-              className="hidden md:flex text-muted-foreground hover:text-foreground"
-            >
-              {refreshSuccess ? (
-                <>
-                  <Check className="h-4 w-4 mr-1" />
-                  Updated!
-                </>
-              ) : (
-                <>
-                  <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  {isRefreshing ? 'Updating...' : 'Refresh'}
-                </>
-              )}
-            </Button>
+            <FeedRefreshButton onRefresh={handleRefresh} />
             
             {!isOnline && (
               <div className="flex items-center gap-1 text-amber-600 text-sm">

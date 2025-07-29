@@ -5,10 +5,11 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Wifi, WifiOff, RefreshCw } from "lucide-react"
-import { useUserPreferences, useOfflineStatus, useBackgroundSync } from "@/lib/use-local-data"
+import { Search, Wifi, WifiOff } from "lucide-react"
+import { useUserPreferences, useOfflineStatus } from "@/lib/use-local-data"
 import { dataManager } from "@/lib/data-manager"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
+import { FeedRefreshButton, type FeedRefreshResult } from "@/components/feed-refresh-button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function World() {
@@ -17,7 +18,7 @@ export default function World() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   
   // Refresh state
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  // Refresh state now handled by FeedRefreshButton component
   
   // Use local storage hooks - NO direct API calls
   const { 
@@ -28,29 +29,40 @@ export default function World() {
   
   const { isOnline, wasOffline } = useOfflineStatus()
   
-  // Enable background sync for this page
-  useBackgroundSync(10 * 60 * 1000) // 10 minutes
+  // Background sync moved to layout level to prevent multiple instances
   
-  // Handle manual refresh
-  const handleRefresh = async () => {
-    if (isRefreshing) return
+  // Handle manual refresh - returns promise for FeedRefreshButton component
+  const handleRefresh = async (): Promise<FeedRefreshResult> => {
+    const topicSlug = selectedTopic === 'all' ? undefined : selectedTopic
     
-    setIsRefreshing(true)
-    try {
-      // Refresh the current world feed
-      const topicSlug = selectedTopic === 'all' ? undefined : selectedTopic
-      await dataManager.getFeed(
-        'world', 
-        topicSlug,
-        1, // page 1
-        10, // page size
-        { forceRefresh: true }
-      )
-    } catch (error) {
-      console.error('Failed to refresh world feed:', error)
-    } finally {
-      setIsRefreshing(false)
-    }
+    // Get current article count before refresh
+    const beforeRefresh = await dataManager.getFeed(
+      'world', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: false }
+    )
+    const countBefore = beforeRefresh?.articles.length || 0
+    
+    // Force refresh the feed
+    const afterRefresh = await dataManager.getFeed(
+      'world', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: true }
+    )
+    const countAfter = afterRefresh?.articles.length || 0
+    
+    // Determine if we got new data by checking if content changed
+    // For page 1, if we have different articles or different timestamps, consider it new data
+    const hasNewData = countAfter !== countBefore || 
+      (afterRefresh && beforeRefresh && 
+       JSON.stringify(afterRefresh.articles.slice(0, 3).map(a => a.id)) !== 
+       JSON.stringify(beforeRefresh.articles.slice(0, 3).map(a => a.id))) || false
+    
+    return { hasNewData }
   }
   
   // Handle search debounce
@@ -75,16 +87,7 @@ export default function World() {
               <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
               
               {/* Desktop refresh button */}
-              <Button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                variant="ghost"
-                size="sm"
-                className="hidden md:flex text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Updating...' : 'Refresh'}
-              </Button>
+              <FeedRefreshButton onRefresh={handleRefresh} />
             </div>
           </div>
           <Alert variant="destructive">
@@ -107,16 +110,7 @@ export default function World() {
               <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
               
               {/* Desktop refresh button */}
-              <Button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                variant="ghost"
-                size="sm"
-                className="hidden md:flex text-muted-foreground hover:text-foreground"
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Updating...' : 'Refresh'}
-              </Button>
+              <FeedRefreshButton onRefresh={handleRefresh} />
             </div>
           </div>
           <Alert>
@@ -138,16 +132,7 @@ export default function World() {
             <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
             
             {/* Desktop refresh button */}
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              variant="ghost"
-              size="sm"
-              className="hidden md:flex text-muted-foreground hover:text-foreground"
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Updating...' : 'Refresh'}
-            </Button>
+            <FeedRefreshButton onRefresh={handleRefresh} />
             
             {!isOnline && (
               <div className="flex items-center gap-1 text-amber-600 text-sm">
