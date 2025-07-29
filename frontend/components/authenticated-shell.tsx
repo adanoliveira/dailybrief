@@ -1,7 +1,6 @@
 "use client"
 
 import { MobileNav } from "@/components/mobile-nav"
-import { NotificationPermission } from "@/components/notification-permission"
 import { useNavigationTracking } from "@/hooks/use-navigation-tracking"
 import { useBackgroundSync } from "@/lib/use-local-data"
 import { usePathname } from "next/navigation"
@@ -19,7 +18,6 @@ export function AuthenticatedShell() {
 
   return (
     <>
-      <NotificationPermission />
       {!isArticlePage && !isDigestPage && <MobileNav />}
     </>
   )
