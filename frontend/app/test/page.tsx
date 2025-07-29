@@ -837,6 +837,184 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
             >
               🔄 Reset Onboarding
             </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('📱 Testing scroll-to-top behavior...')
+                  
+                  // Simulate scrolling down first
+                  window.scrollTo(0, 500)
+                  await new Promise(resolve => setTimeout(resolve, 1000))
+                  
+                  // Clear any existing scroll positions
+                  const feedTypes = ['personalized:for-you', 'world:all']
+                  feedTypes.forEach(feedKey => {
+                    sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+                    sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+                  })
+                  
+                  // Test navigation to home with onboarding_complete parameter
+                  const currentPath = window.location.pathname
+                  const testUrl = '/home?onboarding_complete=true'
+                  
+                  setTestResult(`✅ Scroll position test ready!\n\n🧪 Test Steps:\n\n1. Current scroll position: ${window.scrollY}px\n2. Click the "Navigate to Home" button below\n3. Should be taken to /home at scroll position 0\n4. Check that you're at the top of the page\n\n🎯 Expected behavior:\n- Instant scroll to top (no scroll restoration)\n- Clean URL without query parameters\n- Toast message: "Setup complete!"\n\n💡 This simulates the post-onboarding redirect experience.`)
+                  
+                } catch (error) {
+                  console.error('Scroll test failed:', error)
+                  setTestResult(`❌ Scroll test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              📱 Test Scroll Position
+            </Button>
+            <Button 
+              onClick={() => {
+                window.location.href = '/home?onboarding_complete=true'
+              }}
+              disabled={isLoading}
+              variant="default"
+              className="w-full"
+            >
+              🏠 Navigate to Home (Test)
+            </Button>
+            <Button 
+              onClick={() => {
+                window.location.href = '/world?force=true'
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              🌍 Navigate to World (Test)
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('🔄 Testing page refresh behavior...')
+                  
+                  // Simulate scrolling down first
+                  window.scrollTo(0, 300)
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  
+                  setTestResult(`✅ Scroll position test ready!\n\n📱 Current scroll: ${window.scrollY}px\n\n🧪 Test Steps:\n\n1. Click "Simulate Page Refresh" below\n2. Page should reload and scroll to top (0px)\n\n🎯 Expected behavior:\n- Page reloads completely\n- Scroll position resets to 0\n- All saved scroll positions cleared\n\n💡 This simulates hitting F5 or refresh button.`)
+                  
+                } catch (error) {
+                  console.error('Refresh test failed:', error)
+                  setTestResult(`❌ Refresh test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              🔄 Test Page Refresh
+            </Button>
+            <Button 
+              onClick={() => {
+                window.location.reload()
+              }}
+              disabled={isLoading}
+              variant="default"
+              className="w-full"
+            >
+              🔄 Simulate Page Refresh
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('🔑 Testing fresh sign-in behavior...')
+                  
+                  // Clear the session establishment marker to simulate fresh sign-in
+                  sessionStorage.removeItem('user-session-established')
+                  
+                  // Simulate scrolling down first
+                  window.scrollTo(0, 400)
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  
+                  setTestResult(`✅ Fresh sign-in test ready!\n\n📱 Current scroll: ${window.scrollY}px\n\n🧪 Test Steps:\n\n1. Click "Simulate Sign-in" below\n2. Should navigate to /home and scroll to top\n\n🎯 Expected behavior:\n- Instant scroll to top (0px)\n- All saved scroll positions cleared\n- Session marked as established\n\n💡 This simulates signing in for the first time.`)
+                  
+                } catch (error) {
+                  console.error('Sign-in test failed:', error)
+                  setTestResult(`❌ Sign-in test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              🔑 Test Fresh Sign-in
+            </Button>
+            <Button 
+              onClick={() => {
+                window.location.href = '/home'
+              }}
+              disabled={isLoading}
+              variant="default"
+              className="w-full"
+            >
+              🔑 Simulate Sign-in
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('📋 Scroll behavior summary...')
+                  
+                  const hasSessionMarker = !!sessionStorage.getItem('user-session-established')
+                  const scrollKeys = Object.keys(sessionStorage).filter(key => key.startsWith('scroll-'))
+                  
+                  setTestResult(`📋 **SCROLL BEHAVIOR SUMMARY**
+
+🎯 **Always Scroll to Top (0px) on:**
+✅ Fresh sign-in (first time after auth)
+✅ Page refresh/reload (F5, browser refresh)
+✅ Post-onboarding completion 
+✅ New session with ?new_session=true
+✅ Forced refresh with ?force=true
+
+🔄 **Normal Scroll Restoration for:**
+• Regular navigation between pages
+• Tab switches within the same session
+• Back/forward browser navigation
+
+📊 **Current State:**
+• Session established: ${hasSessionMarker ? 'Yes' : 'No (next visit = fresh sign-in)'}
+• Saved scroll positions: ${scrollKeys.length}
+• Page type: ${window.location.pathname.includes('/home') ? 'Home Feed' : window.location.pathname.includes('/world') ? 'World Feed' : 'Other'}
+
+🧪 **Test Instructions:**
+1. Sign out and sign back in → should scroll to top
+2. Hit F5 or refresh → should scroll to top  
+3. Navigate between tabs → should preserve position
+4. Complete onboarding → should scroll to top
+
+🎉 **Behavior Fixed!** Users will always start at the top after sign-in or refresh.`)
+                  
+                } catch (error) {
+                  console.error('Summary failed:', error)
+                  setTestResult(`❌ Summary failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="secondary"
+              className="w-full"
+            >
+              📋 Scroll Behavior Summary
+            </Button>
              <Button 
                onClick={clearDatabase} 
                disabled={isLoading}

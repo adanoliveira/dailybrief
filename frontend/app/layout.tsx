@@ -55,7 +55,51 @@ export default function RootLayout({
                   
                   if (!isFeedPage) return;
                   
-                  // Parse feed type from URL
+                  // Check for onboarding completion or new session - these should start at top
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const isOnboardingComplete = urlParams.get('onboarding_complete') === 'true';
+                  const isNewSession = urlParams.get('new_session') === 'true';
+                  const isForced = urlParams.get('force') === 'true';
+                  
+                  // Check if this is a page refresh/reload
+                  const isPageRefresh = (
+                    performance.navigation && performance.navigation.type === 1 // TYPE_RELOAD
+                  ) || (
+                    performance.getEntriesByType && 
+                    performance.getEntriesByType('navigation')[0] && 
+                    performance.getEntriesByType('navigation')[0].type === 'reload'
+                  );
+                  
+                  // Check if this is a fresh sign-in (no existing scroll data)
+                  const isSignIn = !sessionStorage.getItem('user-session-established');
+                  
+                  // Always start at top for these cases:
+                  // 1. Onboarding completion
+                  // 2. New session
+                  // 3. Forced refresh
+                  // 4. Page refresh/reload
+                  // 5. Fresh sign-in
+                  if (isOnboardingComplete || isNewSession || isForced || isPageRefresh || isSignIn) {
+                    window.scrollTo(0, 0);
+                    
+                    // Mark session as established after sign-in
+                    if (isSignIn) {
+                      sessionStorage.setItem('user-session-established', 'true');
+                    }
+                    
+                    // Clear any saved scroll positions for fresh start
+                    if (isPageRefresh || isSignIn) {
+                      const feedTypes = ['personalized:for-you', 'world:all', 'personalized:', 'world:'];
+                      feedTypes.forEach(feedKey => {
+                        sessionStorage.removeItem('scroll-' + feedKey + '::relevance');
+                        sessionStorage.removeItem('scroll-restored-' + feedKey + '::relevance');
+                      });
+                    }
+                    
+                    return;
+                  }
+                  
+                  // Parse feed type from URL for normal scroll restoration
                   let feedType = 'personalized';
                   let topicSlug = undefined;
                   

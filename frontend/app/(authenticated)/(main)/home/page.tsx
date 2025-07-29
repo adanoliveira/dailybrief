@@ -139,8 +139,18 @@ export default function Home() {
                                     searchParams?.get('new_session') === 'true'
     
     if (justCompletedOnboarding) {
+      // Ensure we're at the top of the page
+      window.scrollTo(0, 0)
+      
       // Remove the query parameter without navigation
       window.history.replaceState({}, document.title, '/home')
+      
+      // Clear any saved scroll positions for a fresh start
+      const feedTypes = ['personalized:for-you', 'world:all']
+      feedTypes.forEach(feedKey => {
+        sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+        sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+      })
       
       toast({
         title: "Setup complete!",
@@ -149,6 +159,44 @@ export default function Home() {
       })
     }
   }, [searchParams, toast])
+
+  // Ensure new users and refreshed pages start at the top
+  useEffect(() => {
+    // Check if this is a first-time visit, forced refresh, page refresh, or fresh sign-in
+    const forceParam = searchParams?.get('force') === 'true'
+    const isFirstVisit = !sessionStorage.getItem('scroll-personalized:for-you::relevance')
+    
+    // Check if this is a page refresh/reload
+    const isPageRefresh = (
+      performance.navigation && performance.navigation.type === 1 // TYPE_RELOAD
+    ) || (
+      performance.getEntriesByType && 
+      performance.getEntriesByType('navigation')[0] && 
+      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type === 'reload'
+    );
+    
+    // Check if this is a fresh sign-in
+    const isSignIn = !sessionStorage.getItem('user-session-established');
+    
+    if (forceParam || isFirstVisit || isPageRefresh || isSignIn) {
+      // Scroll to top for new users, page refresh, or fresh sign-in
+      window.scrollTo(0, 0)
+      
+      // Mark session as established after sign-in
+      if (isSignIn && !isVerifying) {
+        sessionStorage.setItem('user-session-established', 'true');
+      }
+      
+      // Clear saved scroll positions for fresh start on refresh or sign-in
+      if (isPageRefresh || isSignIn) {
+        const feedTypes = ['personalized:for-you', 'world:all', 'personalized:', 'world:'];
+        feedTypes.forEach(feedKey => {
+          sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+          sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+        });
+      }
+    }
+  }, [isVerifying, searchParams])
 
   // Define render functions for different states
   const renderVerifying = () => (

@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { LogOut, Settings, User, Edit, Sun, Moon, Loader2 } from "lucide-react"
 import { signOut } from "next-auth/react"
-import { deleteCookie } from "@/lib/cookies"
 import { getUserPreferences, fetchOnboardingOptions } from "@/lib/onboarding-service"
 import type { UserPreferences, OnboardingOptions } from "@/lib/onboarding-service"
 import { PreferencesEditModal } from "@/components/preferences-edit-modal"
@@ -62,8 +61,17 @@ export default function Profile() {
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true)
-      // Delete the onboarding cookie to ensure the user goes through onboarding again if they sign back in
-      deleteCookie("onboarding_completed")
+      
+      // Clear session establishment marker for fresh sign-in detection next time
+      sessionStorage.removeItem('user-session-established')
+      
+      // Clear any saved scroll positions for fresh start
+      const feedTypes = ['personalized:for-you', 'world:all', 'personalized:', 'world:']
+      feedTypes.forEach(feedKey => {
+        sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+        sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+      })
+      
       // Sign out using NextAuth
       await signOut({ callbackUrl: "/auth" })
     } catch (error) {

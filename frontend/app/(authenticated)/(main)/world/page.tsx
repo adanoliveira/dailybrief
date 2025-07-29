@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { FeedRefreshButton, type FeedRefreshResult } from "@/components/feed-ref
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function World() {
+  const searchParams = useSearchParams()
   const [selectedTopic, setSelectedTopic] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -30,6 +32,44 @@ export default function World() {
   const { isOnline, wasOffline } = useOfflineStatus()
   
   // Background sync moved to layout level to prevent multiple instances
+
+  // Ensure new users and refreshed pages start at the top
+  useEffect(() => {
+    // Check if this is a first-time visit, forced refresh, page refresh, or fresh sign-in
+    const forceParam = searchParams?.get('force') === 'true'
+    const isFirstVisit = !sessionStorage.getItem('scroll-world:all::relevance')
+    
+    // Check if this is a page refresh/reload
+    const isPageRefresh = (
+      performance.navigation && performance.navigation.type === 1 // TYPE_RELOAD
+    ) || (
+      performance.getEntriesByType && 
+      performance.getEntriesByType('navigation')[0] && 
+      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type === 'reload'
+    );
+    
+    // Check if this is a fresh sign-in
+    const isSignIn = !sessionStorage.getItem('user-session-established');
+    
+    if (forceParam || isFirstVisit || isPageRefresh || isSignIn) {
+      // Scroll to top for new users, page refresh, or fresh sign-in
+      window.scrollTo(0, 0)
+      
+      // Mark session as established after sign-in
+      if (isSignIn) {
+        sessionStorage.setItem('user-session-established', 'true');
+      }
+      
+      // Clear saved scroll positions for fresh start on refresh or sign-in
+      if (isPageRefresh || isSignIn) {
+        const feedTypes = ['personalized:for-you', 'world:all', 'personalized:', 'world:'];
+        feedTypes.forEach(feedKey => {
+          sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+          sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+        });
+      }
+    }
+  }, [searchParams])
   
   // Handle manual refresh - returns promise for FeedRefreshButton component
   const handleRefresh = async (): Promise<FeedRefreshResult> => {
