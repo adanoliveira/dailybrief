@@ -349,12 +349,40 @@ export default function Profile() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <h3 className="font-medium">Email</h3>
-                  <div className="rounded-md border px-3 py-2 text-sm bg-muted/50">user@example.com</div>
+                  <div className="rounded-md border px-3 py-2 text-sm bg-muted/50">
+                    {session?.user?.email || "No email available"}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-medium">Member since</h3>
-                  <div className="rounded-md border px-3 py-2 text-sm bg-muted/50">April 15, 2025</div>
+                  <h3 className="font-medium">Account Status</h3>
+                  <div className="rounded-md border px-3 py-2 text-sm bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      Active
+                    </div>
+                  </div>
                 </div>
+                {session?.user?.name && (
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Display Name</h3>
+                    <div className="rounded-md border px-3 py-2 text-sm bg-muted/50">
+                      {session.user.name}
+                    </div>
+                  </div>
+                )}
+                {session?.user?.image && (
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Profile Image</h3>
+                    <div className="rounded-md border px-3 py-2 text-sm bg-muted/50 flex items-center gap-3">
+                      <img 
+                        src={session.user.image} 
+                        alt="Profile" 
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <span className="text-xs text-muted-foreground">Provided by authentication provider</span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
