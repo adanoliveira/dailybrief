@@ -155,8 +155,8 @@ export default function OnboardingPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   
   // Auth and routing
+  const { data: session, status: sessionStatus, update: updateSession } = useSession()
   const { userStatus, isLoading: isUserLoading, setOnboardingComplete } = useUser()
-  const { data: session, status: sessionStatus } = useSession()
   const router = useRouter()
   
   // Check auth state and fetch options
@@ -291,18 +291,19 @@ export default function OnboardingPage() {
       // Update user context
       setOnboardingComplete(true)
       
-      // Force refresh of session with updated onboarding status
+      // Trigger session refresh
       try {
-        const sessionResponse = await fetch('/api/auth/session-update', { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
+        console.log("Onboarding: Refreshing session after preferences saved")
         
-        if (!sessionResponse.ok) {
-          console.error("Failed to update session: ", await sessionResponse.text())
-        }
+        // Mark as complete in localStorage for immediate UI feedback
+        localStorage.setItem('has_completed_onboarding', 'true')
+        
+        // Trigger NextAuth session refresh
+        await updateSession()
+        
+        console.log("Onboarding: Session refresh completed")
       } catch (sessionErr) {
-        console.error("Error updating session", sessionErr)
+        console.error("Error refreshing session", sessionErr)
       }
       
       // Go to final step
@@ -316,14 +317,14 @@ export default function OnboardingPage() {
     }
   }
   
-  // Handle finish
+  // Handle finish - redirect to home with proper parameters
   const finishOnboarding = () => {
     setIsRedirecting(true)
     
-    // Add a small delay for a smoother transition
+    // Add a small delay to ensure session is updated
     setTimeout(() => {
-      router.replace("/home")
-    }, 100)
+      router.replace("/home?onboarding_complete=true")
+    }, 500) // Increased delay to allow session update
   }
   
   // Loading state

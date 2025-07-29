@@ -43,27 +43,45 @@ export function LanguagesStep({
     setSelected(selectedLanguages)
   }, [selectedLanguages])
 
-  // Sort languages alphabetically
+  // Define available languages (only English for now)
+  const availableLanguages = ['en']
+  
+  // Check if a language is available
+  const isLanguageAvailable = (languageCode: string) => availableLanguages.includes(languageCode.toLowerCase())
+  
+  // Sort languages by availability, selection status, and then alphabetically
   const sortedLanguages = useMemo(() => {
     return [...languages].sort((a, b) => {
-      // First, sort by selection status (selected languages first)
-      const aSelected = selected.includes(a.iso_code);
-      const bSelected = selected.includes(b.iso_code);
+      // First, sort by availability (available languages first)
+      const aAvailable = isLanguageAvailable(a.iso_code)
+      const bAvailable = isLanguageAvailable(b.iso_code)
       
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
+      if (aAvailable && !bAvailable) return -1
+      if (!aAvailable && bAvailable) return 1
+      
+      // Then, sort by selection status (selected languages first within each group)
+      const aSelected = selected.includes(a.iso_code)
+      const bSelected = selected.includes(b.iso_code)
+      
+      if (aSelected && !bSelected) return -1
+      if (!aSelected && bSelected) return 1
       
       // Then English first
-      if (a.iso_code === 'en') return -1;
-      if (b.iso_code === 'en') return 1;
+      if (a.iso_code === 'en') return -1
+      if (b.iso_code === 'en') return 1
       
       // Then sort alphabetically
-      return a.name.localeCompare(b.name);
-    });
-  }, [languages, selected]);
+      return a.name.localeCompare(b.name)
+    })
+  }, [languages, selected])
 
   // Toggle language selection
   const toggleLanguage = (languageCode: string) => {
+    // Don't allow selection of unavailable languages
+    if (!isLanguageAvailable(languageCode)) {
+      return
+    }
+    
     if (selected.includes(languageCode)) {
       if (selected.length <= 1) {
         return
@@ -92,6 +110,11 @@ export function LanguagesStep({
         <CardHeader className="pb-4">
           <CardTitle className="text-2xl font-bold">Which languages do you read?</CardTitle>
           <p className="text-muted-foreground">Select languages for your news content</p>
+          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-900 dark:text-blue-100">
+              <strong>Initial Release:</strong> Currently supporting English only. More languages coming soon!
+            </p>
+          </div>
         </CardHeader>
         
         <CardContent>
@@ -117,35 +140,48 @@ export function LanguagesStep({
           )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {sortedLanguages.map((language) => (
-              <button
-                key={language.iso_code}
-                onClick={() => toggleLanguage(language.iso_code)}
-                className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
-                  selected.includes(language.iso_code)
-                    ? "bg-primary/10 border-primary shadow-sm"
-                    : "bg-card hover:bg-background"
-                }`}
-              >
-                <div className="flex items-center overflow-hidden">
-                  <span className="flex items-center justify-center bg-background dark:bg-gray-800 w-9 h-9 rounded-full flex-shrink-0 mr-3">
-                    <span className="font-mono text-sm tracking-wider font-semibold">
-                      {language.iso_code.toUpperCase()}
+            {sortedLanguages.map((language) => {
+              const isAvailable = isLanguageAvailable(language.iso_code)
+              const isSelected = selected.includes(language.iso_code)
+              
+              return (
+                <button
+                  key={language.iso_code}
+                  onClick={() => toggleLanguage(language.iso_code)}
+                  disabled={!isAvailable}
+                  className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between ${
+                    !isAvailable
+                      ? "bg-muted/30 border-muted text-muted-foreground cursor-not-allowed opacity-60"
+                      : isSelected
+                        ? "bg-primary/10 border-primary shadow-sm hover:border-primary/70"
+                        : "bg-card hover:bg-background hover:border-primary/70"
+                  }`}
+                >
+                  <div className="flex items-center overflow-hidden">
+                    <span className={`flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 mr-3 ${
+                      isAvailable ? "bg-background dark:bg-gray-800" : "bg-muted"
+                    }`}>
+                      <span className="font-mono text-sm tracking-wider font-semibold">
+                        {language.iso_code.toUpperCase()}
+                      </span>
                     </span>
-                  </span>
-                  <div className="flex flex-col items-start overflow-hidden">
-                    <span className="font-medium text-left truncate">{language.name}</span>
-                    <span className="text-xs text-left text-muted-foreground truncate">
-                      {getLanguageAutonym(language.iso_code)}
-                    </span>
+                    <div className="flex flex-col items-start overflow-hidden">
+                      <span className="font-medium text-left truncate">{language.name}</span>
+                      <span className="text-xs text-left text-muted-foreground truncate">
+                        {isAvailable 
+                          ? getLanguageAutonym(language.iso_code)
+                          : "Coming soon"
+                        }
+                      </span>
+                    </div>
                   </div>
-                </div>
-                
-                {selected.includes(language.iso_code) && (
-                  <Check size={18} className="text-primary flex-shrink-0 ml-2" />
-                )}
-              </button>
-            ))}
+                  
+                  {isSelected && isAvailable && (
+                    <Check size={18} className="text-primary flex-shrink-0 ml-2" />
+                  )}
+                </button>
+              )
+            })}
           </div>
         </CardContent>
       </Card>

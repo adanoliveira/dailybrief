@@ -813,6 +813,30 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
             >
               Test Digests
             </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('🔄 Resetting onboarding locally...')
+                  
+                  // Clear localStorage
+                  localStorage.removeItem('has_completed_onboarding')
+                  
+                  setTestResult(`✅ Local onboarding state cleared!\n\n🔄 To fully test the post-onboarding flow:\n\n1. Run: ./docker.sh django reset_onboarding --user-email your@email.com\n2. Navigate to /onboarding\n3. Complete onboarding\n4. Verify redirect to /home without loops\n\n🧪 This tests the post-onboarding redirect fix!\n\n📝 Expected behavior:\n- No "Checking onboarding status" loops\n- Clean redirect to /home\n- Session properly updated`)
+                  
+                } catch (error) {
+                  console.error('Reset onboarding failed:', error)
+                  setTestResult(`❌ Reset onboarding failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              🔄 Reset Onboarding
+            </Button>
              <Button 
                onClick={clearDatabase} 
                disabled={isLoading}

@@ -43,10 +43,23 @@ export function RegionsStep({
     )
   }, [regions, searchTerm])
 
-  // Sort regions by selection status and then alphabetically
+  // Define available regions (only US for now)
+  const availableRegions = ['us']
+  
+  // Check if a region is available
+  const isRegionAvailable = (regionCode: string) => availableRegions.includes(regionCode.toLowerCase())
+  
+  // Sort regions by availability, selection status, and then alphabetically
   const sortedRegions = useMemo(() => {
     return [...filteredRegions].sort((a, b) => {
-      // First, sort by selection status (selected regions first)
+      // First, sort by availability (available regions first)
+      const aAvailable = isRegionAvailable(a.code)
+      const bAvailable = isRegionAvailable(b.code)
+      
+      if (aAvailable && !bAvailable) return -1
+      if (!aAvailable && bAvailable) return 1
+      
+      // Then, sort by selection status (selected regions first within each group)
       const aSelected = selected.includes(a.code)
       const bSelected = selected.includes(b.code)
       
@@ -60,6 +73,11 @@ export function RegionsStep({
 
   // Toggle region selection
   const toggleRegion = (regionCode: string) => {
+    // Don't allow selection of unavailable regions
+    if (!isRegionAvailable(regionCode)) {
+      return
+    }
+    
     if (selected.includes(regionCode)) {
       // Remove region if it's already selected
       const newSelected = selected.filter(code => code !== regionCode)
@@ -84,6 +102,11 @@ export function RegionsStep({
         <CardHeader className="pb-4">
           <CardTitle className="text-2xl font-bold">Where do you want news from?</CardTitle>
           <p className="text-muted-foreground">Select regions you want to follow</p>
+          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-900 dark:text-blue-100">
+              <strong>Initial Release:</strong> Currently supporting United States only. More regions coming soon!
+            </p>
+          </div>
         </CardHeader>
         
         <CardContent>
@@ -119,28 +142,43 @@ export function RegionsStep({
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {sortedRegions.map((region) => (
-              <button
-                key={region.code}
-                onClick={() => toggleRegion(region.code)}
-                className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
-                  selected.includes(region.code)
-                    ? "bg-primary/10 border-primary shadow-sm"
-                    : "bg-card hover:bg-background"
-                }`}
-              >
-                <div className="flex items-center overflow-hidden">
-                  <span className="flex items-center justify-center bg-primary/10 w-10 h-10 rounded-full flex-shrink-0 mr-3">
-                    {getRegionFlag(region.code)}
-                  </span>
-                  <span className="font-medium truncate">{region.name}</span>
-                </div>
-                
-                {selected.includes(region.code) && (
-                  <Check size={18} className="text-primary flex-shrink-0 ml-2" />
-                )}
-              </button>
-            ))}
+            {sortedRegions.map((region) => {
+              const isAvailable = isRegionAvailable(region.code)
+              const isSelected = selected.includes(region.code)
+              
+              return (
+                <button
+                  key={region.code}
+                  onClick={() => toggleRegion(region.code)}
+                  disabled={!isAvailable}
+                  className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between relative ${
+                    !isAvailable
+                      ? "bg-muted/30 border-muted text-muted-foreground cursor-not-allowed opacity-60"
+                      : isSelected
+                        ? "bg-primary/10 border-primary shadow-sm hover:border-primary/70"
+                        : "bg-card hover:bg-background hover:border-primary/70"
+                  }`}
+                >
+                  <div className="flex items-center overflow-hidden">
+                    <span className={`flex items-center justify-center w-10 h-10 rounded-full flex-shrink-0 mr-3 ${
+                      isAvailable ? "bg-primary/10" : "bg-muted"
+                    }`}>
+                      {getRegionFlag(region.code)}
+                    </span>
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium truncate">{region.name}</span>
+                      {!isAvailable && (
+                        <span className="text-xs text-muted-foreground">Coming soon</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {isSelected && isAvailable && (
+                    <Check size={18} className="text-primary flex-shrink-0 ml-2" />
+                  )}
+                </button>
+              )
+            })}
           </div>
           
           {filteredRegions.length === 0 && (
