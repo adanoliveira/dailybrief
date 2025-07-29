@@ -2,7 +2,14 @@
 
 import { Button } from "@/components/ui/button"
 import { PublicationBadge } from "@/components/ui/publication-badge"
-import { ExternalLink, Clock, ArrowLeft, ThumbsUp, ThumbsDown, Share } from "lucide-react"
+import { 
+  ArrowTopRightOnSquareIcon as ExternalLink, 
+  ClockIcon as Clock, 
+  ArrowLeftIcon as ArrowLeft, 
+  HandThumbUpIcon as ThumbsUp, 
+  HandThumbDownIcon as ThumbsDown, 
+  ShareIcon as Share 
+} from "@heroicons/react/24/outline"
 import { formatDate, getBestTitle, truncateText } from "@/lib/article-utils"
 import { renderWithFormatting } from "@/components/rich-article-renderer"
 import { cn } from "@/lib/utils"

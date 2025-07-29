@@ -5,7 +5,8 @@ import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Topic } from "@/lib/onboarding-service"
 import { getTopicIcon } from "@/lib/topic-icons"
-import { Check } from "lucide-react"
+import { CheckIcon as Check } from "@heroicons/react/24/outline"
+import { cn } from "@/lib/utils"
 
 interface TopicsStepProps {
   topics: Topic[]
@@ -86,21 +87,23 @@ export function TopicsStep({
                 <button
                   key={topic.id}
                   onClick={() => toggleTopic(topic.id)}
-                  className={`w-full p-3 rounded-md border transition-all duration-200 flex items-center justify-between hover:border-primary/70 ${
+                  className={cn(
+                    "flex items-center justify-between w-full p-3 rounded-lg border-2 transition-all duration-200",
+                    "hover:shadow-md hover:border-primary/30",
                     selected.includes(topic.id)
-                      ? "bg-primary/10 border-primary shadow-sm"
-                      : "bg-card hover:bg-background"
-                  }`}
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-muted bg-background"
+                  )}
                 >
                   <div className="flex items-center overflow-hidden">
                     <span className="flex items-center justify-center bg-primary/10 text-primary w-10 h-10 rounded-full flex-shrink-0 mr-3">
-                      <TopicIcon size={20} />
+                      <TopicIcon className="h-5 w-5" />
                     </span>
                     <span className="font-medium truncate">{topic.name}</span>
                   </div>
                   
                   {selected.includes(topic.id) && (
-                    <Check size={18} className="text-primary flex-shrink-0 ml-2" />
+                    <Check className="h-4 w-4 text-primary flex-shrink-0 ml-2" />
                   )}
                 </button>
               );

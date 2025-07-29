@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Check } from "lucide-react"
+import { ArrowPathIcon as RefreshCw, CheckIcon as Check } from "@heroicons/react/24/outline"
 
 export interface FeedRefreshResult {
   hasNewData: boolean;

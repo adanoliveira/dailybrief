@@ -4,7 +4,15 @@ import React, { useState } from 'react'
 import { ContentBlock, MediaAsset, FormattingData } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Play, Pause, Volume2, VolumeX, ExternalLink, Copy, Check } from 'lucide-react'
+import { 
+  PlayIcon as Play, 
+  PauseIcon as Pause, 
+  SpeakerWaveIcon as Volume2, 
+  SpeakerXMarkIcon as VolumeX, 
+  ArrowTopRightOnSquareIcon as ExternalLink, 
+  ClipboardIcon as Copy, 
+  CheckIcon as Check 
+} from '@heroicons/react/24/outline'
 import { cn } from '@/lib/utils'
 import { Tweet } from 'react-tweet'
 import parse from 'html-react-parser'

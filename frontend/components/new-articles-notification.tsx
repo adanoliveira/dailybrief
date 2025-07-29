@@ -2,7 +2,11 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ChevronUp, Loader2, Check } from "lucide-react"
+import { 
+  ChevronUpIcon as ChevronUp, 
+  ArrowPathIcon as Loader2, 
+  CheckIcon as Check 
+} from "@heroicons/react/24/outline"
 import { cn } from "@/lib/utils"
 
 interface NewArticlesNotificationProps {

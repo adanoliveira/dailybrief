@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
-  Calendar,
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  Newspaper
-} from "lucide-react"
+  CalendarIcon as Calendar,
+  ClockIcon as Clock,
+  ChevronLeftIcon as ChevronLeft,
+  ChevronRightIcon as ChevronRight,
+  ExclamationCircleIcon as AlertCircle,
+  NewspaperIcon as Newspaper
+} from "@heroicons/react/24/outline"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { dataManager } from "@/lib/data-manager"

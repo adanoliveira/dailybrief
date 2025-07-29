@@ -7,7 +7,12 @@ import { useUserPreferences, useOfflineStatus } from "@/lib/use-local-data"
 import { dataManager } from "@/lib/data-manager"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Filter, Search, Wifi, WifiOff } from "lucide-react"
+import { 
+  FunnelIcon as Filter, 
+  MagnifyingGlassIcon as Search, 
+  WifiIcon as Wifi, 
+  NoSymbolIcon as WifiOff 
+} from "@heroicons/react/24/outline"
 import { DailyDigest } from "@/components/daily-digest"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
