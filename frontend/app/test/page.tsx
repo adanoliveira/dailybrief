@@ -703,43 +703,116 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
                    const userId = session?.user?.django_user_id?.toString()
                    
                    if (!userId) {
-                     setTestResult('❌ Please log in first')
+                     setTestResult('❌ No authenticated user found')
                      return
                    }
-
-                   // Get all feed syncs and clear pending data
-                   const { localDB } = await import('@/lib/local-database')
-                   const feedSyncs = await localDB.feedSyncs.toArray()
-                   
-                   let clearedCount = 0
-                   for (const feedSync of feedSyncs) {
-                     if (feedSync.pendingNewArticles || feedSync.pendingUpdatedArticles) {
-                       await localDB.saveFeedSync({
-                         ...feedSync,
-                         pendingNewArticles: 0,
-                         pendingUpdatedArticles: 0,
-                         pendingArticlesData: undefined
-                       })
-                       clearedCount++
-                     }
-                   }
-                                     
+                  
+                  // Clear stale pending articles data
+                  const feedSyncs = await localDB.feedSyncs.where('userId').equals(userId).toArray()
+                  let clearedCount = 0
+                  
+                  const fifteenMinutesAgo = Date.now() - (15 * 60 * 1000)
+                  
+                  for (const feedSync of feedSyncs) {
+                    if (feedSync.pendingArticlesData || feedSync.pendingNewArticles || feedSync.pendingUpdatedArticles) {
+                      const isStale = feedSync.lastSyncAt.getTime() < fifteenMinutesAgo
+                      
+                      if (isStale) {
+                        await localDB.saveFeedSync({
+                          ...feedSync,
+                          pendingNewArticles: 0,
+                          pendingUpdatedArticles: 0,
+                          pendingArticlesData: undefined
+                        })
+                        clearedCount++
+                      }
+                    }
+                  }
+                  
                   setTestResult(`✅ Cleared stale pending data from ${clearedCount} feed syncs.\n\n🔄 The "See X new stories" button should now disappear if there are no actual new articles from the backend.\n\n🛡️ Server-side storage errors should also be fixed!`)
                   
-                 } catch (error) {
-                   console.error('Clear pending failed:', error)
-                   setTestResult(`❌ Clear failed: ${error}`)
-                 } finally {
-                   setIsLoading(false)
-                 }
-               }} 
-               disabled={isLoading}
-               variant="outline"
-               className="w-full text-xs sm:text-sm"
-               size="sm"
-             >
-               🧹 Clear Stale
-             </Button>
+                } catch (error) {
+                  console.error('Clear pending failed:', error)
+                  setTestResult(`❌ Clear pending failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              className="w-full"
+            >
+              Clear Stale
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('📰 Testing digest local storage...')
+                  
+                  const session = await import('next-auth/react').then(m => m.getSession())
+                  if (!session?.user?.django_user_id) {
+                    setTestResult('❌ No authenticated user found')
+                    return
+                  }
+
+                  // Test latest digest
+                  console.log('🔄 Testing latest digest...')
+                  const latestResponse = await dataManager.getLatestDigest({ 
+                    maxAge: 0, // Force fresh fetch
+                    backgroundSync: false 
+                  })
+                  
+                  let results = []
+                  if (latestResponse.digest) {
+                    results.push(`✅ Latest digest loaded: "${latestResponse.digest.title}"`)
+                    
+                    // Test marking as read
+                    await dataManager.markDigestAsRead(latestResponse.digest.id)
+                    results.push(`✅ Marked digest as read`)
+                  } else {
+                    results.push(`ℹ️ No latest digest available: ${latestResponse.message || 'Unknown reason'}`)
+                  }
+
+                  // Test digest list
+                  console.log('🔄 Testing digest list...')
+                  const listResponse = await dataManager.listDigests(1, 5, { 
+                    maxAge: 0, // Force fresh fetch
+                    backgroundSync: false 
+                  })
+                  
+                  results.push(`✅ Digest list loaded: ${listResponse.digests.length} digests (total: ${listResponse.pagination.total_count})`)
+                  
+                  // Test background sync
+                  console.log('🔄 Testing digest background sync...')
+                  const userId = session.user.django_user_id.toString()
+                  await dataManager.backgroundSyncDigests(userId)
+                  results.push(`✅ Background digest sync completed`)
+                  
+                  // Test with background sync enabled
+                  console.log('🔄 Testing with background sync...')
+                  const bgResponse = await dataManager.getLatestDigest({ 
+                    maxAge: 10 * 60 * 1000, // 10 minutes
+                    backgroundSync: true 
+                  })
+                  
+                  if (bgResponse.digest) {
+                    results.push(`✅ Background sync digest: "${bgResponse.digest.title}" (should be instant from cache)`)
+                  }
+                  
+                  setTestResult(`📰 Digest Local Storage Test Results:\n\n${results.join('\n')}\n\n🎉 All digest operations working with local-first architecture!`)
+                  
+                } catch (error) {
+                  console.error('Digest test failed:', error)
+                  setTestResult(`❌ Digest test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              className="w-full"
+            >
+              Test Digests
+            </Button>
              <Button 
                onClick={clearDatabase} 
                disabled={isLoading}

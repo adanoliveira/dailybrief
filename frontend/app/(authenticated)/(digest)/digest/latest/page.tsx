@@ -7,7 +7,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
-import { digestService, type Digest } from "@/lib/digest-service"
+import { dataManager } from "@/lib/data-manager"
+import { type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
   return (
@@ -109,12 +110,17 @@ export default function LatestDigest() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadLatestDigest = async () => {
+  const loadLatestDigest = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await digestService.getLatestDigest()
+      // Use DataManager for local-first behavior
+      const response = await dataManager.getLatestDigest({
+        maxAge: forceRefresh ? 0 : 30 * 60 * 1000, // 30 minutes unless force refresh
+        backgroundSync: !forceRefresh // Enable background sync unless forcing refresh
+      })
+      
       setDigest(response.digest)
     } catch (err) {
       console.error('Failed to load latest digest:', err)
@@ -125,11 +131,15 @@ export default function LatestDigest() {
   }
 
   const handleRetry = () => {
-    loadLatestDigest()
+    loadLatestDigest(true) // Force refresh on retry
+  }
+
+  const handleManualRefresh = () => {
+    loadLatestDigest(true) // Force refresh on manual refresh
   }
 
   useEffect(() => {
-    loadLatestDigest()
+    loadLatestDigest() // Initial load with background sync
   }, [])
 
   if (loading) {

@@ -15,7 +15,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { digestService, type DigestSummary, type DigestListResponse } from "@/lib/digest-service"
+import { dataManager } from "@/lib/data-manager"
+import { type DigestSummary, type DigestListResponse } from "@/lib/digest-service"
 
 interface DigestArchiveProps {
   className?: string
@@ -118,16 +119,20 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   
   const pageSize = 12
 
-  const loadDigests = async (page: number) => {
+  const loadDigests = async (page: number, forceRefresh: boolean = false) => {
     try {
       setLoading(true)
       setError(null)
       
-      const response: DigestListResponse = await digestService.listDigests(page, pageSize)
+      // Use DataManager for local-first behavior
+      const response = await dataManager.listDigests(page, pageSize, {
+        maxAge: forceRefresh ? 0 : 30 * 60 * 1000, // 30 minutes unless force refresh
+        backgroundSync: !forceRefresh // Enable background sync unless forcing refresh
+      })
       
       // Filter to only show completed digests
       const completedDigests = response.digests.filter(
-        digest => digest.generation_status.toLowerCase() === 'completed'
+        (digest: DigestSummary) => digest.generation_status.toLowerCase() === 'completed'
       )
       
       setDigests(completedDigests)
@@ -143,7 +148,7 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   }
 
   useEffect(() => {
-    loadDigests(1)
+    loadDigests(1) // Initial load with background sync
   }, [])
 
   const handlePreviousPage = () => {
@@ -159,7 +164,7 @@ export function DigestArchive({ className }: DigestArchiveProps) {
   }
 
   const handleRetry = () => {
-    loadDigests(currentPage)
+    loadDigests(currentPage, true) // Force refresh on retry
   }
 
   if (loading) {
