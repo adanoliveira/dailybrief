@@ -2,7 +2,12 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowLeft, Share, ThumbsUp, ThumbsDown } from "lucide-react"
+import { 
+  ArrowLeftIcon as ArrowLeft, 
+  ShareIcon as Share, 
+  HandThumbUpIcon as ThumbsUp, 
+  HandThumbDownIcon as ThumbsDown 
+} from "@heroicons/react/24/outline"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"

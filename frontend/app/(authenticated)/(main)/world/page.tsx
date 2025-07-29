@@ -1,21 +1,109 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search } from "lucide-react"
-import { getUserPreferences, UserPreferences } from "@/lib/api"
+import { Search, Wifi, WifiOff } from "lucide-react"
+import { useUserPreferences, useOfflineStatus } from "@/lib/use-local-data"
+import { dataManager } from "@/lib/data-manager"
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed"
-import { Skeleton } from "@/components/ui/skeleton"
+import { FeedRefreshButton, type FeedRefreshResult } from "@/components/feed-refresh-button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function World() {
+  const searchParams = useSearchParams()
   const [selectedTopic, setSelectedTopic] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null)
-  const [preferencesLoading, setPreferencesLoading] = useState(true)
-  const [preferencesError, setPreferencesError] = useState<string | null>(null)
+  
+  // Refresh state
+  // Refresh state now handled by FeedRefreshButton component
+  
+  // Use local storage hooks - NO direct API calls
+  const { 
+    data: userPreferences, 
+    isLoading: preferencesLoading, 
+    error: preferencesError 
+  } = useUserPreferences({ backgroundSync: true })
+  
+  const { isOnline, wasOffline } = useOfflineStatus()
+  
+  // Background sync moved to layout level to prevent multiple instances
+
+  // Ensure new users and refreshed pages start at the top
+  useEffect(() => {
+    // Check if this is a first-time visit, forced refresh, page refresh, or fresh sign-in
+    const forceParam = searchParams?.get('force') === 'true'
+    const isFirstVisit = !sessionStorage.getItem('scroll-world:all::relevance')
+    
+    // Check if this is a page refresh/reload
+    const isPageRefresh = (
+      performance.navigation && performance.navigation.type === 1 // TYPE_RELOAD
+    ) || (
+      performance.getEntriesByType && 
+      performance.getEntriesByType('navigation')[0] && 
+      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).type === 'reload'
+    );
+    
+    // Check if this is a fresh sign-in
+    const isSignIn = !sessionStorage.getItem('user-session-established');
+    
+    if (forceParam || isFirstVisit || isPageRefresh || isSignIn) {
+      // Scroll to top for new users, page refresh, or fresh sign-in
+      window.scrollTo(0, 0)
+      
+      // Mark session as established after sign-in
+      if (isSignIn) {
+        sessionStorage.setItem('user-session-established', 'true');
+      }
+      
+      // Clear saved scroll positions for fresh start on refresh or sign-in
+      if (isPageRefresh || isSignIn) {
+        const feedTypes = ['personalized:for-you', 'world:all', 'personalized:', 'world:'];
+        feedTypes.forEach(feedKey => {
+          sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
+          sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
+        });
+      }
+    }
+  }, [searchParams])
+  
+  // Handle manual refresh - returns promise for FeedRefreshButton component
+  const handleRefresh = async (): Promise<FeedRefreshResult> => {
+    const topicSlug = selectedTopic === 'all' ? undefined : selectedTopic
+    
+    // Get current article count before refresh
+    const beforeRefresh = await dataManager.getFeed(
+      'world', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: false }
+    )
+    const countBefore = beforeRefresh?.articles.length || 0
+    
+    // Force refresh the feed
+    const afterRefresh = await dataManager.getFeed(
+      'world', 
+      topicSlug,
+      1, // page 1
+      10, // page size
+      { forceRefresh: true }
+    )
+    const countAfter = afterRefresh?.articles.length || 0
+    
+    // Determine if we got new data by checking if content changed
+    // For page 1, if we have different articles or different timestamps, consider it new data
+    const hasNewData = countAfter !== countBefore || 
+      (afterRefresh && beforeRefresh && 
+       JSON.stringify(afterRefresh.articles.slice(0, 3).map(a => a.id)) !== 
+       JSON.stringify(beforeRefresh.articles.slice(0, 3).map(a => a.id))) || false
+    
+    return { hasNewData }
+  }
   
   // Handle search debounce
   useEffect(() => {
@@ -26,74 +114,50 @@ export default function World() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Fetch user preferences on mount
-  useEffect(() => {
-    const fetchPreferences = async () => {
-      try {
-        setPreferencesLoading(true)
-        setPreferencesError(null)
-        const preferences = await getUserPreferences()
-        setUserPreferences(preferences)
-      } catch (error) {
-        console.error('Failed to fetch user preferences:', error)
-        setPreferencesError('Failed to load user preferences')
-      } finally {
-        setPreferencesLoading(false)
-      }
-    }
+  // Note: Loading state is now handled by InfiniteNewsFeed component
+  // No need for page-level loading skeleton
 
-    fetchPreferences()
-  }, [])
-
-  // Show loading state while preferences are being fetched
-  if (preferencesLoading) {
+  // Show error state if preferences failed to load and we're online
+  if (preferencesError && isOnline && !userPreferences) {
     return (
       <div className="container py-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-10 w-full sm:w-[300px]" />
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+              
+              {/* Desktop refresh button */}
+              <FeedRefreshButton onRefresh={handleRefresh} />
+            </div>
           </div>
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>
+              {preferencesError}. Please refresh the page to try again.
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     )
   }
 
-  // Show error state if preferences failed to load
-  if (preferencesError) {
-    return (
-      <div className="container py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
-          </div>
-          <div className="bg-destructive/10 text-destructive p-4 rounded-md">
-            <p>{preferencesError}. Please refresh the page to try again.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show message if user has no region preferences
+  // Show message if user has no region preferences (and we have loaded preferences)
   if (userPreferences && userPreferences.regions.length === 0) {
     return (
       <div className="container py-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+              
+              {/* Desktop refresh button */}
+              <FeedRefreshButton onRefresh={handleRefresh} />
+            </div>
           </div>
-          <div className="bg-yellow-100/50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200 p-4 rounded-md">
-            <p>
+          <Alert>
+            <AlertDescription>
               No region preferences found. Please update your preferences to see headlines from your preferred regions.
-            </p>
-          </div>
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     )
@@ -102,8 +166,27 @@ export default function World() {
   return (
     <div className="container py-6">
       <div className="flex flex-col gap-6">
+        {/* Header with offline indicator */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">Top Headlines</h1>
+            
+            {/* Desktop refresh button */}
+            <FeedRefreshButton onRefresh={handleRefresh} />
+            
+            {!isOnline && (
+              <div className="flex items-center gap-1 text-amber-600 text-sm">
+                <WifiOff className="h-4 w-4" />
+                <span>Offline</span>
+              </div>
+            )}
+            {isOnline && wasOffline && (
+              <div className="flex items-center gap-1 text-green-600 text-sm">
+                <Wifi className="h-4 w-4" />
+                <span>Back online</span>
+              </div>
+            )}
+          </div>
           <div className="relative w-full sm:w-[300px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -115,6 +198,16 @@ export default function World() {
             />
           </div>
         </div>
+
+        {/* Offline notice */}
+        {!isOnline && (
+          <Alert>
+            <WifiOff className="h-4 w-4" />
+            <AlertDescription>
+              You're offline. Showing cached headlines. Connect to the internet to get the latest updates.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Tabs 
           defaultValue="all"

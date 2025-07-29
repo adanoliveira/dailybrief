@@ -9,12 +9,12 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Publication, Topic, Region, fetchPaginatedPublications } from "@/lib/onboarding-service"
 import {
-  Filter,
-  RefreshCw,
-  Search,
-  X,
-  Check,
-} from "lucide-react"
+  FunnelIcon as Filter,
+  ArrowPathIcon as RefreshCw,
+  MagnifyingGlassIcon as Search,
+  XMarkIcon as X,
+  CheckIcon as Check,
+} from "@heroicons/react/24/outline"
 import React from "react"
 import { getTopicIcon } from "@/lib/topic-icons";
 import { getRegionFlag } from "@/lib/region-flags";
@@ -632,7 +632,7 @@ export function PublicationsStep({
             </div>
           </div>
           {selected.includes(publication.id) && (
-            <Check size={18} className="text-primary flex-shrink-0 ml-2" />
+            <Check className="h-4 w-4 text-primary flex-shrink-0 ml-2" />
           )}
         </div>
         
@@ -648,7 +648,7 @@ export function PublicationsStep({
                   className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground"
                   title={name}
                 >
-                  <TopicIcon size={14} />
+                  <TopicIcon className="h-3.5 w-3.5" />
                 </div>
               );
             })}
@@ -715,7 +715,7 @@ export function PublicationsStep({
                 className={`p-2 rounded-md border ${showFilters ? 'bg-primary/10 border-primary' : 'border-input'}`}
                 disabled={loading}
               >
-                <Filter size={16} />
+                                    <Filter className="h-4 w-4" />
               </button>
             </div>
             
@@ -745,11 +745,11 @@ export function PublicationsStep({
                           className={`cursor-pointer ${loading ? 'opacity-50' : ''}`}
                           onClick={() => handleTopicFilter(topic.id)}
                         >
-                          <TopicIcon size={14} className="mr-1" />
-                          {topic.name}
-                          {topicFilter.includes(topic.id) && (
-                            <X size={12} className="ml-1" />
-                          )}
+                                                <TopicIcon className="h-3.5 w-3.5 mr-1" />
+                      {topic.name}
+                      {topicFilter.includes(topic.id) && (
+                        <X className="h-3 w-3 ml-1" />
+                      )}
                         </Badge>
                       );
                     })}
@@ -769,7 +769,7 @@ export function PublicationsStep({
                         <span className="mr-1 text-xs">{getRegionFlag(region.code)}</span>
                         {region.name}
                         {regionFilter.includes(region.code) && (
-                          <X size={12} className="ml-1" />
+                          <X className="h-3 w-3 ml-1" />
                         )}
                       </Badge>
                     ))}

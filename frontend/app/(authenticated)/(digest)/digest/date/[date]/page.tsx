@@ -7,7 +7,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
-import { digestService, type Digest } from "@/lib/digest-service"
+import { dataManager } from "@/lib/data-manager"
+import { type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
   return (
@@ -119,12 +120,17 @@ export default function DigestByDate({ params }: { params: { date: string } }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadDigest = async () => {
+  const loadDigest = async (forceRefresh: boolean = false) => {
     try {
       setLoading(true)
       setError(null)
       
-      const response = await digestService.getDigestByDate(params.date)
+      // Use DataManager for local-first behavior
+      const response = await dataManager.getDigestByDate(params.date, {
+        maxAge: forceRefresh ? 0 : 30 * 60 * 1000, // 30 minutes unless force refresh
+        backgroundSync: !forceRefresh // Enable background sync unless forcing refresh
+      })
+      
       setDigest(response.digest)
     } catch (err) {
       console.error('Failed to load digest:', err)
@@ -135,11 +141,11 @@ export default function DigestByDate({ params }: { params: { date: string } }) {
   }
 
   const handleRetry = () => {
-    loadDigest()
+    loadDigest(true) // Force refresh on retry
   }
 
   useEffect(() => {
-    loadDigest()
+    loadDigest() // Initial load with background sync
   }, [params.date])
 
   if (loading) {

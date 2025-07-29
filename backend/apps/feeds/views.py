@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from .models import Topic, Region, Language, Publication
 from .serializers import TopicSerializer, RegionSerializer, LanguageSerializer, PublicationSerializer
 import json

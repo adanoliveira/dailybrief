@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Newspaper, Clock, AlertCircle, RefreshCw, Sparkles, Users, ArrowRight } from "lucide-react"
+import { 
+  NewspaperIcon as Newspaper,
+  ClockIcon as Clock,
+  ExclamationCircleIcon as AlertCircle,
+  ArrowPathIcon as RefreshCw,
+  SparklesIcon as Sparkles,
+  UsersIcon as Users,
+  ArrowRightIcon as ArrowRight
+} from "@heroicons/react/24/outline"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { digestService, type Digest } from "@/lib/digest-service"

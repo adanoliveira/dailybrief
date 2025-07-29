@@ -7,20 +7,20 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { 
-  ChevronDown, 
-  ChevronUp, 
-  ChevronLeft,
-  ChevronRight,
-  Clock, 
-  Newspaper,
-  ExternalLink,
-  Share,
-  BookOpen,
-  Lightbulb,
-  MessageSquare,
-  Image as ImageIcon,
-  MoreHorizontal
-} from "lucide-react"
+  ChevronDownIcon as ChevronDown, 
+  ChevronUpIcon as ChevronUp, 
+  ChevronLeftIcon as ChevronLeft,
+  ChevronRightIcon as ChevronRight,
+  ClockIcon as Clock, 
+  NewspaperIcon as Newspaper,
+  ArrowTopRightOnSquareIcon as ExternalLink,
+  ShareIcon as Share,
+  BookOpenIcon as BookOpen,
+  LightBulbIcon as Lightbulb,
+  ChatBubbleLeftIcon as MessageSquare,
+  PhotoIcon as ImageIcon,
+  EllipsisHorizontalIcon as MoreHorizontal
+} from "@heroicons/react/24/outline"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { BackToTop } from "@/components/ui/back-to-top"

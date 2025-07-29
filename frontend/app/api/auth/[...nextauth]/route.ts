@@ -295,7 +295,7 @@ export const authOptions: NextAuthOptions = {
       console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
       return true;
     },
-    async jwt({ token, user, account }): Promise<JWT> {
+    async jwt({ token, user, account, trigger }): Promise<JWT> {
       // JWT callback: Processing authentication data
       
       // Add user data to token when first signing in
@@ -328,19 +328,18 @@ export const authOptions: NextAuthOptions = {
         }
       }
       
-      // If token already exists with django_token, check the onboarding status directly
-      // This ensures we get the latest onboarding status on each token refresh
-      if (token.django_token && token.django_token !== "offline_mode_token") {
+      // Handle session updates (triggered manually by updateSession() call)
+      if (trigger === "update" && token.django_token && token.django_token !== "offline_mode_token") {
         try {
-          console.log("Checking onboarding status for existing session");
+          console.log("JWT callback: Session update triggered, refreshing onboarding status");
           const onboardingCompleted = await checkOnboardingStatus(token.django_token);
           
           if (onboardingCompleted) {
-            console.log("User has completed onboarding according to backend");
+            console.log("JWT callback: User has completed onboarding, updating token");
             token.has_completed_onboarding = true;
           }
         } catch (error) {
-          console.error("Error checking onboarding status:", error);
+          console.error("JWT callback: Error checking onboarding status during session update:", error);
           // Don't update the token if the check fails, keep the existing value
         }
       }

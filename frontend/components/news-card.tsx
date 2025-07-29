@@ -29,9 +29,10 @@ interface ArticlePreviewWithTopics {
 interface NewsCardProps {
   article: ArticlePreviewWithTopics;
   formatDate: (date: string) => string;
+  onArticleClick?: () => void; // Add optional click handler
 }
 
-export function NewsCard({ article, formatDate }: NewsCardProps) {
+export function NewsCard({ article, formatDate, onArticleClick }: NewsCardProps) {
   const [imageError, setImageError] = useState(false);
   const hasImage = article.imageUrl && !imageError;
   
@@ -72,7 +73,7 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
   const TopicIcon = getTopicIcon(displayTopic.slug);
 
   return (
-    <Link href={`/article/${article.id}`} className="block">
+    <Link href={`/article/${article.id}`} className="block" onClick={onArticleClick}>
       <Card className={cn("overflow-hidden transition-all cursor-pointer hover:shadow-md dark:hover:shadow-white/15 dark:hover:shadow-lg")}>
         <div className="flex flex-col md:flex-row">
           {/* Image section - conditional rendering based on image availability */}
@@ -122,12 +123,11 @@ export function NewsCard({ article, formatDate }: NewsCardProps) {
                 <PublicationBadge source={article.source} size="md" />
                 <span>•</span>
                 <span>{formatDate(article.publishedAt)}</span>
-                {article.readTime && (
+                {/* Always show reading time with 1 min minimum */}
                   <>
                     <span>•</span>
-                    <span>{article.readTime} min read</span>
+                  <span>{Math.max(1, Math.round(article.readTime || 1))} min read</span>
                   </>
-                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">

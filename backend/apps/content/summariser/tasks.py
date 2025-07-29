@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
 
-from apps.articles.models import Article, SummarizationStatus
+from apps.articles.models import Article, SummarizationStatus, ProcessingStatus
 from .services import get_summarization_service
 from .models import SummarizationRequest
 from apps.content.summariser.models import ArticleEmbedding, ArticleSummary

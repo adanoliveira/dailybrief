@@ -52,16 +52,16 @@ def similar_articles(request, article_id):
         
         # Get and validate query parameters
         try:
-        threshold = float(request.GET.get('threshold', 0.22))
-        limit = int(request.GET.get('limit', 5))
+            threshold = float(request.GET.get('threshold', 0.22))
+            limit = int(request.GET.get('limit', 5))
         except ValueError:
             return create_error_response(
                 "Invalid parameter format",
                 status=400,
                 error_code="INVALID_PARAMETER_FORMAT",
                 details={
-                    "threshold": "Must be a float between 0 and 1",
-                    "limit": "Must be an integer between 1 and 50"
+                    "threshold": request.GET.get('threshold', 0.22),
+                    "limit": request.GET.get('limit', 5)
                 }
             )
         
@@ -116,10 +116,10 @@ def similar_articles(request, article_id):
                 try:
                     days_int = int(days)
                     cutoff_date = datetime.now() - timedelta(days=days_int)
-                enhanced_articles = [
-                    art for art in enhanced_articles 
-                    if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
-                ]
+                    enhanced_articles = [
+                        art for art in enhanced_articles 
+                        if datetime.fromisoformat(art['published_at'].replace('Z', '+00:00')) > cutoff_date
+                    ]
                 except ValueError:
                     return create_error_response(
                         "Days parameter must be an integer",

@@ -3,7 +3,16 @@
 import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Home, Globe, User } from "lucide-react"
+import { 
+  HomeIcon as HomeOutline,
+  GlobeAltIcon as GlobeOutline,
+  UserIcon as UserOutline
+} from "@heroicons/react/24/outline"
+import { 
+  HomeIcon as HomeSolid,
+  GlobeAltIcon as GlobeSolid,
+  UserIcon as UserSolid
+} from "@heroicons/react/24/solid"
 import { LogoHorizontal } from "@/components/ui/logo"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -45,27 +54,27 @@ export default function MainLayout({
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+      <header className="hidden md:block sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/home" className="flex items-center gap-2">
             <LogoHorizontal priority />
           </Link>
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <DesktopNavItem 
               href="/home" 
-              icon={<Home className="h-4 w-4" />} 
+              icon={pathname === "/home" ? <HomeSolid className="h-4 w-4" /> : <HomeOutline className="h-4 w-4" />}
               label="Home" 
               isActive={pathname === "/home"} 
             />
             <DesktopNavItem 
               href="/world" 
-              icon={<Globe className="h-4 w-4" />} 
+              icon={pathname === "/world" ? <GlobeSolid className="h-4 w-4" /> : <GlobeOutline className="h-4 w-4" />}
               label="Headlines" 
               isActive={pathname === "/world"} 
             />
             <DesktopNavItem 
               href="/profile" 
-              icon={<User className="h-4 w-4" />} 
+              icon={pathname === "/profile" ? <UserSolid className="h-4 w-4" /> : <UserOutline className="h-4 w-4" />}
               label="Profile" 
               isActive={pathname === "/profile"} 
             />

@@ -132,6 +132,9 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF configuration for cross-origin requests
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
+
 ROOT_URLCONF = 'dailybrief.urls'
 
 TEMPLATES = [
@@ -293,43 +296,73 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'days_to_keep': 30},
     },
     
-    # CONTENT ENRICHMENT PIPELINE - PRODUCTION SCHEDULE
-    # Distributed throughout the day for optimal processing
-    'content-enrichment-morning': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=4, minute=0),  # 4:00 AM UTC
-        'kwargs': {'limit': 80},  # Increased from 50
+    # CONTENT ENRICHMENT PIPELINE - CONTINUOUS PROCESSING SCHEDULE
+    # Runs continuously every 15-30 minutes to ensure all articles are processed
+    # Only stops when all articles (within 72h top-headline filter) are either completed or failed
+
+    # PRIMARY CONTINUOUS PIPELINE - Every 15 minutes during active hours
+    'content-enrichment-continuous': {
+        'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous',
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes (96 times/day)
+        'kwargs': {'limit_per_stage': 50, 'max_total_limit': 200},
     },
-    
-    'content-enrichment-afternoon': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=14, minute=0),  # 2:00 PM UTC (afternoon)
-        'kwargs': {'limit': 80},  # Increased from 50
+
+    # INTENSIVE PIPELINE - Every 10 minutes during peak hours (4-8 AM & 2-6 PM UTC)
+    'content-enrichment-intensive-morning': {
+        'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous',
+        'schedule': crontab(minute='*/10', hour='4-8'),  # Every 10 minutes, 4-8 AM UTC
+        'kwargs': {'limit_per_stage': 80, 'max_total_limit': 300},
     },
-    
-    'content-enrichment-followup-morning': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=5, minute=0),  # 5:00 AM UTC (followup morning)
-        'kwargs': {'limit': 80},  # Increased from 30
+
+    'content-enrichment-intensive-afternoon': {
+        'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous', 
+        'schedule': crontab(minute='*/10', hour='14-18'),  # Every 10 minutes, 2-6 PM UTC
+        'kwargs': {'limit_per_stage': 80, 'max_total_limit': 300},
     },
-    
-    'content-enrichment-followup-afternoon': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline',  # Fixed: was 'content.process_top_headlines_pipeline'
-        'schedule': crontab(hour=15, minute=0),  # 3:00 PM UTC (followup afternoon)
-        'kwargs': {'limit': 80},  # Increased from 30
+
+    # COMPLETION SWEEP - Every 30 minutes for final cleanup
+    'content-enrichment-completion-sweep': {
+        'task': 'apps.content.tasks.complete_remaining_articles_pipeline',
+        'schedule': crontab(minute='*/30'),  # Every 30 minutes
+        'kwargs': {'aggressive_mode': True, 'limit_per_stage': 100},
     },
-    
-    'content-enrichment-evening': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline',
-        'schedule': crontab(hour=20, minute=0),  # 8:00 PM UTC (evening)
-        'kwargs': {'limit': 100},  # Higher limit for peak day handling
-    },
-    
-    'content-enrichment-late-evening': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline', 
-        'schedule': crontab(hour=21, minute=0),  # 11:00 PM UTC (late evening)
-        'kwargs': {'limit': 100},  # Higher limit for peak day handling
-    },
+
+    # LEGACY TASKS (DISABLED) - Replaced by continuous processing
+    # 'content-enrichment-morning': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline',
+    #     'schedule': crontab(hour=4, minute=0),  # 4:00 AM UTC
+    #     'kwargs': {'limit': 80},
+    # },
+    # 
+    # 'content-enrichment-afternoon': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline',
+    #     'schedule': crontab(hour=14, minute=0),  # 2:00 PM UTC (afternoon)
+    #     'kwargs': {'limit': 80},
+    # },
+    # 
+    # 'content-enrichment-followup-morning': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline',
+    #     'schedule': crontab(hour=5, minute=0),  # 5:00 AM UTC (followup morning)
+    #     'kwargs': {'limit': 80},
+    # },
+    # 
+    # 'content-enrichment-followup-afternoon': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline',
+    #     'schedule': crontab(hour=15, minute=0),  # 3:00 PM UTC (followup afternoon)
+    #     'kwargs': {'limit': 80},
+    # },
+    # 
+    # 'content-enrichment-evening': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline',
+    #     'schedule': crontab(hour=20, minute=0),  # 8:00 PM UTC (evening)
+    #     'kwargs': {'limit': 100},
+    # },
+    # 
+    # 'content-enrichment-late-evening': {
+    #     'task': 'apps.content.tasks.process_top_headlines_pipeline', 
+    #     'schedule': crontab(hour=21, minute=0),  # 11:00 PM UTC (late evening)
+    #     'kwargs': {'limit': 100},
+    # },
     
     # Pipeline maintenance and monitoring tasks
     
@@ -340,10 +373,10 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'max_attempts': 3},
     },
     
-    # Retry previously failed articles - Every 3 hours (increased frequency)
+    # Retry previously failed articles - Every hour (increased frequency for continuous processing)
     'retry-failed-pipeline-stages': {
         'task': 'apps.content.tasks.retry_failed_pipeline_stages',  # Fixed: was 'content.retry_failed_pipeline_stages'
-        'schedule': crontab(minute=0, hour='*/3'),  # Every 3 hours (was 6)
+        'schedule': crontab(minute=0, hour='*'),  # Every hour (was 3 hours)
         'kwargs': {'stage': 'all', 'limit': 50},  # Increased from 20
     },
     
