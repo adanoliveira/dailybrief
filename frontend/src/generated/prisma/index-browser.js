@@ -20,12 +20,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 6.12.0
- * Query Engine version: 8047c96bbd92db98a2abc7c9323ce77c02c89dbc
+ * Prisma Client JS version: 6.13.0
+ * Query Engine version: 361e86d0ea4987e9f53a565309b3eed797a6bcbd
  */
 Prisma.prismaVersion = {
-  client: "6.12.0",
-  engine: "8047c96bbd92db98a2abc7c9323ce77c02c89dbc"
+  client: "6.13.0",
+  engine: "361e86d0ea4987e9f53a565309b3eed797a6bcbd"
 }
 
 Prisma.PrismaClientKnownRequestError = () => {
@@ -114,6 +114,9 @@ Prisma.NullTypes = {
  */
 
 exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
+  ReadUncommitted: 'ReadUncommitted',
+  ReadCommitted: 'ReadCommitted',
+  RepeatableRead: 'RepeatableRead',
   Serializable: 'Serializable'
 });
 
@@ -160,103 +163,14 @@ exports.Prisma.EmailVerificationRequestScalarFieldEnum = {
   invalidated: 'invalidated'
 };
 
-exports.Prisma.LocalUserProfileScalarFieldEnum = {
-  id: 'id',
-  userId: 'userId',
-  publicId: 'publicId',
-  email: 'email',
-  name: 'name',
-  hasCompletedOnboarding: 'hasCompletedOnboarding',
-  topics: 'topics',
-  topicsDetails: 'topicsDetails',
-  regions: 'regions',
-  languages: 'languages',
-  publications: 'publications',
-  lastSyncAt: 'lastSyncAt',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-};
-
-exports.Prisma.LocalArticleScalarFieldEnum = {
-  id: 'id',
-  backendId: 'backendId',
-  title: 'title',
-  visualTitle: 'visualTitle',
-  description: 'description',
-  content: 'content',
-  url: 'url',
-  imageUrl: 'imageUrl',
-  publishedAt: 'publishedAt',
-  readTime: 'readTime',
-  isTopHeadline: 'isTopHeadline',
-  sourceName: 'sourceName',
-  sourceLogoUrl: 'sourceLogoUrl',
-  summary: 'summary',
-  richContent: 'richContent',
-  contentStatus: 'contentStatus',
-  contentQuality: 'contentQuality',
-  topics: 'topics',
-  isRead: 'isRead',
-  isSaved: 'isSaved',
-  readAt: 'readAt',
-  savedAt: 'savedAt',
-  lastSyncAt: 'lastSyncAt',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-};
-
-exports.Prisma.FeedSyncScalarFieldEnum = {
-  id: 'id',
-  userId: 'userId',
-  feedType: 'feedType',
-  topicSlug: 'topicSlug',
-  lastSyncAt: 'lastSyncAt',
-  nextSyncAt: 'nextSyncAt',
-  isStale: 'isStale',
-  syncInProgress: 'syncInProgress',
-  lastPage: 'lastPage',
-  hasMore: 'hasMore',
-  totalItems: 'totalItems',
-  syncCount: 'syncCount',
-  lastSyncDuration: 'lastSyncDuration',
-  lastError: 'lastError',
-  consecutiveErrors: 'consecutiveErrors',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-};
-
-exports.Prisma.FeedItemScalarFieldEnum = {
-  id: 'id',
-  feedSyncId: 'feedSyncId',
-  articleId: 'articleId',
-  position: 'position',
-  relevanceScore: 'relevanceScore',
-  addedAt: 'addedAt'
-};
-
-exports.Prisma.SyncJobScalarFieldEnum = {
-  id: 'id',
-  type: 'type',
-  userId: 'userId',
-  feedType: 'feedType',
-  topicSlug: 'topicSlug',
-  articleId: 'articleId',
-  status: 'status',
-  priority: 'priority',
-  attempts: 'attempts',
-  maxAttempts: 'maxAttempts',
-  scheduledAt: 'scheduledAt',
-  startedAt: 'startedAt',
-  completedAt: 'completedAt',
-  result: 'result',
-  error: 'error',
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
-};
-
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
 };
 
 exports.Prisma.NullsOrder = {
@@ -270,12 +184,7 @@ exports.Prisma.ModelName = {
   Session: 'Session',
   User: 'User',
   VerificationToken: 'VerificationToken',
-  EmailVerificationRequest: 'EmailVerificationRequest',
-  LocalUserProfile: 'LocalUserProfile',
-  LocalArticle: 'LocalArticle',
-  FeedSync: 'FeedSync',
-  FeedItem: 'FeedItem',
-  SyncJob: 'SyncJob'
+  EmailVerificationRequest: 'EmailVerificationRequest'
 };
 
 /**
