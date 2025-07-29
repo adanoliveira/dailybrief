@@ -54,12 +54,12 @@ export default function MainLayout({
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+      <header className="hidden md:block sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/home" className="flex items-center gap-2">
             <LogoHorizontal priority />
           </Link>
-          <div className="hidden md:flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <DesktopNavItem 
               href="/home" 
               icon={pathname === "/home" ? <HomeSolid className="h-4 w-4" /> : <HomeOutline className="h-4 w-4" />}
