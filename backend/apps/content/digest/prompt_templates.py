@@ -272,7 +272,7 @@ REQUIREMENTS:
         """
         Generate story-driven topic summary for articles-based digests.
         
-        Creates 3 top stories per topic based on:
+        Creates up to 3 top stories per topic based on:
         - Most cited events (multiple articles mentioning)
         - Broadest/widest impact stories 
         - Regional/topical significance
@@ -310,12 +310,19 @@ REQUIREMENTS:
             
             articles_context.append("\n".join(article_context))
         
+        # Dynamic story count based on available articles
+        total_articles = len(clustered_articles)
+        if total_articles <= 3:
+            story_guidance = f"Create {total_articles} {'story' if total_articles == 1 else 'stories'} (one per distinct theme/event)"
+        else:
+            story_guidance = "Create up to 3 top stories"
+        
         return f"""You are a senior news editor creating today's top stories for the {topic_name} section of a custom daily digest.
 
 ARTICLES AVAILABLE (with content clustered by source):
 {chr(10).join(articles_context)}
 
-TASK: Analyze all articles and create exactly 3 top stories that represent the most important developments in {topic_name} today.
+TASK: Analyze all articles and {story_guidance} that represent the most important developments in {topic_name} today.
 
 STORY CLUSTERING & ANALYSIS:
 1. **Identify Common Themes**: Look for articles mentioning the same events, people, companies, or geographical regions
@@ -345,6 +352,12 @@ For each story, provide:
 Also provide:
 - **topic_abstract**: Concise 25-30 word introduction to the topic that sets context for the stories below (avoid restating story details)
 
+CRITICAL ARTICLE ALLOCATION RULE:
+- **NO ARTICLE REUSE**: Each article ID can only appear in ONE story's read_more array within this topic
+- **Distribute Articles Strategically**: Assign the most relevant articles to each story based on content alignment
+- **Prioritize High-Impact Articles**: Assign the most significant articles to the most important stories first
+- **Seek Maximum Coverage**: Use all available high-quality articles across stories to maximize information value. But don't need to force it, either. Relevance is more important than coverage.
+
 RESPONSE FORMAT (JSON):
 {{
     "topic_abstract": "A concise 25-30 word introduction to {topic_name} that provides relevant context for today's stories without summarizing them. Focus on the broader theme or significance.",
@@ -369,13 +382,6 @@ RESPONSE FORMAT (JSON):
             "main_points": ["Fact 1", "Fact 2", "Fact 3"],
             "perspectives": ["Perspective 1", "Perspective 2"],
             "read_more": [11111, 22222]
-        }},
-        {{
-            "headline": "Third story headline", 
-            "abstract": "Third story 60-word abstract",
-            "main_points": ["Fact 1", "Fact 2", "Fact 3"],
-            "perspectives": ["Perspective 1"],
-            "read_more": [33333, 44444]
         }}
     ]
 }}
@@ -395,6 +401,7 @@ EDITORIAL GUIDELINES:
 - **Source Diversity**: When multiple articles cover the same story, select read_more articles that provide different angles, sources, or depth of coverage
 - **Content Integration**: Use the clustered article data to understand which facts/opinions come from which sources and synthesize them appropriately
 - **Regional/Thematic Connections**: Link articles on related geographical regions (e.g., Middle East developments) or thematic areas (e.g., AI regulation, health studies) when they strengthen the story narrative
+- **UNIQUE ARTICLE ASSIGNMENT**: Ensure each article ID appears in only ONE story's read_more array to prevent duplication
 
 EXAMPLE CLUSTERING:
 - Multiple articles about different companies in the same sector → "Tech Sector Faces New Regulatory Challenges"
@@ -621,10 +628,26 @@ REQUIREMENTS:
                 if abstract_words > 80:  # Way too long - over 120% of max requested
                     return {'success': False, 'error': f'Topic abstract too long (got {abstract_words} words, maximum 80)'}
                 
-                # Validate stories array (exactly 3 stories)
+                # Validate stories array (1-3 stories)
                 stories = parsed['stories']
-                if len(stories) != 3:
-                    return {'success': False, 'error': f'Must have exactly 3 stories, got {len(stories)}'}
+                if not (1 <= len(stories) <= 3):
+                    return {'success': False, 'error': f'Must have 1-3 stories, got {len(stories)}'}
+                
+                # Check for article reuse across stories
+                used_article_ids = set()
+                for i, story in enumerate(stories):
+                    if 'read_more' in story:
+                        for article_id in story['read_more']:
+                            if isinstance(article_id, (int, str)):
+                                article_id_str = str(article_id)
+                                if article_id_str in used_article_ids:
+                                    return {'success': False, 'error': f'Article ID {article_id} appears in multiple stories (reuse not allowed)'}
+                                used_article_ids.add(article_id_str)
+                            elif isinstance(article_id, dict) and 'article_id' in article_id:
+                                article_id_str = str(article_id['article_id'])
+                                if article_id_str in used_article_ids:
+                                    return {'success': False, 'error': f'Article ID {article_id["article_id"]} appears in multiple stories (reuse not allowed)'}
+                                used_article_ids.add(article_id_str)
                 
                 # Validate each story structure
                 for i, story in enumerate(stories):
