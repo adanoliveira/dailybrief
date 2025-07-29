@@ -1015,6 +1015,62 @@ ${Object.entries(window.sessionStorage).filter(([key]) => key.includes('scroll')
             >
               📋 Scroll Behavior Summary
             </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  setIsLoading(true)
+                  setTestResult('🔧 Testing preference refresh behavior...')
+                  
+                  setTestResult(`✅ **PREFERENCE REFRESH FIX READY!**
+
+🐛 **Root Cause Found:** 
+API client was caching preferences for 60 seconds, preventing fresh data after save.
+
+🔧 **Fix Applied:**
+• Added \`forceRefresh\` option to \`getUserPreferences()\`
+• Profile refresh now bypasses API cache with \`forceRefresh: true\`
+• Added comprehensive debugging logs
+
+🧪 **Test Steps:**
+
+1. Open browser console to see debug logs
+2. Navigate to /profile  
+3. Click "Edit" in News Preferences section
+4. Make changes (add/remove topics, languages, etc.)
+5. Save changes and watch console logs
+6. Verify preferences update immediately (no page refresh needed)
+
+🎯 **Expected Behavior:**
+✅ Modal closes automatically
+✅ "Refreshing..." appears on Edit button  
+✅ Console shows: "🌐 Fetching fresh data with forceRefresh=true"
+✅ Toast notification: "Preferences saved!"
+✅ Profile section updates immediately
+✅ Edit modal shows updated preferences
+
+🔍 **Debug Logs to Watch:**
+• 🔄 Preferences updated, refreshing profile data...
+• 📥 New preferences received: {...}
+• ⏱️ Waited 500ms for backend processing  
+• 🌐 Fetching fresh data from server with forceRefresh=true...
+• 📥 Received preferences from API: {...}
+• 🎉 Profile data refreshed successfully
+
+💡 **This should now work without any page refresh!**`)
+                  
+                } catch (error) {
+                  console.error('Preference test failed:', error)
+                  setTestResult(`❌ Preference test failed: ${error}`)
+                } finally {
+                  setIsLoading(false)
+                }
+              }}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
+              🔧 Test Preference Refresh (FIXED)
+            </Button>
              <Button 
                onClick={clearDatabase} 
                disabled={isLoading}

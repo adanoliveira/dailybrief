@@ -124,10 +124,10 @@ export function NewsCard({ article, formatDate, onArticleClick }: NewsCardProps)
                 <span>•</span>
                 <span>{formatDate(article.publishedAt)}</span>
                 {/* Always show reading time with 1 min minimum */}
-                <>
-                  <span>•</span>
+                  <>
+                    <span>•</span>
                   <span>{Math.max(1, Math.round(article.readTime || 1))} min read</span>
-                </>
+                  </>
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">

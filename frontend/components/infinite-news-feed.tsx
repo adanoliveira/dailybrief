@@ -223,8 +223,8 @@ export function InfiniteNewsFeed({
     // Clear any pending top position timer
     if (topPositionTimer.current) {
       clearTimeout(topPositionTimer.current)
-    }
-    
+      }
+      
     // Article click is a deliberate user action, but still be conservative with position 0
     if (scrollPosition === 0) {
       if (lastSavedPosition.current === null || lastSavedPosition.current <= 150) {
@@ -365,7 +365,7 @@ export function InfiniteNewsFeed({
             ) : (
               'Try again'
             )}
-          </Button>
+        </Button>
         </div>
       </CardContent>
     </Card>

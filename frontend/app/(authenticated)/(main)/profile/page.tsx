@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useTheme } from "next-themes"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,51 +12,101 @@ import { signOut } from "next-auth/react"
 import { getUserPreferences, fetchOnboardingOptions } from "@/lib/onboarding-service"
 import type { UserPreferences, OnboardingOptions } from "@/lib/onboarding-service"
 import { PreferencesEditModal } from "@/components/preferences-edit-modal"
+import { useToast } from "@/components/ui/use-toast"
+import { dataManager } from "@/lib/data-manager"
 
 export default function Profile() {
   const [preferencesEditOpen, setPreferencesEditOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const { toast } = useToast()
+  const { data: session } = useSession()
   
   // Preferences state
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null)
   const [onboardingOptions, setOnboardingOptions] = useState<OnboardingOptions | null>(null)
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true)
   const [preferencesError, setPreferencesError] = useState<string | null>(null)
+  const [isRefreshingPreferences, setIsRefreshingPreferences] = useState(false)
 
   // Load user preferences and options
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        setIsLoadingPreferences(true)
-        setPreferencesError(null)
-        
-        // Load both preferences and options in parallel
-        const [preferences, options] = await Promise.all([
-          getUserPreferences(),
-          fetchOnboardingOptions()
-        ])
-        
-        setUserPreferences(preferences)
-        setOnboardingOptions(options)
-        
-        if (!preferences) {
-          setPreferencesError("No preferences found. Please complete your setup.")
-        }
-      } catch (error) {
-        console.error("Failed to load user data:", error)
-        setPreferencesError("Failed to load your preferences. Please try again.")
-      } finally {
-        setIsLoadingPreferences(false)
-      }
-    }
-    
     loadUserData()
   }, [])
 
-  // Handle preferences update
-  const handlePreferencesUpdated = (newPreferences: UserPreferences) => {
-    setUserPreferences(newPreferences)
+  // Function to reload user data
+  const loadUserData = async (forceRefresh: boolean = false) => {
+    try {
+      setIsLoadingPreferences(true)
+      setPreferencesError(null)
+      
+      console.log(`📡 Loading user data (forceRefresh: ${forceRefresh})...`)
+      
+      // Load both preferences and options in parallel
+      const [preferences, options] = await Promise.all([
+        getUserPreferences(forceRefresh),
+        fetchOnboardingOptions()
+      ])
+      
+      console.log("📥 Received preferences from API:", preferences)
+      console.log("📋 Received options from API:", options ? "✅ Options loaded" : "❌ No options")
+      
+      setUserPreferences(preferences)
+      setOnboardingOptions(options)
+      
+      if (!preferences) {
+        setPreferencesError("No preferences found. Please complete your setup.")
+      }
+    } catch (error) {
+      console.error("Failed to load user data:", error)
+      setPreferencesError("Failed to load your preferences. Please try again.")
+    } finally {
+      setIsLoadingPreferences(false)
+    }
+  }
+
+  // Handle preferences update - reload fresh data from server
+  const handlePreferencesUpdated = async (newPreferences: UserPreferences) => {
+    console.log("🔄 Preferences updated, refreshing profile data...")
+    console.log("📥 New preferences received:", newPreferences)
+    
+    try {
+      setIsRefreshingPreferences(true)
+      
+      // Update local state immediately for better UX
+      setUserPreferences(newPreferences)
+      console.log("✅ Local state updated")
+      
+      // Give the backend a moment to process the save before reloading
+      await new Promise(resolve => setTimeout(resolve, 500))
+      console.log("⏱️ Waited 500ms for backend processing")
+      
+      // Reload fresh data from server with cache bypass
+      console.log("🌐 Fetching fresh data from server with forceRefresh=true...")
+      await loadUserData(true) // Force refresh to bypass API cache
+      console.log("✅ Fresh data loaded successfully")
+      
+      // Show success message
+      toast({
+        title: "Preferences saved!",
+        description: "Your news preferences have been updated successfully.",
+        duration: 3000,
+      })
+      
+      console.log("🎉 Profile data refreshed successfully")
+    } catch (error) {
+      console.error("❌ Failed to refresh profile data after preferences update:", error)
+      
+      // Show error message
+      toast({
+        title: "Preferences saved",
+        description: "Your preferences were saved, but there was an issue refreshing the display. Please refresh the page.",
+        variant: "default",
+        duration: 5000,
+      })
+    } finally {
+      setIsRefreshingPreferences(false)
+    }
   }
 
   const handleSignOut = async () => {
@@ -163,18 +214,20 @@ export default function Profile() {
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    disabled={isLoadingPreferences}
+                    disabled={isLoadingPreferences || isRefreshingPreferences}
                   >
                     <Edit className="h-4 w-4" />
-                    Edit
+                    {isRefreshingPreferences ? "Refreshing..." : "Edit"}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {isLoadingPreferences ? (
+                {(isLoadingPreferences || isRefreshingPreferences) ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    <span className="text-muted-foreground">Loading your preferences...</span>
+                    <span className="text-muted-foreground">
+                      {isRefreshingPreferences ? "Refreshing your preferences..." : "Loading your preferences..."}
+                    </span>
                   </div>
                 ) : preferencesError ? (
                   <div className="text-center py-8">
