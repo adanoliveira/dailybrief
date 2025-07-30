@@ -156,6 +156,9 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=dev-nextauth-secret-replace-in-production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/dailybrief?schema=auth
+      # Google OAuth configuration
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       # Email configuration
       - EMAIL_FROM=${EMAIL_FROM:-dailybrief@resend.dev}
       - RESEND_API_KEY=${RESEND_API_KEY}

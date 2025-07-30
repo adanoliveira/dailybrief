@@ -490,7 +490,7 @@ export function InfiniteNewsFeed({
 
         if (articles.length === index + 1) {
           return (
-            <div ref={lastArticleRef} key={article.id}>
+            <div ref={lastArticleRef} key={`last-${article.id}`}>
               <NewsCard 
                 article={articleWithTopics} 
                 formatDate={formatDate}
@@ -501,7 +501,7 @@ export function InfiniteNewsFeed({
         } else {
           return (
             <NewsCard 
-              key={article.id} 
+              key={`article-${article.id}`} 
               article={articleWithTopics} 
               formatDate={formatDate}
               onArticleClick={handleArticleClick}
