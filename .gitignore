@@ -75,7 +75,7 @@ docker-compose.override.yml
 *.swo
 *~
 .*.sw?
-docs/
+# docs/ - Removed to allow deployment documentation
 .cursorrules
 
 # OS specific
