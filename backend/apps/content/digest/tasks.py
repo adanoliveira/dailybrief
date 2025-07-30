@@ -397,11 +397,14 @@ def _is_user_eligible_for_digest(user: User, target_date: datetime, force_regene
     if not user.preferred_topics.exists():
         return False
     
-    # Check for existing digest
+    # Check for existing digest in the last 24 hours
     if not force_regenerate:
+        # Calculate 24 hours ago from target_date
+        twenty_four_hours_ago = target_date - timedelta(hours=24)
+        
         existing_digest = Digest.objects.filter(
             user=user,
-            date=target_date.date()
+            created_at__gte=twenty_four_hours_ago
         ).exists()
         
         if existing_digest:
@@ -423,9 +426,12 @@ def _get_user_ineligibility_reason(user: User, target_date: datetime, force_rege
         return "No followed topics"
     
     if not force_regenerate:
+        # Calculate 24 hours ago from target_date
+        twenty_four_hours_ago = target_date - timedelta(hours=24)
+        
         existing_digest = Digest.objects.filter(
             user=user,
-            date=target_date.date()
+            created_at__gte=twenty_four_hours_ago
         ).first()
         
         if existing_digest:
