@@ -144,7 +144,7 @@ class Command(BaseCommand):
         try:
             start_time = timezone.now()
             
-            digest = digest_service.generate_user_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
                 date=target_date.date(),
                 force_regenerate=True
@@ -153,6 +153,11 @@ class Command(BaseCommand):
             end_time = timezone.now()
             duration = (end_time - start_time).total_seconds()
             
+            if not result['success']:
+                self.stdout.write(self.style.ERROR(f"❌ Default strategy failed: {result.get('error', 'Unknown error')}"))
+                return
+                
+            digest = result['digest']
             # Get strategy used from digest preferences
             strategy_used = digest.digest_preferences.get('strategy_used', 'Unknown')
             
@@ -183,7 +188,7 @@ class Command(BaseCommand):
         try:
             start_time = timezone.now()
             
-            digest = digest_service.generate_user_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
                 date=target_date.date(),
                 force_regenerate=True
@@ -192,6 +197,11 @@ class Command(BaseCommand):
             end_time = timezone.now()
             duration = (end_time - start_time).total_seconds()
             
+            if not result['success']:
+                self.stdout.write(self.style.ERROR(f"❌ Strategy {strategy_key} failed: {result.get('error', 'Unknown error')}"))
+                return None
+                
+            digest = result['digest']
             strategy_used = digest.digest_preferences.get('strategy_used', 'Unknown')
             
             self._display_digest_results(digest, strategy_used, duration)
@@ -225,7 +235,7 @@ class Command(BaseCommand):
                 
                 start_time = timezone.now()
                 
-                digest = digest_service.generate_user_digest(
+                result = digest_service.generate_user_digest(
                     user=user,
                     date=target_date.date(),
                     force_regenerate=True
@@ -234,6 +244,17 @@ class Command(BaseCommand):
                 end_time = timezone.now()
                 duration = (end_time - start_time).total_seconds()
                 
+                if not result['success']:
+                    self.stdout.write(self.style.ERROR(f"❌ Strategy {strategy_key} failed: {result.get('error', 'Unknown error')}"))
+                    results[strategy_key] = {
+                        'digest': None,
+                        'duration': duration,
+                        'success': False,
+                        'error': result.get('error', 'Unknown error')
+                    }
+                    continue
+                    
+                digest = result['digest']
                 results[strategy_key] = {
                     'digest': digest,
                     'duration': duration,

@@ -228,6 +228,43 @@ def generate_digest_on_demand(request):
                 'success': True
             })
     
+    # Create digest record immediately for tracking
+    from django.utils import timezone
+    from .models import Digest
+    import uuid
+    
+    # Determine target date
+    if target_date:
+        date_obj = datetime.strptime(target_date, '%Y-%m-%d').date()
+    else:
+        date_obj = timezone.now().date()
+    
+    # Create or get digest record in 'generating' state
+    digest, created = Digest.objects.get_or_create(
+        user=user,
+        date=date_obj,
+        defaults={
+            'public_id': uuid.uuid4(),
+            'title': f"Daily Digest for {date_obj.strftime('%B %d, %Y')}",
+            'generation_status': 'processing',
+        }
+    )
+    
+    # If digest already exists and we're not forcing regeneration, return existing
+    if not created and not force_regenerate:
+        return create_response({
+            'digest_id': str(digest.public_id),
+            'status': digest.generation_status.lower(),
+            'message': 'Digest already exists for this date',
+            'success': True
+        })
+    
+    # Update existing digest to generating state if regenerating
+    if not created and force_regenerate:
+        digest.generation_status = 'processing'
+        digest.error_message = ''
+        digest.save()
+    
     # Queue digest generation task
     try:
         task_result = generate_user_digest.delay(
@@ -237,8 +274,9 @@ def generate_digest_on_demand(request):
         )
         
         return create_response({
+            'digest_id': str(digest.public_id),
             'task_id': task_result.id,
-            'status': 'generating',
+            'status': 'processing',
             'message': 'Digest generation started. Check back in a few minutes.',
             'success': True
         })

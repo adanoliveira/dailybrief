@@ -365,9 +365,11 @@ def _get_eligible_users_for_digest(target_date: datetime, force_regenerate: bool
     """Get list of users eligible for digest generation."""
     
     # Base query: active users with followed topics
+    from apps.feeds.models import UserTopic
+    users_with_topics = UserTopic.objects.values_list('user_id', flat=True).distinct()
     queryset = User.objects.filter(
         is_active=True,
-        preferred_topics__isnull=False  # Has followed topics
+        id__in=users_with_topics  # Has followed topics
     ).distinct()
     
     # If not forcing regeneration, exclude users who already have digests
@@ -394,20 +396,22 @@ def _is_user_eligible_for_digest(user: User, target_date: datetime, force_regene
         return False
     
     # Must have followed topics
-    if not user.preferred_topics.exists():
+    from apps.feeds.models import UserTopic
+    if not UserTopic.objects.filter(user=user).exists():
         return False
     
-    # Check for existing digest in the last 24 hours
+    # Check for existing completed digest in the last 24 hours
     if not force_regenerate:
         # Calculate 24 hours ago from target_date
         twenty_four_hours_ago = target_date - timedelta(hours=24)
         
-        existing_digest = Digest.objects.filter(
+        existing_completed_digest = Digest.objects.filter(
             user=user,
-            created_at__gte=twenty_four_hours_ago
+            created_at__gte=twenty_four_hours_ago,
+            generation_status='completed'  # Only skip if there's a completed digest
         ).exists()
         
-        if existing_digest:
+        if existing_completed_digest:
             return False
     
     return True
@@ -422,20 +426,22 @@ def _get_user_ineligibility_reason(user: User, target_date: datetime, force_rege
     if not hasattr(user, 'profile'):
         return "No user profile"
     
-    if not user.preferred_topics.exists():
+    from apps.feeds.models import UserTopic
+    if not UserTopic.objects.filter(user=user).exists():
         return "No followed topics"
     
     if not force_regenerate:
         # Calculate 24 hours ago from target_date
         twenty_four_hours_ago = target_date - timedelta(hours=24)
         
-        existing_digest = Digest.objects.filter(
+        existing_completed_digest = Digest.objects.filter(
             user=user,
-            created_at__gte=twenty_four_hours_ago
+            created_at__gte=twenty_four_hours_ago,
+            generation_status='completed'
         ).first()
         
-        if existing_digest:
-            return f"Digest already exists ({existing_digest.public_id})"
+        if existing_completed_digest:
+            return f"Completed digest already exists ({existing_completed_digest.public_id})"
     
     return "Unknown reason"
 

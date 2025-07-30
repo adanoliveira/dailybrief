@@ -38,7 +38,7 @@ class DigestService:
         user: User, 
         date: datetime.date,
         force_regenerate: bool = False
-    ) -> Digest:
+    ) -> Dict[str, Any]:
         """
         Generate a personalized digest for a user on a specific date.
         
@@ -48,7 +48,7 @@ class DigestService:
             force_regenerate: Whether to regenerate if digest already exists
             
         Returns:
-            Digest: The generated or existing digest
+            Dict with generation result containing success status, digest, and metrics
             
         Raises:
             ValueError: If user has no followed topics or insufficient content
@@ -60,7 +60,16 @@ class DigestService:
             existing_digest = Digest.objects.get(user=user, date=date)
             if not force_regenerate:
                 logger.info(f"Digest already exists for {user.username} on {date}")
-                return existing_digest
+                return {
+                    'success': True,
+                    'digest': existing_digest,
+                    'regenerated': False,
+                    'metrics': {
+                        'topics_included': existing_digest.digest_topics.count(),
+                        'total_events': sum(topic.stories.count() for topic in existing_digest.digest_topics.all()),
+                        'total_cost_usd': float(existing_digest.generation_cost_usd),
+                    }
+                }
             logger.info(f"Force regenerating existing digest for {user.username} on {date}")
         except Digest.DoesNotExist:
             pass
@@ -126,7 +135,18 @@ class DigestService:
                     f"Successfully generated digest for {user.username} on {date} "
                     f"using {strategy_info} in {duration_ms}ms"
                 )
-                return digest
+                
+                # Return success result with digest and metrics
+                return {
+                    'success': True,
+                    'digest': digest,
+                    'regenerated': not created,
+                    'metrics': {
+                        'topics_included': digest.digest_topics.count(),
+                        'total_events': sum(topic.stories.count() for topic in digest.digest_topics.all()),
+                        'total_cost_usd': float(digest.generation_cost_usd),
+                    }
+                }
                 
         except Exception as e:
             logger.error(f"Failed to generate digest for {user.username} on {date}: {str(e)}")
@@ -136,8 +156,17 @@ class DigestService:
                 digest.generation_status = 'failed'
                 digest.error_message = str(e)
                 digest.save()
-            
-            raise
+                
+                return {
+                    'success': False,
+                    'error': str(e),
+                    'digest': digest
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': str(e)
+                }
     
     def _get_user_followed_topics(self, user: User) -> List[Topic]:
         """Get list of topics the user follows."""

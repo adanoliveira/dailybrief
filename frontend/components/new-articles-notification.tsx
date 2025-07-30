@@ -63,7 +63,7 @@ export function NewArticlesNotification({
     if (totalCount === 1) {
       return "See new story"
     } else {
-      return `See ${totalCount} new stories`
+      return `See new stories`
     }
   }
 
@@ -80,7 +80,7 @@ export function NewArticlesNotification({
   return (
     <div 
       className={cn(
-        "sticky top-0 z-40 mb-4 transition-all duration-300 ease-out",
+        "mb-4 transition-all duration-300 ease-out",
         "animate-in slide-in-from-top-2 fade-in-0",
         className
       )}
