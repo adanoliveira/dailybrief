@@ -177,10 +177,10 @@ def generate_user_digest(
         
         # Generate digest
         digest_service = DigestService()
-        result = digest_service.generate_digest(
+        result = digest_service.generate_user_digest(
             user=user,
-            target_date=target_datetime,
-            regenerate=force_regenerate
+            date=target_datetime.date(),
+            force_regenerate=force_regenerate
         )
         
         if result['success']:
@@ -324,10 +324,10 @@ def regenerate_failed_digests(target_date: str = None, max_attempts: int = 3):
                 
                 # Try to regenerate
                 digest_service = DigestService()
-                result = digest_service.generate_digest(
+                result = digest_service.generate_user_digest(
                     user=failed_digest.user,
-                    target_date=timezone.make_aware(datetime.combine(target_date_obj, datetime.min.time())),
-                    regenerate=True
+                    date=target_date_obj,
+                    force_regenerate=True
                 )
                 
                 if result['success']:
@@ -367,7 +367,7 @@ def _get_eligible_users_for_digest(target_date: datetime, force_regenerate: bool
     # Base query: active users with followed topics
     queryset = User.objects.filter(
         is_active=True,
-        user_topics__isnull=False  # Has followed topics
+        preferred_topics__isnull=False  # Has followed topics
     ).distinct()
     
     # If not forcing regeneration, exclude users who already have digests
@@ -394,7 +394,7 @@ def _is_user_eligible_for_digest(user: User, target_date: datetime, force_regene
         return False
     
     # Must have followed topics
-    if not user.user_topics.exists():
+    if not user.preferred_topics.exists():
         return False
     
     # Check for existing digest
@@ -419,7 +419,7 @@ def _get_user_ineligibility_reason(user: User, target_date: datetime, force_rege
     if not hasattr(user, 'profile'):
         return "No user profile"
     
-    if not user.user_topics.exists():
+    if not user.preferred_topics.exists():
         return "No followed topics"
     
     if not force_regenerate:
@@ -451,10 +451,10 @@ def _process_user_batch(users: List[User], target_date: datetime, force_regenera
                 continue
             
             # Generate digest
-            result = digest_service.generate_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
-                target_date=target_date,
-                regenerate=force_regenerate
+                date=target_date,
+                force_regenerate=force_regenerate
             )
             
             if result['success']:
