@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install gunicorn for production
+RUN pip install --no-cache-dir gunicorn
+
 # Create and activate a non-root user
 RUN adduser --disabled-password --gecos "" appuser
 USER appuser
@@ -28,5 +31,5 @@ USER appuser
 # Copy project
 COPY --chown=appuser:appuser . .
 
-# Run server
+# Default to development server (can be overridden for production)
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 

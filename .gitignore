@@ -59,6 +59,10 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.staging
+.env.production
+# Keep example files
+!.env.example
 
 # Docker
 .docker/
