@@ -99,3 +99,6 @@ backend/staticfiles/
 # Frontend generated files  
 frontend/generated/
 frontend/.turbo/ 
+# Environment files with sensitive data
+.env.production
+.env.staging
