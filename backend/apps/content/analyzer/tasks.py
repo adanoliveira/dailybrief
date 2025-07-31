@@ -553,6 +553,7 @@ def cleanup_stuck_analyzer_articles() -> Dict[str, Any]:
         stuck_threshold = timezone.now() - timezone.timedelta(hours=2)
         
         from django.db.models import Q
+        from apps.articles.models import SummarizationStatus
         
         # Include both articles with old timestamps AND articles with null timestamps (stuck without proper tracking)
         stuck_articles = Article.objects.filter(
