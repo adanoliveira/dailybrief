@@ -249,8 +249,8 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const apiPath = path.startsWith('/api/') ? path : `/api${path}`;
   
-  // Force use localhost:8000 in dev environment for now to bypass any issues
-  const baseUrl = 'http://localhost:8000';
+  // Use environment-aware base URL
+  const baseUrl = getBaseUrl();
   const fullUrl = `${baseUrl}${apiPath}`;
   console.log(`Fetching from: ${fullUrl}`);
     
@@ -707,7 +707,7 @@ export async function generateArticleSummary(
   const session = await getSession();
   const authToken = session?.user?.django_token || session?.accessToken;
   
-  const response = await fetch(`http://localhost:8000/api/articles/${articleId}/generate-summary`, {
+  const response = await fetch(`${getBaseUrl()}/api/articles/${articleId}/generate-summary`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -748,7 +748,7 @@ export async function getArticleSummaryStatus(articleId: string): Promise<Summar
   const session = await getSession();
   const authToken = session?.user?.django_token || session?.accessToken;
   
-  const response = await fetch(`http://localhost:8000/api/articles/${articleId}/summary-status`, {
+  const response = await fetch(`${getBaseUrl()}/api/articles/${articleId}/summary-status`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
