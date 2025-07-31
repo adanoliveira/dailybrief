@@ -117,25 +117,31 @@ async function syncUserWithBackend(user: any): Promise<any> {
       apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
     }
     
-    console.log(`Syncing user with backend: ${user.email}`);
+    const requestData = {
+      email: user.email,
+      name: user.name || user.email.split("@")[0],
+      provider: user.provider || "email",
+      nextauth_id: user.id,
+      image: user.image || "",
+    };
+    
+    console.log(`[Sync] Syncing user with backend:`, {
+      email: user.email,
+      apiUrl,
+      requestData
+    });
     
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email: user.email,
-        name: user.name || user.email.split("@")[0],
-        provider: user.provider || "email",
-        nextauth_id: user.id,
-        image: user.image || "",
-      }),
+      body: JSON.stringify(requestData),
       // Add a timeout to prevent hanging if backend is down
       signal: AbortSignal.timeout(10000) // Increased to 10 seconds
     })
     
-    console.log(`Backend sync response status: ${response.status}`);
+    console.log(`[Sync] Backend sync response status: ${response.status}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -272,34 +278,42 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
-      // Allow sign in if:
-      // 1. This is the first sign in (no account exists yet)
-      // 2. The account is already linked to the user
-      // 3. There's an existing user with the same email (auto-link)
-      
-      console.log(`[NextAuth] signIn callback called:`, { 
-        userEmail: user.email, 
-        provider: account?.provider, 
-        emailVerified: (user as any).emailVerified 
-      });
-      
-      const { email: userEmail } = user;
-      
-      if (!userEmail) {
-        console.log("Sign in denied: User has no email");
+      try {
+        // Allow sign in if:
+        // 1. This is the first sign in (no account exists yet)
+        // 2. The account is already linked to the user
+        // 3. There's an existing user with the same email (auto-link)
+        
+        console.log(`[NextAuth] signIn callback called:`, { 
+          userEmail: user.email, 
+          provider: account?.provider, 
+          emailVerified: (user as any).emailVerified,
+          userId: user.id,
+          userName: user.name
+        });
+        
+        const { email: userEmail } = user;
+        
+        if (!userEmail) {
+          console.error("Sign in denied: User has no email", { user, account });
+          return false;
+        }
+        
+        // For safety, only allow automatic account linking for verified emails
+        // Google accounts are already verified
+        // For email provider, clicking the magic link IS the verification process
+        if (account?.provider === "google" && !(user as any).emailVerified) {
+          console.error("Sign in denied: Google account email not verified", { user, account });
+          return false;
+        }
+        
+        console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
+        return true;
+      } catch (error) {
+        console.error("Sign in callback error:", error);
+        console.error("Sign in callback user data:", { user, account, profile });
         return false;
       }
-      
-      // For safety, only allow automatic account linking for verified emails
-      // Google accounts are already verified
-      // For email provider, clicking the magic link IS the verification process
-      if (account?.provider === "google" && !(user as any).emailVerified) {
-        console.log("Sign in denied: Google account email not verified");
-        return false;
-      }
-      
-      console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
-      return true;
     },
     async jwt({ token, user, account, trigger }): Promise<JWT> {
       // JWT callback: Processing authentication data
@@ -311,13 +325,18 @@ export const authOptions: NextAuthOptions = {
         // If user just signed in, sync with backend
         if (account) {
           try {
-            console.log("Syncing user with backend:", user.email);
+            console.log(`[JWT] Starting backend sync for user: ${user.email} (provider: ${account.provider})`);
             const backendUser = await syncUserWithBackend({
               ...user,
               provider: account.provider
             });
             
-            // Backend sync completed successfully
+            console.log(`[JWT] Backend sync completed:`, {
+              userId: backendUser?.id,
+              hasToken: !!backendUser?.django_token,
+              tokenLength: backendUser?.django_token?.length,
+              onboardingComplete: backendUser?.has_completed_onboarding
+            });
             
             if (backendUser) {
               token.django_user_id = backendUser.id;
@@ -325,7 +344,7 @@ export const authOptions: NextAuthOptions = {
               token.has_completed_onboarding = backendUser.has_completed_onboarding;
             }
           } catch (error) {
-            console.error("JWT callback error syncing with backend:", error);
+            console.error("[JWT] Backend sync failed, using offline mode:", error);
             // Continue with auth flow even if backend sync fails
             token.django_user_id = 0;
             token.django_token = "offline_mode_token";
