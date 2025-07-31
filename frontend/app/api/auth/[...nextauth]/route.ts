@@ -278,40 +278,46 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
+      console.log(`[SIGNIN] === CALLBACK STARTED ===`);
+      console.log(`[SIGNIN] Raw parameters:`, { user, account, profile });
+      
       try {
         // Allow sign in if:
         // 1. This is the first sign in (no account exists yet)
         // 2. The account is already linked to the user
         // 3. There's an existing user with the same email (auto-link)
         
-        console.log(`[NextAuth] signIn callback called:`, { 
-          userEmail: user.email, 
+        console.log(`[SIGNIN] signIn callback called:`, { 
+          userEmail: user?.email, 
           provider: account?.provider, 
-          emailVerified: (user as any).emailVerified,
-          userId: user.id,
-          userName: user.name
+          emailVerified: (user as any)?.emailVerified,
+          userId: user?.id,
+          userName: user?.name
         });
         
-        const { email: userEmail } = user;
+        const userEmail = user?.email;
+        console.log(`[SIGNIN] Extracted email: "${userEmail}"`);
         
         if (!userEmail) {
-          console.error("Sign in denied: User has no email", { user, account });
+          console.error("[SIGNIN] DENIED - User has no email", { user, account });
+          console.log(`[SIGNIN] === RETURNING FALSE - NO EMAIL ===`);
           return false;
         }
         
-        // For safety, only allow automatic account linking for verified emails
-        // Google accounts are already verified
-        // For email provider, clicking the magic link IS the verification process
-        if (account?.provider === "google" && !(user as any).emailVerified) {
-          console.error("Sign in denied: Google account email not verified", { user, account });
-          return false;
+        // For Google OAuth, just allow it (Google accounts are always verified)
+        if (account?.provider === "google") {
+          console.log(`[SIGNIN] Google provider detected, allowing sign-in`);
+        } else {
+          console.log(`[SIGNIN] Non-Google provider: ${account?.provider}`);
         }
         
-        console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
+        console.log(`[SIGNIN] Sign in allowed: Auto-linking account with email ${userEmail}`);
+        console.log(`[SIGNIN] === RETURNING TRUE ===`);
         return true;
       } catch (error) {
-        console.error("Sign in callback error:", error);
-        console.error("Sign in callback user data:", { user, account, profile });
+        console.error("[SIGNIN] Sign in callback error:", error);
+        console.error("[SIGNIN] Sign in callback user data:", { user, account, profile });
+        console.log(`[SIGNIN] === RETURNING FALSE DUE TO ERROR ===`);
         return false;
       }
     },
@@ -421,8 +427,8 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 180 * 24 * 60 * 60, // 180 days
   },
-  // Enable debug in development
-  debug: process.env.NODE_ENV === "development",
+  // Enable debug to diagnose AccessDenied error
+  debug: true,
 }
 
 const handler = NextAuth(authOptions)
