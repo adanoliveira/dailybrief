@@ -34,5 +34,5 @@ USER appuser
 # Copy project
 COPY --chown=appuser:appuser . .
 
-# Default to development server (can be overridden for production)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 
+# Production server (Railway will override with its own start command)
+CMD ["gunicorn", "dailybrief.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--worker-class", "gevent"] 
