@@ -7,8 +7,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { DigestReader } from "@/components/digest/digest-reader"
-import { dataManager } from "../../../../../lib/data-manager"
-import { type Digest } from "../../../../../lib/digest-service"
+import { dataManager } from "@/lib/data-manager"
+import { type Digest } from "@/lib/digest-service"
 
 function DigestPageSkeleton() {
   return (
