@@ -1,4 +1,5 @@
 import os
+import json
 from django.core.management.base import BaseCommand
 from django.core.management import call_command
 from django.db import transaction
@@ -79,6 +80,9 @@ class Command(BaseCommand):
         self.stdout.write(f'Loading feeds data from {feeds_file}...')
         call_command('loaddata', feeds_file)
         
+        # Load publication relationships
+        self.setup_publication_relations(fixtures_dir)
+        
         # Display summary
         self.stdout.write(self.style.SUCCESS('✅ Feeds data loaded successfully:'))
         self.stdout.write(f'  📂 Topics: {Topic.objects.count()}')
@@ -109,4 +113,56 @@ class Command(BaseCommand):
         
         # Display summary
         self.stdout.write(self.style.SUCCESS('✅ Sample articles loaded:'))
-        self.stdout.write(f'  📄 Articles: {Article.objects.count()}') 
+        self.stdout.write(f'  📄 Articles: {Article.objects.count()}')
+
+    def setup_publication_relations(self, fixtures_dir):
+        """
+        Sets up many-to-many relationships for publications from publication_relations.json.
+        """
+        relations_path = os.path.join(fixtures_dir, 'publication_relations.json')
+        
+        if not os.path.exists(relations_path):
+            self.stdout.write(self.style.WARNING(f'Publication relations file not found: {relations_path}'))
+            return
+            
+        self.stdout.write(f'Loading publication relations from {relations_path}...')
+        
+        with open(relations_path, 'r') as f:
+            relations = json.load(f)
+            
+        # Process the relations
+        updated_count = 0
+        for news_api_id, rel_data in relations.items():
+            try:
+                pub = Publication.objects.get(news_api_id=news_api_id)
+                
+                # Add topics
+                for topic_slug in rel_data.get('topics', []):
+                    try:
+                        topic = Topic.objects.get(slug=topic_slug)
+                        pub.topics.add(topic)
+                    except Topic.DoesNotExist:
+                        self.stdout.write(self.style.WARNING(f'Topic {topic_slug} not found'))
+                
+                # Add regions
+                for region_code in rel_data.get('regions', []):
+                    try:
+                        region = Region.objects.get(code=region_code)
+                        pub.regions.add(region)
+                    except Region.DoesNotExist:
+                        self.stdout.write(self.style.WARNING(f'Region {region_code} not found'))
+                
+                # Add languages
+                for lang_code in rel_data.get('languages', []):
+                    try:
+                        language = Language.objects.get(iso_code=lang_code)
+                        pub.languages.add(language)
+                    except Language.DoesNotExist:
+                        self.stdout.write(self.style.WARNING(f'Language {lang_code} not found'))
+                        
+                updated_count += 1
+                        
+            except Publication.DoesNotExist:
+                self.stdout.write(self.style.WARNING(f'Publication with news_api_id {news_api_id} not found'))
+        
+        self.stdout.write(self.style.SUCCESS(f'✅ Publication relationships updated for {updated_count} publications')) 
