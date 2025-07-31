@@ -260,26 +260,7 @@ export const authOptions: NextAuthOptions = {
     //   }
     // }),
     EmailProvider({
-      server: {
-        host: "smtp.resend.com",
-        port: 587,
-        auth: {
-          user: "resend",
-          pass: process.env.RESEND_API_KEY || "",
-        },
-      },
       from: process.env.EMAIL_FROM || "noreply@dailybrief.com",
-      // Custom function to send the verification email
-      maxAge: 5 * 60, // 5 minutes instead of 24 hours
-      generateVerificationToken: async () => {
-        // Generate a random token
-        const token = Array.from(
-          { length: 32 },
-          () => Math.floor(Math.random() * 36).toString(36)
-        ).join("");
-        
-        return token;
-      },
       sendVerificationRequest,
     }),
   ],
@@ -296,6 +277,12 @@ export const authOptions: NextAuthOptions = {
       // 2. The account is already linked to the user
       // 3. There's an existing user with the same email (auto-link)
       
+      console.log(`[NextAuth] signIn callback called:`, { 
+        userEmail: user.email, 
+        provider: account?.provider, 
+        emailVerified: (user as any).emailVerified 
+      });
+      
       const { email: userEmail } = user;
       
       if (!userEmail) {
@@ -304,10 +291,11 @@ export const authOptions: NextAuthOptions = {
       }
       
       // For safety, only allow automatic account linking for verified emails
-      // Google accounts are already verified, but for email provider check the verification
-      if (account?.provider === "email" && !(user as any).emailVerified) {
-        console.log("Sign in denied: Email not verified for email provider");
-        return "/auth/verify-request";
+      // Google accounts are already verified
+      // For email provider, clicking the magic link IS the verification process
+      if (account?.provider === "google" && !(user as any).emailVerified) {
+        console.log("Sign in denied: Google account email not verified");
+        return false;
       }
       
       console.log(`Sign in allowed: Auto-linking account with email ${userEmail}`);
