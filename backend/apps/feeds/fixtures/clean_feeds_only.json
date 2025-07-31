@@ -1,4 +1,3 @@
-[0;32mRunning Django command: dumpdata feeds.Topic feeds.Region feeds.Language feeds.Publication --indent=2[0m
 [
 {
   "model": "feeds.topic",
