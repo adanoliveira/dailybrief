@@ -16,6 +16,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { digestService, type Digest } from "@/lib/digest-service"
+import { dataManager } from "@/lib/data-manager"
 
 interface DailyDigestProps {
   className?: string
@@ -318,6 +319,11 @@ export function DailyDigest({ className }: DailyDigestProps) {
         console.log('DailyDigest: Generation completed, reloading digest')
         setGenerating(false)
         setGenerationStartTime(null)
+        
+        // Invalidate cache to ensure fresh data in detail pages
+        console.log('DailyDigest: Invalidating digest cache for new digest')
+        await dataManager.invalidateDigestCache()
+        
         await loadLatestDigest() // Reload with new digest
       } else if (status.status === 'failed') {
         console.log('DailyDigest: Generation failed')
