@@ -37,7 +37,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['*']  # Allow all hosts for now
 
-# Detailed logging configuration
+# Production-ready logging configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -57,25 +57,19 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'debug.log'),
-            'formatter': 'verbose',
-        },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console'],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'apps': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': False,
         },
@@ -240,6 +234,10 @@ CELERY_TASK_SOFT_TIME_LIMIT = 600  # 10 minutes soft limit
 CELERY_TASK_TIME_LIMIT = 900       # 15 minutes hard limit
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Don't prefetch too many tasks
 
+# Celery Beat schedule file configuration (use writable directory)
+# Celery 5.x uses lowercase setting names
+beat_schedule_filename = '/tmp/celerybeat-schedule'
+
 # Celery Beat Schedule
 from celery.schedules import crontab
 
@@ -394,10 +392,38 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'force_regenerate': False},
     },
     
+    # Morning digest generation trial 2 - 30 minutes after initial run
+    'generate-daily-digests-trial-2': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(hour=6, minute=30),  # 6:30 AM UTC
+        'kwargs': {'force_regenerate': False},  # Only generate if no digest from last 24h
+    },
+    
     # Regenerate failed digests at 7:00 AM UTC
     'regenerate-failed-digests': {
         'task': 'apps.content.digest.tasks.regenerate_failed_digests',
         'schedule': crontab(hour=7, minute=0),  # 7:00 AM UTC (1 hour after content enrichment starts)
+    },
+    
+    # Morning digest generation trial 3 - catch any remaining users
+    'generate-daily-digests-trial-3': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(hour=7, minute=30),  # 7:30 AM UTC
+        'kwargs': {'force_regenerate': False},  # Only generate if no digest from last 24h
+    },
+    
+    # Morning digest generation trial 4 - final morning attempt
+    'generate-daily-digests-trial-4': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(hour=8, minute=0),  # 8:00 AM UTC
+        'kwargs': {'force_regenerate': False},  # Only generate if no digest from last 24h
+    },
+    
+    # Morning digest generation trial 5 - last chance for early users
+    'generate-daily-digests-trial-5': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(hour=8, minute=30),  # 8:30 AM UTC
+        'kwargs': {'force_regenerate': False},  # Only generate if no digest from last 24h
     },
     
     # Cleanup old digests - Weekly on Sunday at 1:00 AM

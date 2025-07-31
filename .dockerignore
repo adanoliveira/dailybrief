@@ -1,35 +1,68 @@
+# Exclude large directories that aren't needed for backend build
+frontend/
+docs/
+infra/
+tests/
+.git/
+.github/
+
 # Python
 **/__pycache__/
 **/*.py[cod]
-**/.*
-!**/.env.example
-**/*.so
-**/env/
+**/*.pyc
+**/*.pyo
+**/*.pyd
 **/venv/
+**/env/
 **/ENV/
-**/env.bak/
-**/venv.bak/
 
-# Node.js
-**/node_modules
-**/npm-debug.log
-**/.next
+# Logs and temporary files
+**/*.log
+**/logs/
+**/debug.log
+backend/debug.log
+**/celerybeat-schedule*
+**/celerybeat.pid
+**/*.tmp
+**/*.temp
 
-# Editor directories and files
-**/.idea
-**/.vscode
+# Database files
+**/*.db
+**/*.sqlite*
+**/db.sqlite3
+
+# Development files
+**/.env
+**/.env.*
+.env
+.env.*
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.tox/
+
+# Editor files
+**/.idea/
+**/.vscode/
 **/*.swp
 **/*.swo
+**/*~
 
-# Docker
+# Build artifacts
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/staticfiles/
+**/media/
+
+# Docker files (Railway doesn't need these)
 **/Dockerfile*
 **/.dockerignore
 **/docker-compose*
 
-# Git
-**/.git
-**/.gitignore
-
-# Project
+# Project files
 **/*.md
-**/docs/ 
+README.md
+LICENSE
+CONTRIBUTING.md 

@@ -1,0 +1,38 @@
+{
+  "services": {
+    "backend": {
+      "source": "./backend",
+      "build": {
+        "builder": "dockerfile",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "python manage.py migrate && gunicorn dailybrief.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --worker-class gevent --worker-connections 1000"
+      },
+      "healthcheckPath": "/api/health/",
+      "restartPolicyType": "on_failure"
+    },
+    "worker": {
+      "source": "./backend",
+      "build": {
+        "builder": "dockerfile",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "celery -A dailybrief worker --loglevel=info --concurrency=2 --max-tasks-per-child=1000"
+      },
+      "restartPolicyType": "always"
+    },
+    "beat": {
+      "source": "./backend",
+      "build": {
+        "builder": "dockerfile", 
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "celery -A dailybrief beat --loglevel=info --schedule=/tmp/celerybeat-schedule"
+      },
+      "restartPolicyType": "always"
+    }
+  }
+} 

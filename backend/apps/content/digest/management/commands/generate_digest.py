@@ -265,22 +265,11 @@ class Command(BaseCommand):
         
         # Generate digest
         try:
-            digest = digest_service.generate_user_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
                 date=target_date.date(),
                 force_regenerate=options['regenerate']
             )
-            
-            # Convert digest object to result dict for consistent handling
-            result = {
-                'success': True,
-                'digest': digest,
-                'metrics': {
-                    'topics_included': digest.digest_topics.count(),
-                    'total_events': sum(topic.stories.count() for topic in digest.digest_topics.all()),
-                    'total_cost_usd': float(digest.generation_cost_usd),
-                }
-            }
         except Exception as e:
             result = {
                 'success': False,

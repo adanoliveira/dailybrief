@@ -293,12 +293,17 @@ class Command(BaseCommand):
             digest_service = DigestService()
             
             # Generate digest
-            digest = digest_service.generate_user_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
                 date=target_date.date(),
                 force_regenerate=True  # Force regeneration for testing
             )
             
+            if not result['success']:
+                self.stdout.write(self.style.ERROR(f"❌ Digest generation failed: {result.get('error', 'Unknown error')}"))
+                return
+                
+            digest = result['digest']
             self.stdout.write(self.style.SUCCESS("✅ Full pipeline test successful!"))
             
             # Get digest statistics

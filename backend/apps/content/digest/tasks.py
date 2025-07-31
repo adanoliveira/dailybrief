@@ -25,7 +25,7 @@ from .models import Digest
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+@shared_task(bind=True, max_retries=3, default_retry_delay=300, name='generate-daily-digests')
 def generate_daily_digests_for_all_users(self, target_date: str = None, force_regenerate: bool = False):
     """
     Generate daily digests for all eligible users.
@@ -177,10 +177,10 @@ def generate_user_digest(
         
         # Generate digest
         digest_service = DigestService()
-        result = digest_service.generate_digest(
+        result = digest_service.generate_user_digest(
             user=user,
-            target_date=target_datetime,
-            regenerate=force_regenerate
+            date=target_datetime.date(),
+            force_regenerate=force_regenerate
         )
         
         if result['success']:
@@ -273,7 +273,7 @@ def cleanup_old_digests(days_to_keep: int = 90):
         }
 
 
-@shared_task
+@shared_task(name='regenerate-failed-digests')
 def regenerate_failed_digests(target_date: str = None, max_attempts: int = 3):
     """
     Regenerate digests that failed during generation.
@@ -324,10 +324,10 @@ def regenerate_failed_digests(target_date: str = None, max_attempts: int = 3):
                 
                 # Try to regenerate
                 digest_service = DigestService()
-                result = digest_service.generate_digest(
+                result = digest_service.generate_user_digest(
                     user=failed_digest.user,
-                    target_date=timezone.make_aware(datetime.combine(target_date_obj, datetime.min.time())),
-                    regenerate=True
+                    date=target_date_obj,
+                    force_regenerate=True
                 )
                 
                 if result['success']:
@@ -365,15 +365,18 @@ def _get_eligible_users_for_digest(target_date: datetime, force_regenerate: bool
     """Get list of users eligible for digest generation."""
     
     # Base query: active users with followed topics
+    from apps.feeds.models import UserTopic
+    users_with_topics = UserTopic.objects.values_list('user_id', flat=True).distinct()
     queryset = User.objects.filter(
         is_active=True,
-        user_topics__isnull=False  # Has followed topics
+        id__in=users_with_topics  # Has followed topics
     ).distinct()
     
-    # If not forcing regeneration, exclude users who already have digests
+    # If not forcing regeneration, exclude users who already have completed digests
     if not force_regenerate:
         queryset = queryset.exclude(
-            digests__date=target_date.date()
+            digests__date=target_date.date(),
+            digests__generation_status='completed'  # Only exclude completed digests
         )
     
     # Additional filtering can be added here based on user preferences
@@ -394,17 +397,19 @@ def _is_user_eligible_for_digest(user: User, target_date: datetime, force_regene
         return False
     
     # Must have followed topics
-    if not user.user_topics.exists():
+    from apps.feeds.models import UserTopic
+    if not UserTopic.objects.filter(user=user).exists():
         return False
     
-    # Check for existing digest
+    # Check for existing completed digest for the target date
     if not force_regenerate:
-        existing_digest = Digest.objects.filter(
+        existing_completed_digest = Digest.objects.filter(
             user=user,
-            date=target_date.date()
+            date=target_date.date(),
+            generation_status='completed'  # Only skip if there's a completed digest
         ).exists()
         
-        if existing_digest:
+        if existing_completed_digest:
             return False
     
     return True
@@ -419,17 +424,19 @@ def _get_user_ineligibility_reason(user: User, target_date: datetime, force_rege
     if not hasattr(user, 'profile'):
         return "No user profile"
     
-    if not user.user_topics.exists():
+    from apps.feeds.models import UserTopic
+    if not UserTopic.objects.filter(user=user).exists():
         return "No followed topics"
     
     if not force_regenerate:
-        existing_digest = Digest.objects.filter(
+        existing_completed_digest = Digest.objects.filter(
             user=user,
-            date=target_date.date()
+            date=target_date.date(),
+            generation_status='completed'
         ).first()
         
-        if existing_digest:
-            return f"Digest already exists ({existing_digest.public_id})"
+        if existing_completed_digest:
+            return f"Completed digest already exists for {target_date.date()} ({existing_completed_digest.public_id})"
     
     return "Unknown reason"
 
@@ -451,10 +458,10 @@ def _process_user_batch(users: List[User], target_date: datetime, force_regenera
                 continue
             
             # Generate digest
-            result = digest_service.generate_digest(
+            result = digest_service.generate_user_digest(
                 user=user,
-                target_date=target_date,
-                regenerate=force_regenerate
+                date=target_date,
+                force_regenerate=force_regenerate
             )
             
             if result['success']:

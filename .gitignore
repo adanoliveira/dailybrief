@@ -59,6 +59,10 @@ coverage/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.staging
+.env.production
+# Keep example files
+!.env.example
 
 # Docker
 .docker/
@@ -71,7 +75,7 @@ docker-compose.override.yml
 *.swo
 *~
 .*.sw?
-docs/
+# docs/ - Removed to allow deployment documentation
 .cursorrules
 
 # OS specific

@@ -1,0 +1,47 @@
+# Python virtual environments and caches
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs and runtime files
+*.log
+logs/
+debug.log
+celerybeat-schedule*
+celerybeat.pid
+*.tmp
+*.temp
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+
+# Build artifacts
+staticfiles/
+media/
+build/
+dist/
+
+# Development files
+.env
+.env.local
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore 

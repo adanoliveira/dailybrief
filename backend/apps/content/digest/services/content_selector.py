@@ -118,7 +118,7 @@ class DigestContentSelector:
             end_time_local = user_tz.localize(
                 datetime.combine(target_date, datetime.max.time())
             )
-            start_time_local = end_time_local - timedelta(hours=48)
+            start_time_local = end_time_local - timedelta(hours=72)
             
             # Convert to UTC
             start_time_utc = start_time_local.astimezone(pytz.UTC)
