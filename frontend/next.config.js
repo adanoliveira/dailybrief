@@ -1,3 +1,5 @@
+const path = require('path')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -24,6 +26,18 @@ const nextConfig = {
   },
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
+    // Add path aliases for proper resolution
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+      '@/components': path.resolve(__dirname, 'components'),
+      '@/lib': path.resolve(__dirname, 'lib'),
+      '@/app': path.resolve(__dirname, 'app'),
+      '@/hooks': path.resolve(__dirname, 'hooks'),
+      '@/types': path.resolve(__dirname, 'types'),
+      '@/styles': path.resolve(__dirname, 'styles'),
+    }
+    
     // Development-specific webpack settings
     if (dev) {
       config.watchOptions = {
