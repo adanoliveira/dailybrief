@@ -12,6 +12,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public", "auth"]
 }
 
 // NextAuth models
@@ -32,6 +33,8 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("nextauth_Account")
+  @@schema("public")
 }
 
 model Session {
@@ -40,6 +43,9 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("nextauth_Session")
+  @@schema("public")
 }
 
 model User {
@@ -50,6 +56,9 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
+
+  @@map("nextauth_User")
+  @@schema("public")
 }
 
 model VerificationToken {
@@ -58,6 +67,8 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("nextauth_VerificationToken")
+  @@schema("public")
 }
 
 // Custom model to track email verification tokens
@@ -68,4 +79,6 @@ model EmailVerificationRequest {
   invalidated Boolean @default(false)
   
   @@index([email])
+  @@map("nextauth_EmailVerificationRequest")
+  @@schema("public")
 }
