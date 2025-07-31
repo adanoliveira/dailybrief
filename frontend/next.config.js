@@ -38,6 +38,18 @@ const nextConfig = {
       '@/styles': path.resolve(__dirname, 'styles'),
     }
     
+    // Ensure proper resolution fallbacks
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+    }
+    
+    // Add module resolution
+    config.resolve.modules = [
+      path.resolve(__dirname),
+      path.resolve(__dirname, 'node_modules'),
+      'node_modules'
+    ]
+    
     // Development-specific webpack settings
     if (dev) {
       config.watchOptions = {
