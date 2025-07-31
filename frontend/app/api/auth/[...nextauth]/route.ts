@@ -22,6 +22,8 @@ interface SessionUser {
 async function sendVerificationRequest(params: SendVerificationRequestParams) {
   const { identifier: email, url } = params
   
+  console.log(`[NextAuth] sendVerificationRequest called with:`, { email, url, urlType: typeof url });
+  
   try {
     // Try to use our custom token tracking, but continue even if it fails
     try {
@@ -64,9 +66,18 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
     }
     
     // Use our custom email service to send the magic link
-    await sendMagicLinkEmail({ email, url })
+    console.log(`[NextAuth] About to call sendMagicLinkEmail with URL: "${url}"`);
+    await sendMagicLinkEmail({ email, url });
+    console.log(`[NextAuth] sendMagicLinkEmail completed successfully`);
   } catch (error) {
-    console.error("Error sending verification email", error)
+    console.error("Error sending verification email:", error);
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      email,
+      url,
+      urlType: typeof url
+    });
     
     // In development, always log the magic link URL to the console as a fallback
     if (process.env.NODE_ENV === "development") {
@@ -249,6 +260,14 @@ export const authOptions: NextAuthOptions = {
     //   }
     // }),
     EmailProvider({
+      server: {
+        host: "smtp.resend.com",
+        port: 587,
+        auth: {
+          user: "resend",
+          pass: process.env.RESEND_API_KEY || "",
+        },
+      },
       from: process.env.EMAIL_FROM || "noreply@dailybrief.com",
       // Custom function to send the verification email
       maxAge: 5 * 60, // 5 minutes instead of 24 hours
