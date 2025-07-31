@@ -1,57 +1,68 @@
-# AGGRESSIVE EXCLUSION - Include only what we need for backend
+# Exclude large directories that aren't needed for backend build
+frontend/
+docs/
+infra/
+tests/
+.git/
+.github/
 
-# Exclude everything first
-*
-**/*
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/venv/
+**/env/
+**/ENV/
 
-# Then explicitly include only backend essentials
-!backend/
-!backend/**
-
-# Exclude within backend directory
-backend/venv/
-backend/env/
-backend/ENV/
-backend/__pycache__/
-backend/**/__pycache__/
-backend/*.py[cod]
-backend/**/*.py[cod]
-backend/*.pyc
-backend/**/*.pyc
-backend/*.log
-backend/**/*.log
+# Logs and temporary files
+**/*.log
+**/logs/
+**/debug.log
 backend/debug.log
-backend/logs/
-backend/**logs/
-backend/staticfiles/
-backend/media/
-backend/.pytest_cache/
-backend/**/.pytest_cache/
-backend/.coverage
-backend/htmlcov/
-backend/.tox/
-backend/celerybeat-schedule*
-backend/celerybeat.pid
-backend/*.tmp
-backend/*.temp
-backend/*.db
-backend/*.sqlite*
-backend/db.sqlite3
+**/celerybeat-schedule*
+**/celerybeat.pid
+**/*.tmp
+**/*.temp
 
-# Exclude development tools
-backend/.env
-backend/.env.*
-backend/Dockerfile*
-backend/.dockerignore
-backend/docker-compose*
+# Database files
+**/*.db
+**/*.sqlite*
+**/db.sqlite3
 
-# Exclude editor files
-backend/.idea/
-backend/.vscode/
-backend/*.swp
-backend/*.swo
-backend/*~
+# Development files
+**/.env
+**/.env.*
+.env
+.env.*
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.tox/
 
-# Exclude test files (optional - remove if you need tests)
-backend/tests/
-backend/**/tests/ 
+# Editor files
+**/.idea/
+**/.vscode/
+**/*.swp
+**/*.swo
+**/*~
+
+# Build artifacts
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/staticfiles/
+**/media/
+
+# Docker files (Railway doesn't need these)
+**/Dockerfile*
+**/.dockerignore
+**/docker-compose*
+
+# Project files
+**/*.md
+README.md
+LICENSE
+CONTRIBUTING.md 
