@@ -94,4 +94,6 @@ backend/staticfiles/
 
 # Frontend generated files  
 frontend/generated/
-frontend/.turbo/ 
+frontend/.turbo/ # Environment files
+.env.staging
+.env.production
