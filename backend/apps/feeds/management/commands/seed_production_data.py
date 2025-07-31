@@ -31,7 +31,7 @@ class Command(BaseCommand):
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             'fixtures'
         )
-        feeds_file = os.path.join(fixtures_dir, 'production_feeds.json')
+        feeds_file = os.path.join(fixtures_dir, 'clean_feeds_only.json')
         articles_file = 'sample_articles_seed.json'  # In manage.py directory
         
         feeds_only = options.get('feeds_only', False)
