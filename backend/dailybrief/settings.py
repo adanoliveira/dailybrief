@@ -234,6 +234,9 @@ CELERY_TASK_SOFT_TIME_LIMIT = 600  # 10 minutes soft limit
 CELERY_TASK_TIME_LIMIT = 900       # 15 minutes hard limit
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Don't prefetch too many tasks
 
+# Celery Beat schedule file configuration (use writable directory)
+CELERYBEAT_SCHEDULE_FILENAME = '/tmp/celerybeat-schedule'
+
 # Celery Beat Schedule
 from celery.schedules import crontab
 
