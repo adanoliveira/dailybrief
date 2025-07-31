@@ -45,7 +45,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             if feeds_only:
-                self.load_feeds_data(feeds_file, force)
+                self.load_feeds_data(feeds_file, force, fixtures_dir)
                 
             if sample_articles:
                 self.load_articles_data(articles_file, force)
@@ -54,7 +54,7 @@ class Command(BaseCommand):
             self.style.SUCCESS('Successfully seeded database!')
         )
 
-    def load_feeds_data(self, feeds_file, force):
+    def load_feeds_data(self, feeds_file, force, fixtures_dir):
         # Check if feeds data exists
         feeds_exist = (Topic.objects.exists() or Region.objects.exists() or 
                       Language.objects.exists() or Publication.objects.exists())
