@@ -20,10 +20,9 @@ SET row_security = off;
 -- Name: auth; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
-CREATE SCHEMA IF NOT EXISTS auth;
 
 
-ALTER SCHEMA auth OWNER TO postgres;
+
 
 --
 -- Name: vector; Type: EXTENSION; Schema: -; Owner: -
@@ -47,7 +46,7 @@ SET default_table_access_method = heap;
 -- Name: Account; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth."Account" (
+CREATE TABLE public."nextauth_Account" (
     id text NOT NULL,
     "userId" text NOT NULL,
     type text NOT NULL,
@@ -63,13 +62,13 @@ CREATE TABLE auth."Account" (
 );
 
 
-ALTER TABLE auth."Account" OWNER TO postgres;
+ALTER TABLE public."nextauth_Account" OWNER TO postgres;
 
 --
 -- Name: EmailVerificationRequest; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth."EmailVerificationRequest" (
+CREATE TABLE public."nextauth_EmailVerificationRequest" (
     id text NOT NULL,
     email text NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -77,13 +76,13 @@ CREATE TABLE auth."EmailVerificationRequest" (
 );
 
 
-ALTER TABLE auth."EmailVerificationRequest" OWNER TO postgres;
+ALTER TABLE public."nextauth_EmailVerificationRequest" OWNER TO postgres;
 
 --
 -- Name: Session; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth."Session" (
+CREATE TABLE public."nextauth_Session" (
     id text NOT NULL,
     "sessionToken" text NOT NULL,
     "userId" text NOT NULL,
@@ -91,13 +90,13 @@ CREATE TABLE auth."Session" (
 );
 
 
-ALTER TABLE auth."Session" OWNER TO postgres;
+ALTER TABLE public."nextauth_Session" OWNER TO postgres;
 
 --
 -- Name: User; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth."User" (
+CREATE TABLE public."nextauth_User" (
     id text NOT NULL,
     name text,
     email text,
@@ -106,26 +105,26 @@ CREATE TABLE auth."User" (
 );
 
 
-ALTER TABLE auth."User" OWNER TO postgres;
+ALTER TABLE public."nextauth_User" OWNER TO postgres;
 
 --
 -- Name: VerificationToken; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth."VerificationToken" (
+CREATE TABLE public."nextauth_VerificationToken" (
     identifier text NOT NULL,
     token text NOT NULL,
     expires timestamp(3) without time zone NOT NULL
 );
 
 
-ALTER TABLE auth."VerificationToken" OWNER TO postgres;
+ALTER TABLE public."nextauth_VerificationToken" OWNER TO postgres;
 
 --
 -- Name: _prisma_migrations; Type: TABLE; Schema: auth; Owner: postgres
 --
 
-CREATE TABLE auth._prisma_migrations (
+CREATE TABLE public.nextauth_prisma_migrations (
     id character varying(36) NOT NULL,
     checksum character varying(64) NOT NULL,
     finished_at timestamp with time zone,
@@ -137,7 +136,7 @@ CREATE TABLE auth._prisma_migrations (
 );
 
 
-ALTER TABLE auth._prisma_migrations OWNER TO postgres;
+ALTER TABLE public.nextauth_prisma_migrations OWNER TO postgres;
 
 --
 -- Name: accounts_userprofile; Type: TABLE; Schema: public; Owner: postgres
@@ -2243,7 +2242,7 @@ ALTER TABLE ONLY public.analyzer_article_event ALTER COLUMN id SET DEFAULT nextv
 -- Name: Account Account_pkey; Type: CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."Account"
+ALTER TABLE ONLY public."nextauth_Account"
     ADD CONSTRAINT "Account_pkey" PRIMARY KEY (id);
 
 
@@ -2251,7 +2250,7 @@ ALTER TABLE ONLY auth."Account"
 -- Name: EmailVerificationRequest EmailVerificationRequest_pkey; Type: CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."EmailVerificationRequest"
+ALTER TABLE ONLY public."nextauth_EmailVerificationRequest"
     ADD CONSTRAINT "EmailVerificationRequest_pkey" PRIMARY KEY (id);
 
 
@@ -2259,7 +2258,7 @@ ALTER TABLE ONLY auth."EmailVerificationRequest"
 -- Name: Session Session_pkey; Type: CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."Session"
+ALTER TABLE ONLY public."nextauth_Session"
     ADD CONSTRAINT "Session_pkey" PRIMARY KEY (id);
 
 
@@ -2267,7 +2266,7 @@ ALTER TABLE ONLY auth."Session"
 -- Name: User User_pkey; Type: CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."User"
+ALTER TABLE ONLY public."nextauth_User"
     ADD CONSTRAINT "User_pkey" PRIMARY KEY (id);
 
 
@@ -2275,7 +2274,7 @@ ALTER TABLE ONLY auth."User"
 -- Name: _prisma_migrations _prisma_migrations_pkey; Type: CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth._prisma_migrations
+ALTER TABLE ONLY public.nextauth_prisma_migrations
     ADD CONSTRAINT _prisma_migrations_pkey PRIMARY KEY (id);
 
 
@@ -3267,42 +3266,42 @@ ALTER TABLE ONLY public.analyzer_article_event
 -- Name: Account_provider_providerAccountId_key; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON auth."Account" USING btree (provider, "providerAccountId");
+CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON public."nextauth_Account" USING btree (provider, "providerAccountId");
 
 
 --
 -- Name: EmailVerificationRequest_email_idx; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE INDEX "EmailVerificationRequest_email_idx" ON auth."EmailVerificationRequest" USING btree (email);
+CREATE INDEX "EmailVerificationRequest_email_idx" ON public."nextauth_EmailVerificationRequest" USING btree (email);
 
 
 --
 -- Name: Session_sessionToken_key; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE UNIQUE INDEX "Session_sessionToken_key" ON auth."Session" USING btree ("sessionToken");
+CREATE UNIQUE INDEX "Session_sessionToken_key" ON public."nextauth_Session" USING btree ("sessionToken");
 
 
 --
 -- Name: User_email_key; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE UNIQUE INDEX "User_email_key" ON auth."User" USING btree (email);
+CREATE UNIQUE INDEX "User_email_key" ON public."nextauth_User" USING btree (email);
 
 
 --
 -- Name: VerificationToken_identifier_token_key; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON auth."VerificationToken" USING btree (identifier, token);
+CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON public."nextauth_VerificationToken" USING btree (identifier, token);
 
 
 --
 -- Name: VerificationToken_token_key; Type: INDEX; Schema: auth; Owner: postgres
 --
 
-CREATE UNIQUE INDEX "VerificationToken_token_key" ON auth."VerificationToken" USING btree (token);
+CREATE UNIQUE INDEX "VerificationToken_token_key" ON public."nextauth_VerificationToken" USING btree (token);
 
 
 --
@@ -4583,16 +4582,16 @@ CREATE INDEX summariser_summarizationrequest_article_id_b405b139 ON public.summa
 -- Name: Account Account_userId_fkey; Type: FK CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."Account"
-    ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES auth."User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public."nextauth_Account"
+    ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."nextauth_User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
 -- Name: Session Session_userId_fkey; Type: FK CONSTRAINT; Schema: auth; Owner: postgres
 --
 
-ALTER TABLE ONLY auth."Session"
-    ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES auth."User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public."nextauth_Session"
+    ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."nextauth_User"(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
