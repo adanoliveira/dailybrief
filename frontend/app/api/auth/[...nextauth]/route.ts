@@ -249,7 +249,6 @@ export const authOptions: NextAuthOptions = {
     //   }
     // }),
     EmailProvider({
-      server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM || "noreply@dailybrief.com",
       // Custom function to send the verification email
       maxAge: 5 * 60, // 5 minutes instead of 24 hours
