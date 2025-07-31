@@ -102,3 +102,4 @@ frontend/.turbo/
 # Environment files with sensitive data
 .env.production
 .env.staging
+.vercel
