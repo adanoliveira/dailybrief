@@ -278,46 +278,25 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
-      console.log(`[SIGNIN] === CALLBACK STARTED ===`);
-      console.log(`[SIGNIN] Raw parameters:`, { user, account, profile });
-      
       try {
         // Allow sign in if:
         // 1. This is the first sign in (no account exists yet)
         // 2. The account is already linked to the user
         // 3. There's an existing user with the same email (auto-link)
         
-        console.log(`[SIGNIN] signIn callback called:`, { 
-          userEmail: user?.email, 
-          provider: account?.provider, 
-          emailVerified: (user as any)?.emailVerified,
-          userId: user?.id,
-          userName: user?.name
-        });
-        
         const userEmail = user?.email;
-        console.log(`[SIGNIN] Extracted email: "${userEmail}"`);
         
         if (!userEmail) {
-          console.error("[SIGNIN] DENIED - User has no email", { user, account });
-          console.log(`[SIGNIN] === RETURNING FALSE - NO EMAIL ===`);
+          console.error("Sign in denied: User has no email", { provider: account?.provider });
           return false;
         }
         
-        // For Google OAuth, just allow it (Google accounts are always verified)
-        if (account?.provider === "google") {
-          console.log(`[SIGNIN] Google provider detected, allowing sign-in`);
-        } else {
-          console.log(`[SIGNIN] Non-Google provider: ${account?.provider}`);
-        }
-        
-        console.log(`[SIGNIN] Sign in allowed: Auto-linking account with email ${userEmail}`);
-        console.log(`[SIGNIN] === RETURNING TRUE ===`);
+        // Google OAuth accounts are inherently verified through the OAuth process
+        // Email provider verification happens through magic link clicks
+        console.log(`Sign in allowed: ${account?.provider} authentication for ${userEmail}`);
         return true;
       } catch (error) {
-        console.error("[SIGNIN] Sign in callback error:", error);
-        console.error("[SIGNIN] Sign in callback user data:", { user, account, profile });
-        console.log(`[SIGNIN] === RETURNING FALSE DUE TO ERROR ===`);
+        console.error("Sign in callback error:", error);
         return false;
       }
     },
@@ -427,8 +406,8 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 180 * 24 * 60 * 60, // 180 days
   },
-  // Enable debug to diagnose AccessDenied error
-  debug: true,
+  // Enable debug in development
+  debug: process.env.NODE_ENV === "development",
 }
 
 const handler = NextAuth(authOptions)
