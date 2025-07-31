@@ -1,0 +1,318 @@
+[
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 1,
+  "fields": {
+    "operation": "quality_assessment",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {},
+    "is_active": true,
+    "created_at": "2025-05-30T16:16:01.782Z",
+    "updated_at": "2025-06-02T20:30:11.859Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 2,
+  "fields": {
+    "operation": "content_extraction",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {},
+    "is_active": true,
+    "created_at": "2025-06-03T20:03:03.531Z",
+    "updated_at": "2025-06-04T17:00:59.307Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 3,
+  "fields": {
+    "operation": "rbc_compression",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "max_tokens": 8192,
+      "temperature": 0.3
+    },
+    "is_active": true,
+    "created_at": "2025-06-11T18:48:57.523Z",
+    "updated_at": "2025-06-12T04:59:53.490Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 4,
+  "fields": {
+    "operation": "skeleton_summary",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "max_tokens": 180,
+      "temperature": 0.25
+    },
+    "is_active": true,
+    "created_at": "2025-06-11T18:48:57.526Z",
+    "updated_at": "2025-06-11T18:48:57.527Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 5,
+  "fields": {
+    "operation": "summary_critique",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "max_tokens": 120,
+      "temperature": 0.0
+    },
+    "is_active": true,
+    "created_at": "2025-06-11T18:48:57.527Z",
+    "updated_at": "2025-06-11T18:48:57.527Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 6,
+  "fields": {
+    "operation": "summary_repair",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "max_tokens": 180,
+      "temperature": 0.2
+    },
+    "is_active": true,
+    "created_at": "2025-06-11T18:48:57.528Z",
+    "updated_at": "2025-06-11T18:48:57.528Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 7,
+  "fields": {
+    "operation": "embedding_generation",
+    "provider": "openai",
+    "model": "text-embedding-3-small",
+    "config": {
+      "dimensions": 1536
+    },
+    "is_active": true,
+    "created_at": "2025-06-11T18:48:57.529Z",
+    "updated_at": "2025-06-11T18:48:57.529Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 8,
+  "fields": {
+    "operation": "linguistic_analysis",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "timeout": 30,
+      "max_tokens": 500,
+      "description": "Language detection, style analysis, and readability metrics",
+      "max_retries": 3,
+      "temperature": 0.1,
+      "response_format": "json",
+      "template_version": "v1.0_linguistic"
+    },
+    "is_active": true,
+    "created_at": "2025-06-16T20:14:03.268Z",
+    "updated_at": "2025-06-16T20:14:03.268Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 9,
+  "fields": {
+    "operation": "entity_extraction",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "timeout": 30,
+      "max_tokens": 1000,
+      "description": "Named entity recognition and classification",
+      "max_retries": 3,
+      "temperature": 0.2,
+      "response_format": "json",
+      "template_version": "v1.0_entities"
+    },
+    "is_active": true,
+    "created_at": "2025-06-16T20:14:03.271Z",
+    "updated_at": "2025-06-16T20:14:03.271Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 10,
+  "fields": {
+    "operation": "event_detection",
+    "provider": "openai",
+    "model": "o3-mini",
+    "config": {
+      "timeout": 30,
+      "max_tokens": 600,
+      "description": "Main event identification and fact extraction",
+      "max_retries": 3,
+      "temperature": 0.1,
+      "response_format": "json",
+      "template_version": "v1.0_events"
+    },
+    "is_active": true,
+    "created_at": "2025-06-16T20:14:03.272Z",
+    "updated_at": "2025-06-17T22:53:31.621Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 11,
+  "fields": {
+    "operation": "topic_classification",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "timeout": 30,
+      "max_tokens": 400,
+      "description": "Article topic classification and categorization",
+      "max_retries": 3,
+      "temperature": 0.1,
+      "response_format": "json",
+      "template_version": "v1.0_topics"
+    },
+    "is_active": true,
+    "created_at": "2025-06-16T20:14:03.273Z",
+    "updated_at": "2025-06-16T20:14:03.273Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 12,
+  "fields": {
+    "operation": "region_classification",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {
+      "timeout": 30,
+      "max_tokens": 300,
+      "description": "Geographic region identification and classification",
+      "max_retries": 3,
+      "temperature": 0.1,
+      "response_format": "json",
+      "template_version": "v1.0_regions"
+    },
+    "is_active": true,
+    "created_at": "2025-06-16T20:14:03.274Z",
+    "updated_at": "2025-06-16T20:14:03.274Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 13,
+  "fields": {
+    "operation": "digest_generation",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {
+      "max_tokens": 1000,
+      "temperature": 0.3
+    },
+    "is_active": true,
+    "created_at": "2025-06-19T12:43:40.622Z",
+    "updated_at": "2025-07-02T16:31:41.731Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 14,
+  "fields": {
+    "operation": "digest_introduction",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {
+      "max_tokens": 300,
+      "temperature": 0.4
+    },
+    "is_active": true,
+    "created_at": "2025-06-19T12:49:25.973Z",
+    "updated_at": "2025-07-02T16:31:41.732Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 15,
+  "fields": {
+    "operation": "digest_topic_summary",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {
+      "max_tokens": 800,
+      "temperature": 0.3
+    },
+    "is_active": true,
+    "created_at": "2025-06-19T12:49:25.974Z",
+    "updated_at": "2025-07-02T16:31:41.732Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 16,
+  "fields": {
+    "operation": "digest_event_enhancement",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {
+      "max_tokens": 600,
+      "temperature": 0.2
+    },
+    "is_active": true,
+    "created_at": "2025-06-19T12:49:25.975Z",
+    "updated_at": "2025-07-02T16:31:41.730Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 17,
+  "fields": {
+    "operation": "digest_fallback_topic",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": {
+      "max_tokens": 800,
+      "temperature": 0.25
+    },
+    "is_active": true,
+    "created_at": "2025-06-19T12:49:25.978Z",
+    "updated_at": "2025-07-02T16:31:41.731Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 18,
+  "fields": {
+    "operation": "digest_comprehensive_topic",
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "config": "{\"temperature\": 0.2, \"max_tokens\": 1500}",
+    "is_active": true,
+    "created_at": "2025-07-01T16:22:19.480Z",
+    "updated_at": "2025-07-02T16:37:49.035Z"
+  }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 19,
+  "fields": {
+    "operation": "digest_conclusion",
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "config": "{\"temperature\": 0.3, \"max_tokens\": 400}",
+    "is_active": true,
+    "created_at": "2025-07-01T16:22:19.484Z",
+    "updated_at": "2025-07-02T16:31:41.729Z"
+  }
+}
+]

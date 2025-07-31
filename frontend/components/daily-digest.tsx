@@ -139,13 +139,6 @@ function DigestError({ error, onRetry }: { error: string; onRetry: () => void })
       
       <CardHeader className="pb-4 relative z-10">
         <div className="space-y-2">
-          {/* Status indicator */}
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-              <span>Failed</span>
-            </div>
-          </div>
-          
           {/* Main headline with emoji - matches successful digest styling */}
           <CardTitle className="text-xl md:text-2xl font-bold leading-tight text-foreground">
             😞 {errorInfo.title}

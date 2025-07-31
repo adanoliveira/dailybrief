@@ -197,10 +197,10 @@ class Command(BaseCommand):
     def _show_cost_estimate(self, model, operation='quality_assessment'):
         """Show cost estimate for AI operations."""
         if operation == 'quality_assessment':
-        self.stdout.write(f"\n💰 Cost Estimates (per 1000 evaluations):")
-        # Typical quality assessment: ~8000 input tokens, ~800 output tokens
-        typical_input = 8000
-        typical_output = 800
+            self.stdout.write(f"\n💰 Cost Estimates (per 1000 evaluations):")
+            # Typical quality assessment: ~8000 input tokens, ~800 output tokens
+            typical_input = 8000
+            typical_output = 800
         elif operation == 'content_extraction':
             self.stdout.write(f"\n💰 Cost Estimates (per 1000 extractions):")
             # Typical content extraction: ~15000 input tokens, ~2000 output tokens
@@ -228,7 +228,8 @@ class Command(BaseCommand):
                 # GPT-4.1 (full): $2.00/1M input, $8.00/1M output
                 cost_per_eval = (typical_input * 0.000002) + (typical_output * 0.000008)
                 cost_1k = cost_per_eval * 1000
-                self.stdout.write(f"   🔴 GPT-4.1 Full: ~${cost_1k:.2f} (${cost_per_eval:.6f} per evaluation)")
+                suffix = "evaluation" if operation == 'quality_assessment' else "extraction"
+                self.stdout.write(f"   🔴 GPT-4.1 Full: ~${cost_1k:.2f} (${cost_per_eval:.6f} per {suffix})")
         elif 'gpt-4o-mini' in model_lower:
             # GPT-4o-mini: $0.15/1M input, $0.075/1M output
             cost_per_eval = (typical_input * 0.00000015) + (typical_output * 0.000000075)
