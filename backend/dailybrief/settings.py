@@ -235,7 +235,8 @@ CELERY_TASK_TIME_LIMIT = 900       # 15 minutes hard limit
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Don't prefetch too many tasks
 
 # Celery Beat schedule file configuration (use writable directory)
-CELERYBEAT_SCHEDULE_FILENAME = '/tmp/celerybeat-schedule'
+# Celery 5.x uses lowercase setting names
+beat_schedule_filename = '/tmp/celerybeat-schedule'
 
 # Celery Beat Schedule
 from celery.schedules import crontab

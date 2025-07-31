@@ -30,7 +30,7 @@
         "dockerfilePath": "Dockerfile"
       },
       "deploy": {
-        "startCommand": "celery -A dailybrief beat --loglevel=info"
+        "startCommand": "celery -A dailybrief beat --loglevel=info --schedule=/tmp/celerybeat-schedule"
       },
       "restartPolicyType": "always"
     }
