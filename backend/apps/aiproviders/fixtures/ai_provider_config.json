@@ -314,5 +314,18 @@
     "created_at": "2025-07-01T16:22:19.484Z",
     "updated_at": "2025-07-02T16:31:41.729Z"
   }
+},
+{
+  "model": "aiproviders.aiproviderconfig",
+  "pk": 20,
+  "fields": {
+    "operation": "summarization",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "config": {},
+    "is_active": true,
+    "created_at": "2025-07-31T22:56:31.569Z",
+    "updated_at": "2025-07-31T22:56:31.569Z"
+  }
 }
 ]
