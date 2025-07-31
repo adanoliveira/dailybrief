@@ -1,0 +1,38 @@
+# Core Django dependencies
+django==5.0.2
+djangorestframework==3.16.0
+django-cors-headers==4.7.0
+python-dotenv==1.1.0
+psycopg2-binary==2.9.10
+pgvector==0.2.5
+celery==5.5.2
+redis==5.2.1
+newsapi-python==0.2.7
+supabase==1.2.0
+pyjwt==2.8.0
+requests==2.31.0
+flower==2.0.1
+
+# Production server dependencies
+gunicorn==21.2.0
+gevent==23.9.1
+
+# Basic content fetching (without heavy ML)
+beautifulsoup4==4.12.3
+readability-lxml==0.8.1
+lxml==5.1.0
+html2text==2024.2.26
+brotli==1.1.0
+
+# Lightweight alternatives for staging
+# (We'll add back ML packages for production)
+langdetect==1.0.9
+textstat==0.7.3
+
+# Note: Excluded for staging to reduce build size:
+# - spacy (500MB+)
+# - scipy (100MB+) 
+# - sentence-transformers (200MB+)
+# - fasttext (50MB+)
+# - gensim (100MB+)
+# - langchain, openai, anthropic (API clients only) 
