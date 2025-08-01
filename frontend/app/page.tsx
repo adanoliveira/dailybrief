@@ -7,7 +7,9 @@ import { useUser } from "@/lib/user-context"
 import { Button } from "@/components/ui/button"
 import { HeroSection } from "@/components/hero-section"
 import { WorldNewsFeed } from "@/components/world-news-feed"
+import { PublicFeedCTA } from "@/components/public-feed-cta"
 import { LogoHorizontal } from "@/components/ui/logo"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 
 export default function HomePage() {
@@ -75,26 +77,38 @@ export default function HomePage() {
   if (sessionStatus === "unauthenticated") {
     return (
       <main className="min-h-screen bg-background">
-        <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-          <div className="container flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
+        <header className="sticky top-0 z-50 border-b bg-background">
+          <div className="container flex h-16 items-center justify-between min-w-0">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
               <LogoHorizontal priority />
+              <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-300">
+                v1.0.0-alpha
+              </Badge>
             </Link>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 shrink-0">
               <Link href="/auth">
                 <Button variant="ghost" size="sm">
                   Sign In
                 </Button>
               </Link>
-              <Link href="/auth">
+              {/* <Link href="/auth">
                 <Button size="sm">Get Started</Button>
-              </Link>
+              </Link> */}
             </div>
           </div>
         </header>
 
         <HeroSection />
         <WorldNewsFeed publicMode={true} />
+        <PublicFeedCTA />
+        
+        <footer className="border-t bg-background">
+          <div className="container py-8 text-center">
+            <div className="text-xs text-muted-foreground">
+              DailyBrief v1.0.0-alpha • Built with ❤️ • Early Access Preview
+            </div>
+          </div>
+        </footer>
       </main>
     )
   }

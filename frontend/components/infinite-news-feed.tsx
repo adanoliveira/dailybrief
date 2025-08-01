@@ -60,8 +60,8 @@ export function InfiniteNewsFeed({
     isLoadingPending,
     loadPendingArticles
   } = useFeed(feedType, topicSlug, searchQuery, sortOrder, {
-    backgroundSync: true // Enable background sync for smooth UX
-  })
+    backgroundSync: !publicMode // Disable background sync for public mode
+  }, publicMode)
 
   // Set up intersection observer for infinite scroll
   const lastArticleRef = useCallback(
@@ -534,7 +534,7 @@ export function InfiniteNewsFeed({
         </div>
       )}
 
-      {!hasMore && !isLoading && articles.length > 0 && (
+      {!hasMore && !isLoading && articles.length > 0 && !publicMode && (
         <Card className="bg-primary/5 border-primary/20 text-center">
           <CardContent className="pt-6 pb-4">
             <div className="flex justify-center mb-4">

@@ -152,7 +152,7 @@ services:
       - /app/src/generated
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:8000/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=dev-nextauth-secret-replace-in-production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/dailybrief?schema=auth

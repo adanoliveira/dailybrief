@@ -408,10 +408,13 @@ def public_world_feed(request):
     search_query = request.GET.get('search')
     
     # Base query - get top headlines from US publications only with completed analysis (temporary filter for initial version)
+    # Only include articles with images for better visual showcase
     queryset = Article.objects.filter(
         is_top_headline=True,
         analyzer_status='completed',
-        publication__regions__code='us'  # Only US publications
+        publication__regions__code='us',  # Only US publications
+        image_url__isnull=False,  # Only articles with images
+        image_url__gt=''  # Exclude empty image URLs
     ).select_related('language', 'publication').prefetch_related('topics').distinct()
     
     # Apply topic filter if specified

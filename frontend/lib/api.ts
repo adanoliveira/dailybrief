@@ -549,11 +549,20 @@ export async function getPublicWorldFeed(params: ArticleQueryParams = {}): Promi
   if (params.search) queryParams.append('search', params.search);
   
   const queryString = queryParams.toString();
-  const endpoint = `/api/articles/public-world${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/articles/public-world${queryString ? `?${queryString}` : ''}`;
   
   // Use regular fetch instead of fetchWithAuth to work for unauthenticated users
-  const baseUrl = getBaseUrl();
-  const fullUrl = `${baseUrl}${endpoint}`;
+  let baseUrl = getBaseUrl();
+  
+  // Apply hostname conversion at request time for browser requests (same logic as fetchWithAuth)
+  if (typeof window !== 'undefined' && baseUrl.includes('backend:8000')) {
+    baseUrl = baseUrl.replace('backend:8000', 'localhost:8000');
+    console.log(`getPublicWorldFeed: Converted Docker hostname for browser request: ${baseUrl}`);
+  }
+  
+  // Add /api to baseUrl since we're not using fetchWithAuth
+  const apiBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+  const fullUrl = `${apiBaseUrl}${endpoint}`;
   
   console.log(`Requesting public world feed from: ${fullUrl}`);
   

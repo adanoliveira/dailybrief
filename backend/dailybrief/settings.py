@@ -425,6 +425,13 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=8, minute=30),  # 8:30 AM UTC
         'kwargs': {'force_regenerate': False},  # Only generate if no digest from last 24h
     },
+
+    # Generate daily digests every 10 minutes for testing
+    'generate-daily-digests-every-10min': {
+        'task': 'apps.content.digest.tasks.generate_daily_digests_for_all_users',
+        'schedule': crontab(minute='*/10'),  # Every 10 minutes
+        'kwargs': {'force_regenerate': False},
+    },
     
     # Cleanup old digests - Weekly on Sunday at 1:00 AM
     'cleanup-old-digests': {

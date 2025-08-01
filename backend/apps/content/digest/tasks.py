@@ -25,7 +25,7 @@ from .models import Digest
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=300, name='generate-daily-digests')
+@shared_task(bind=True, max_retries=3, default_retry_delay=300)
 def generate_daily_digests_for_all_users(self, target_date: str = None, force_regenerate: bool = False):
     """
     Generate daily digests for all eligible users.
@@ -273,7 +273,7 @@ def cleanup_old_digests(days_to_keep: int = 90):
         }
 
 
-@shared_task(name='regenerate-failed-digests')
+@shared_task
 def regenerate_failed_digests(target_date: str = None, max_attempts: int = 3):
     """
     Regenerate digests that failed during generation.

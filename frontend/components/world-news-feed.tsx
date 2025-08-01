@@ -8,7 +8,7 @@ interface WorldNewsFeedProps {
 
 export function WorldNewsFeed({ publicMode = false }: WorldNewsFeedProps) {
   return (
-    <section className="py-16 bg-muted/30">
+    <section className="py-12">
       <div className="container max-w-4xl">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold tracking-tight mb-4">
