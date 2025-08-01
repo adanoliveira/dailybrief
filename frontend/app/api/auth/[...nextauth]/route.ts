@@ -102,8 +102,13 @@ async function syncUserWithBackend(user: any): Promise<any> {
       // Server-side: Use backend service name or localhost
       baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     } else {
-      // Client-side: Use browser-accessible URL
-      baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      // Client-side: Convert Docker hostname to localhost if needed
+      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envApiUrl && envApiUrl.includes('backend:8000')) {
+        baseUrl = envApiUrl.replace('backend:8000', 'localhost:8000');
+      } else {
+        baseUrl = envApiUrl || "http://localhost:8000";
+      }
     }
     
     // Construct the API URL properly
@@ -195,7 +200,21 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     // If using the offline mode token, return false to direct to onboarding
     if (token === "offline_mode_token") return false;
     
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // Handle Docker hostname conversion for browser requests
+    let baseUrl: string;
+    const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+    
+    if (typeof window === 'undefined') {
+      // Server-side: Use environment variable as-is
+      baseUrl = envApiUrl || "http://localhost:8000";
+    } else {
+      // Client-side: Convert Docker hostname to localhost if needed
+      if (envApiUrl && envApiUrl.includes('backend:8000')) {
+        baseUrl = envApiUrl.replace('backend:8000', 'localhost:8000');
+      } else {
+        baseUrl = envApiUrl || "http://localhost:8000";
+      }
+    }
     
     // Construct the API URL properly
     let apiUrl: string;

@@ -59,15 +59,36 @@ class ApiClient {
    * Construct the full URL for the API endpoint
    */
   private getUrl(endpoint: string): string {
-    // Make sure endpoint starts with a slash
-    const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+    // Apply hostname conversion at request time for browser requests
+    let currentBaseUrl = this.baseUrl;
     
-    // Remove duplicate /api prefix (if the endpoint already has it and we're adding it)
-    if (formattedEndpoint.startsWith('/api/')) {
-      return `${this.baseUrl}${formattedEndpoint}`
+    if (typeof window !== 'undefined') {
+      // We're in the browser - check if we need to convert Docker hostname
+      if (currentBaseUrl.includes('backend:8000')) {
+        currentBaseUrl = currentBaseUrl.replace('backend:8000', 'localhost:8000');
+        console.log(`API Client: Converted Docker hostname for browser request: ${currentBaseUrl}`);
+      }
     }
     
-    return `${this.baseUrl}/api${formattedEndpoint}`
+    // Clean the endpoint - ensure it starts with /
+    let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+    
+    // If endpoint already has /api/ prefix, remove it since we'll add it properly
+    if (cleanEndpoint.startsWith('/api/')) {
+      cleanEndpoint = cleanEndpoint.substring(4) // Remove '/api'
+    }
+    
+    // Ensure baseUrl ends with /api (no trailing slash)
+    let finalBaseUrl = currentBaseUrl
+    if (!finalBaseUrl.endsWith('/api')) {
+      finalBaseUrl += '/api'
+    }
+    
+    // Combine base URL with clean endpoint
+    const fullUrl = `${finalBaseUrl}${cleanEndpoint}`
+    
+    // Clean up any double slashes except after protocol
+    return fullUrl.replace(/([^:]\/)\/+/g, '$1')
   }
 
   /**
@@ -402,16 +423,7 @@ class ApiClient {
 }
 
 // Create a singleton instance with the API URL from environment variables
-let baseUrl: string;
-
-// Check if we're running in a browser environment
-if (typeof window !== 'undefined') {
-  // Client-side (browser): Use NEXT_PUBLIC_API_URL from environment
-  baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-} else {
-  // Server-side: Can use backend hostname (Docker service name)
-  baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
-}
+const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export const apiClient = new ApiClient(baseUrl);
 

@@ -3,25 +3,31 @@ import { getSession } from 'next-auth/react';
 
 // Get the correct base URL based on environment
 const getBaseUrl = () => {
-  // Detect if running in browser or server
+  // Use NEXT_PUBLIC_API_URL if available, otherwise fallback based on environment
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // Detect if running in browser or server for fallback
   const isBrowser = typeof window !== 'undefined';
   
   if (isBrowser) {
-    // In browser - use NEXT_PUBLIC_API_URL if available, otherwise fallback to hostname:8000
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      return process.env.NEXT_PUBLIC_API_URL;
-    }
+    // In browser - fallback to current hostname
     const hostname = window.location.hostname;
     return `http://${hostname}:8000`;
   } else {
-    // In server - use environment variable or localhost as fallback
-    return process.env.API_URL || 'http://localhost:8000';
+    // In server - fallback to localhost
+    return 'http://localhost:8000';
   }
 };
 
 // Create an axios instance with default config
 export const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: (() => {
+    const baseUrl = getBaseUrl();
+    // Remove /api suffix if present to avoid double /api when used directly
+    return baseUrl.endsWith('/api') ? baseUrl.slice(0, -4) : baseUrl;
+  })(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -57,18 +63,6 @@ api.interceptors.request.use(async (config) => {
   const csrfToken = getCookie('csrftoken');
   if (csrfToken && config.method !== 'get') {
     config.headers.set('X-CSRFToken', csrfToken);
-  }
-  
-  // Fix doubled /api path if present
-  if (config.url) {
-    if (config.url.startsWith('/api/api/')) {
-    config.url = config.url.replace('/api/api/', '/api/');
-    console.log('Fixed doubled API path:', config.url);
-    } else if (!config.url.startsWith('/api/') && !config.url.startsWith('http')) {
-      // Ensure URL starts with /api/
-      config.url = `/api${config.url.startsWith('/') ? config.url : '/' + config.url}`;
-      console.log('Added API prefix to URL:', config.url);
-    }
   }
   
   return config;
@@ -245,14 +239,32 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     ...options.headers,
   };
   
-  // Ensure endpoint has consistent format
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const apiPath = path.startsWith('/api/') ? path : `/api${path}`;
+  // Clean endpoint construction
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   
-  // Use environment-aware base URL
-  const baseUrl = getBaseUrl();
-  const fullUrl = `${baseUrl}${apiPath}`;
-  console.log(`Fetching from: ${fullUrl}`);
+  // Remove /api prefix if present (we'll add it consistently)
+  if (cleanEndpoint.startsWith('/api/')) {
+    cleanEndpoint = cleanEndpoint.substring(4); // Remove '/api'
+  }
+  
+  // Get base URL and apply hostname conversion for browser requests
+  let baseUrl = getBaseUrl();
+  
+  // Apply hostname conversion at request time for browser requests
+  if (typeof window !== 'undefined' && baseUrl.includes('backend:8000')) {
+    baseUrl = baseUrl.replace('backend:8000', 'localhost:8000');
+    console.log(`fetchWithAuth: Converted Docker hostname for browser request: ${baseUrl}`);
+  }
+  
+  // Ensure base URL ends with /api
+  let finalBaseUrl = baseUrl;
+  if (!finalBaseUrl.endsWith('/api')) {
+    finalBaseUrl += '/api';
+  }
+  
+  // Construct final URL
+  const fullUrl = `${finalBaseUrl}${cleanEndpoint}`;
+  console.log(`fetchWithAuth: Requesting from: ${fullUrl}`);
     
   try {
     const response = await fetch(fullUrl, {
@@ -704,81 +716,35 @@ export async function generateArticleSummary(
   articleId: string, 
   options: SummaryGenerationOptions = {}
 ): Promise<SummaryGenerationResponse> {
-  const session = await getSession();
-  const authToken = session?.user?.django_token || session?.accessToken;
+  const endpoint = `/articles/${articleId}/generate-summary`;
+  console.log(`Generating summary for article ID: ${articleId}`);
   
-  const response = await fetch(`${getBaseUrl()}/api/articles/${articleId}/generate-summary`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-    },
-    body: JSON.stringify(options),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    // Handle standardized error response
-    if (errorData.success === false) {
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  try {
+    const result = await fetchWithAuth(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+    return result;
+  } catch (err) {
+    console.error(`Failed to generate summary for article ${articleId}:`, err);
+    throw err;
   }
-    // Handle legacy error format
-    throw new Error(errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  const responseData = await response.json();
-  
-  // Handle standardized success response - unwrap the data
-  if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-    if (responseData.success === true) {
-      return responseData.data;
-    } else {
-      throw new Error(responseData.error || 'Summary generation failed');
-    }
-  }
-  
-  // Fallback: return direct data (for backward compatibility)
-  return responseData;
 }
 
 /**
  * Check the status of summary generation for an article
  */
 export async function getArticleSummaryStatus(articleId: string): Promise<SummaryStatusResponse> {
-  const session = await getSession();
-  const authToken = session?.user?.django_token || session?.accessToken;
+  const endpoint = `/articles/${articleId}/summary-status`;
+  console.log(`Checking summary status for article ID: ${articleId}`);
   
-  const response = await fetch(`${getBaseUrl()}/api/articles/${articleId}/summary-status`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    // Handle standardized error response
-    if (errorData.success === false) {
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  try {
+    const result = await fetchWithAuth(endpoint);
+    return result;
+  } catch (err) {
+    console.error(`Failed to get summary status for article ${articleId}:`, err);
+    throw err;
   }
-    // Handle legacy error format
-    throw new Error(errorData.error || errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  const responseData = await response.json();
-  
-  // Handle standardized success response - unwrap the data
-  if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-    if (responseData.success === true) {
-      return responseData.data;
-    } else {
-      throw new Error(responseData.error || 'Failed to get summary status');
-    }
-  }
-  
-  // Fallback: return direct data (for backward compatibility)
-  return responseData;
 }
 
 /**
