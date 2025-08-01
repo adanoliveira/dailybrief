@@ -94,32 +94,61 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
 // Function to sync user with Django backend
 async function syncUserWithBackend(user: any): Promise<any> {
   try {
-    // Different base URLs for server-side vs client-side requests
-    let baseUrl: string;
+    // Handle server-side vs client-side URL construction
+    let apiUrl: string;
     
     // Check if we're running on the server (NextAuth JWT callback runs server-side)
     if (typeof window === 'undefined') {
-      // Server-side: Use backend service name or localhost
-      baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    } else {
-      // Client-side: Convert Docker hostname to localhost if needed
-      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (envApiUrl && envApiUrl.includes('backend:8000')) {
-        baseUrl = envApiUrl.replace('backend:8000', 'localhost:8000');
-      } else {
-        baseUrl = envApiUrl || "http://localhost:8000";
+      // Server-side: Detect if we're in Docker by checking hostname resolution
+      let backendHost: string;
+      
+      try {
+        // Try to detect if we're in Docker by checking environment or using backend hostname
+        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        
+        // If we have a DATABASE_URL with 'db:5432', we're likely in Docker
+        const isDocker = process.env.DATABASE_URL?.includes('db:5432') || false;
+        
+        if (isDocker) {
+          // We're in Docker - use the backend service name
+          backendHost = 'backend:8000';
+          apiUrl = `http://${backendHost}/api/accounts/sync/`;
+          console.log(`[Sync] Detected Docker environment, using backend service: ${apiUrl}`);
+        } else {
+          // Not in Docker - use NEXT_PUBLIC_API_URL (works for both localhost dev and production)
+          const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+          if (envApiUrl) {
+            // Remove /api suffix if present to avoid duplication  
+            const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+            apiUrl = `${cleanUrl}/api/accounts/sync/`;
+          } else {
+            // Final fallback to localhost
+            apiUrl = "http://localhost:8000/api/accounts/sync/";
+          }
+          console.log(`[Sync] Using environment API URL for server-side request: ${apiUrl}`);
+        }
+      } catch (error) {
+        // Fallback to environment URL or localhost if detection fails
+        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (envApiUrl) {
+          const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+          apiUrl = `${cleanUrl}/api/accounts/sync/`;
+        } else {
+          apiUrl = "http://localhost:8000/api/accounts/sync/";
+        }
+        console.log(`[Sync] Failed to detect environment, using fallback: ${apiUrl}`);
       }
-    }
-    
-    // Construct the API URL properly
-    let apiUrl: string;
-    if (baseUrl.includes('/api')) {
-      // If baseUrl already includes /api (like http://backend:8000/api), append the endpoint
-      apiUrl = `${baseUrl}/accounts/sync/`;
     } else {
-      // If baseUrl doesn't include /api (like http://localhost:8000), add it
-      const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
+      // Client-side: Always use localhost (browser can't resolve Docker hostnames)
+      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envApiUrl) {
+        // Remove /api if it's already in the base URL to avoid duplication
+        const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+        apiUrl = `${cleanUrl}/api/accounts/sync/`;
+      } else {
+        apiUrl = "http://localhost:8000/api/accounts/sync/";
+      }
+      console.log(`[Sync] Client-side request URL: ${apiUrl}`);
     }
     
     const requestData = {
@@ -200,31 +229,52 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     // If using the offline mode token, return false to direct to onboarding
     if (token === "offline_mode_token") return false;
     
-    // Handle Docker hostname conversion for browser requests
-    let baseUrl: string;
-    const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+    // Handle server-side vs client-side URL construction
+    let apiUrl: string;
     
     if (typeof window === 'undefined') {
-      // Server-side: Use environment variable as-is
-      baseUrl = envApiUrl || "http://localhost:8000";
-    } else {
-      // Client-side: Convert Docker hostname to localhost if needed
-      if (envApiUrl && envApiUrl.includes('backend:8000')) {
-        baseUrl = envApiUrl.replace('backend:8000', 'localhost:8000');
-      } else {
-        baseUrl = envApiUrl || "http://localhost:8000";
+      // Server-side: Detect if we're in Docker environment
+      try {
+        // If we have a DATABASE_URL with 'db:5432', we're likely in Docker
+        const isDocker = process.env.DATABASE_URL?.includes('db:5432') || false;
+        
+        if (isDocker) {
+          // We're in Docker - use the backend service name
+          apiUrl = `http://backend:8000/api/accounts/sync/`;
+          console.log(`[OnboardingCheck] Using Docker backend service: ${apiUrl}`);
+        } else {
+          // Not in Docker - use NEXT_PUBLIC_API_URL (works for both localhost dev and production)
+          const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+          if (envApiUrl) {
+            // Remove /api suffix if present to avoid duplication
+            const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+            apiUrl = `${cleanUrl}/api/accounts/sync/`;
+          } else {
+            // Final fallback to localhost
+            apiUrl = "http://localhost:8000/api/accounts/sync/";
+          }
+          console.log(`[OnboardingCheck] Using environment API URL: ${apiUrl}`);
+        }
+      } catch (error) {
+        // Fallback to environment URL or localhost if detection fails
+        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (envApiUrl) {
+          const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+          apiUrl = `${cleanUrl}/api/accounts/sync/`;
+        } else {
+          apiUrl = "http://localhost:8000/api/accounts/sync/";
+        }
+        console.log(`[OnboardingCheck] Failed to detect environment, using fallback: ${apiUrl}`);
       }
-    }
-    
-    // Construct the API URL properly
-    let apiUrl: string;
-    if (baseUrl.includes('/api')) {
-      // If baseUrl already includes /api (like http://backend:8000/api), append the endpoint
-      apiUrl = `${baseUrl}/accounts/sync/`;
     } else {
-      // If baseUrl doesn't include /api (like http://localhost:8000), add it
-      const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      apiUrl = `${cleanBaseUrl}/api/accounts/sync/`;
+      // Client-side: Always use localhost
+      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envApiUrl) {
+        const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
+        apiUrl = `${cleanUrl}/api/accounts/sync/`;
+      } else {
+        apiUrl = "http://localhost:8000/api/accounts/sync/";
+      }
     }
     
     // Checking onboarding status with backend
@@ -249,7 +299,7 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     const data = await response.json();
     return !!data.has_completed_onboarding;
   } catch (error) {
-    console.error("Error checking user status:", error);
+    console.error("Error checking onboarding status:", error);
     return false;
   }
 }
