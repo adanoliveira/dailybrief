@@ -175,7 +175,7 @@ export function HeroAnimation() {
         <svg
           width="100%"
           height="100%"
-          viewBox="-20 35 350 180"
+          viewBox="-10 35 340 180"
           className="absolute inset-0"
           preserveAspectRatio="xMidYMid meet"
         >

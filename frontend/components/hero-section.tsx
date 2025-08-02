@@ -32,7 +32,7 @@ export function HeroSection() {
             </p>
           </div>
         </div>
-        <div className="relative h-[320px] sm:h-[340px] md:h-[420px] rounded-lg overflow-hidden lg:order-2 -mx-6 sm:-mx-4 lg:mx-0">
+        <div className="relative h-[320px] sm:h-[340px] md:h-[420px] rounded-lg overflow-hidden lg:order-2">
           <HeroAnimation />
         </div>
       </div>
