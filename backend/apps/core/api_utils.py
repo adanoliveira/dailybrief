@@ -122,7 +122,7 @@ def authenticate_request(request):
             # Get user from database
             try:
                 user = User.objects.get(id=user_id)
-                logger.info(f"Authenticated user: {user.username} (ID: {user.id})")
+                logger.debug(f"Authenticated user ID: {user.id}")
                 return True, user, None
             except User.DoesNotExist:
                 logger.warning(f"User with ID {user_id} not found")

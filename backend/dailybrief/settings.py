@@ -174,12 +174,17 @@ WSGI_APPLICATION = 'dailybrief.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+def _get_database_password() -> str:
+    if DEBUG:
+        return os.getenv('SUPABASE_DB_PASSWORD', '')
+    return _get_required_env('SUPABASE_DB_PASSWORD')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('SUPABASE_DB_NAME', 'postgres'),
         'USER': os.getenv('SUPABASE_DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('SUPABASE_DB_PASSWORD', ''),
+        'PASSWORD': _get_database_password(),
         'HOST': os.getenv('SUPABASE_DB_HOST', 'localhost'),
         'PORT': os.getenv('SUPABASE_DB_PORT', '5432'),
     }

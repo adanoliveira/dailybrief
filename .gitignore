@@ -109,3 +109,4 @@ docker-compose.override.yml
 # Misc
 *.bak
 .cursorrules
+docs/

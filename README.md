@@ -152,6 +152,8 @@ ANTHROPIC_API_KEY       # Alternative AI provider
 NEWS_API_KEY            # For news article fetching
 ```
 
+If these keys are missing, the app can still boot locally, but news ingestion and AI processing features will be unavailable.
+
 ### Environment Setup
 
 1. **Clone the repository**:
