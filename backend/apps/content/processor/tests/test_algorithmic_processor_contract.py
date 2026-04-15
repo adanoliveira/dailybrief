@@ -227,5 +227,5 @@ class AlgorithmicProcessorContractTests(SimpleTestCase):
 
         self.assertIsNotNone(best_candidate)
         self.assertEqual(best_candidate.element.get("id"), "article-body")
-        self.assertGreaterEqual(best_candidate.final_score, 100000.0)
-        self.assertLessEqual(best_candidate.final_score, 160000.0)
+        self.assertGreaterEqual(best_candidate.final_score, 130000.0)
+        self.assertLessEqual(best_candidate.final_score, 150000.0)
