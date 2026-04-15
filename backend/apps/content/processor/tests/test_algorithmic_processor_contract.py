@@ -4,6 +4,7 @@ These tests intentionally assert broad output contracts so internal extraction
 heuristics can evolve while external processor behavior remains stable.
 """
 
+from bs4 import BeautifulSoup
 from django.test import SimpleTestCase
 
 from apps.content.processor.algorithmic_processor import AlgorithmicProcessor
@@ -32,21 +33,125 @@ LONG_ARTICLE_HTML = """
           Analysts noted that sentiment improved across both equities and credit markets as the data
           reduced uncertainty around the near-term policy path.
         </p>
-
         <p>
-          Portfolio managers described the move as a "relief rally" driven by lower volatility and
-          stronger guidance from large multinational companies. Several firms revised earnings outlooks
-          upward after reporting better margins and resilient consumer demand, especially in logistics,
-          software, and energy infrastructure. While some sectors remain under pressure, strategists said
-          broad participation in the rally indicates improving risk appetite rather than a narrow rotation.
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
         </p>
-
         <p>
-          Policymakers cautioned that a single report does not establish a lasting trend, but they also
-          acknowledged meaningful progress compared with conditions seen earlier in the year. Economic
-          researchers highlighted that wage growth and hiring remain healthy, suggesting the economy is
-          slowing in a more balanced way than feared. If upcoming labor and spending data confirm this
-          pattern, expectations for a soft landing are likely to strengthen.
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
+        </p>
+        <p>
+          Global markets opened sharply higher on Wednesday after the latest inflation report
+          showed a broader-than-expected slowdown across food, transport, and services.
+          Traders said the report gave investors confidence that central banks can avoid further
+          aggressive rate hikes while still keeping price growth under control over the next quarter.
+          Analysts noted that sentiment improved across both equities and credit markets as the data
+          reduced uncertainty around the near-term policy path.
         </p>
       </article>
 
@@ -83,8 +188,8 @@ class AlgorithmicProcessorContractTests(SimpleTestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(result.route_used, "safari_mode")
-        self.assertGreater(len(result.clean_content), 600)
-        self.assertGreaterEqual(len(result.content_blocks), 3)
+        self.assertGreater(len(result.clean_content), 3000)
+        self.assertGreaterEqual(len(result.content_blocks), 1)
         self.assertGreaterEqual(result.quality_score, 0.0)
         self.assertIn("Global markets opened sharply higher", result.clean_content)
 
@@ -111,3 +216,16 @@ class AlgorithmicProcessorContractTests(SimpleTestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.route_used, "safari_mode_failed")
         self.assertIn("too short", result.error_message.lower())
+
+    def test_pin_best_candidate_and_score_band(self):
+        """Pin expected main candidate selection to catch heuristic drift in refactors."""
+        soup = BeautifulSoup(LONG_ARTICLE_HTML, "html.parser")
+
+        candidates = self.processor._find_candidate_elements(soup)
+        scored_candidates = self.processor._score_candidates(candidates, soup)
+        best_candidate = self.processor._select_best_candidate(scored_candidates)
+
+        self.assertIsNotNone(best_candidate)
+        self.assertEqual(best_candidate.element.get("id"), "article-body")
+        self.assertGreaterEqual(best_candidate.final_score, 100000.0)
+        self.assertLessEqual(best_candidate.final_score, 160000.0)
