@@ -14,7 +14,7 @@ Usage:
         user = request.user  # Automatically authenticated
         return create_response({'data': 'success'})
 """
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from django.conf import settings
 from django.contrib.auth.models import User
 import json
@@ -136,7 +136,32 @@ def authenticate_request(request):
         logger.warning(f"Unrecognized Authorization header format: {auth_header[:10]}...")
         return False, None, "Invalid authorization format"
 
-def get_auth_response(message, status=401):
+def _get_allowed_origins() -> List[str]:
+    """Return normalized CORS origins from settings."""
+    origins = getattr(settings, "CORS_ALLOWED_ORIGINS", [])
+    return [origin for origin in origins if origin]
+
+
+def _resolve_cors_origin(request: Optional[HttpRequest] = None) -> str:
+    """
+    Resolve which CORS origin should be set on responses.
+
+    Prefers the incoming Origin header when it is explicitly allowlisted.
+    Falls back to the first configured allowlisted origin.
+    """
+    allowed_origins = _get_allowed_origins()
+    if not allowed_origins:
+        return ""
+
+    if request is not None:
+        request_origin = request.META.get("HTTP_ORIGIN", "").strip()
+        if request_origin in allowed_origins:
+            return request_origin
+
+    return allowed_origins[0]
+
+
+def get_auth_response(message, status=401, request: Optional[HttpRequest] = None):
     """
     Create a standard authentication error response.
     
@@ -152,10 +177,7 @@ def get_auth_response(message, status=401):
         "detail": message
     }, status=status)
     
-    # Add CORS headers
-    response["Access-Control-Allow-Origin"] = "*"
-    response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    _add_cors_headers(response, request=request, allowed_methods="GET, OPTIONS")
     
     return response
 
@@ -163,7 +185,11 @@ def get_auth_response(message, status=401):
 # RESPONSE UTILITIES
 # ============================================================================
 
-def create_response(data: Dict[str, Any], status: int = 200) -> JsonResponse:
+def create_response(
+    data: Dict[str, Any],
+    status: int = 200,
+    request: Optional[HttpRequest] = None
+) -> JsonResponse:
     """
     Create a standardized JSON response with CORS headers.
     
@@ -175,14 +201,15 @@ def create_response(data: Dict[str, Any], status: int = 200) -> JsonResponse:
         JsonResponse with CORS headers and standardized format
     """
     response = JsonResponse(data, safe=False, status=status)
-    _add_cors_headers(response)
+    _add_cors_headers(response, request=request)
     return response
 
 def create_error_response(
     message: str, 
     status: int = 400, 
     error_code: Optional[str] = None, 
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = None,
+    request: Optional[HttpRequest] = None
 ) -> JsonResponse:
     """
     Create a standardized error response.
@@ -207,12 +234,13 @@ def create_error_response(
     if details:
         error_data["details"] = details
         
-    return create_response(error_data, status=status)
+    return create_response(error_data, status=status, request=request)
 
 def create_success_response(
     data: Dict[str, Any], 
     message: Optional[str] = None,
-    status: int = 200
+    status: int = 200,
+    request: Optional[HttpRequest] = None
 ) -> JsonResponse:
     """
     Create a standardized success response.
@@ -233,9 +261,12 @@ def create_success_response(
     if message:
         response_data["message"] = message
         
-    return create_response(response_data, status=status)
+    return create_response(response_data, status=status, request=request)
 
-def handle_options_request(allowed_methods: str = "GET, POST, PUT, DELETE, OPTIONS") -> JsonResponse:
+def handle_options_request(
+    allowed_methods: str = "GET, POST, PUT, DELETE, OPTIONS",
+    request: Optional[HttpRequest] = None
+) -> JsonResponse:
     """
     Handle OPTIONS requests for CORS preflight.
     
@@ -246,9 +277,7 @@ def handle_options_request(allowed_methods: str = "GET, POST, PUT, DELETE, OPTIO
         JsonResponse with appropriate CORS headers
     """
     response = JsonResponse({})
-    response["Access-Control-Allow-Origin"] = "*"
-    response["Access-Control-Allow-Methods"] = allowed_methods
-    response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    _add_cors_headers(response, request=request, allowed_methods=allowed_methods)
     response["Access-Control-Max-Age"] = "86400"  # 24 hours
     return response
 
@@ -330,7 +359,7 @@ def api_view(
         def wrapper(request, *args, **kwargs):
             # Handle OPTIONS requests for CORS preflight
             if request.method == "OPTIONS":
-                return handle_options_request(", ".join(allowed_methods + ["OPTIONS"]))
+                return handle_options_request(", ".join(allowed_methods + ["OPTIONS"]), request=request)
                 
             # Validate HTTP method
             if request.method.upper() not in allowed_methods:
@@ -340,7 +369,8 @@ def api_view(
                     details={
                         "allowed_methods": allowed_methods,
                         "received_method": request.method
-                    }
+                    },
+                    request=request
                 )
                 
             # Handle authentication if required
@@ -355,14 +385,15 @@ def api_view(
                 if not should_skip_auth:
                     authenticated, user, error = authenticate_request(request)
                     if not authenticated:
-                        return get_auth_response(error)
+                        return get_auth_response(error, request=request)
                     
                     # Staff requirement check
                     if staff_required and not user.is_staff:
                         return create_error_response(
                             "Staff permissions required",
                             status=403,
-                            error_code="INSUFFICIENT_PERMISSIONS"
+                            error_code="INSUFFICIENT_PERMISSIONS",
+                            request=request
                         )
                     
                     # Add authenticated user to request
@@ -388,29 +419,38 @@ def api_view(
                         details={
                             "exception_type": type(e).__name__,
                             "view_function": view_func.__name__
-                        }
+                        },
+                        request=request
                     )
                 else:
                     # Generic error in production
                     return create_error_response(
                         "An internal error occurred. Please try again.",
                         status=500,
-                        error_code="INTERNAL_ERROR"
+                        error_code="INTERNAL_ERROR",
+                        request=request
                     )
                 
         return wrapper
     
     return decorator
 
-def _add_cors_headers(response: JsonResponse) -> None:
+def _add_cors_headers(
+    response: JsonResponse,
+    request: Optional[HttpRequest] = None,
+    allowed_methods: str = "GET, POST, PUT, DELETE, OPTIONS"
+) -> None:
     """
     Add CORS headers to a response object.
     
     Args:
         response: JsonResponse object to modify
     """
-    response["Access-Control-Allow-Origin"] = "*"
-    response["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    allow_origin = _resolve_cors_origin(request)
+    if allow_origin:
+        response["Access-Control-Allow-Origin"] = allow_origin
+        response["Vary"] = "Origin"
+    response["Access-Control-Allow-Methods"] = allowed_methods
     response["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
 
 # ============================================================================

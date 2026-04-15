@@ -7,7 +7,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:?SUPABASE_DB_PASSWORD is required}
       - POSTGRES_USER=${SUPABASE_DB_USER:-postgres}
       - POSTGRES_DB=${SUPABASE_DB_NAME:-dailybrief}
     ports:
@@ -50,12 +50,12 @@ services:
         condition: service_healthy
     environment:
       - DEBUG=True
-      - SECRET_KEY=dev-secret-key-replace-in-production
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
       - SUPABASE_DB_NAME=${SUPABASE_DB_NAME:-dailybrief}
       - SUPABASE_DB_USER=${SUPABASE_DB_USER:-postgres}
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:?SUPABASE_DB_PASSWORD is required}
       - SUPABASE_DB_HOST=db
       - SUPABASE_DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -76,10 +76,10 @@ services:
       - redis
     environment:
       - DEBUG=True
-      - SECRET_KEY=dev-secret-key-replace-in-production
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - SUPABASE_DB_NAME=${SUPABASE_DB_NAME:-dailybrief}
       - SUPABASE_DB_USER=${SUPABASE_DB_USER:-postgres}
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:?SUPABASE_DB_PASSWORD is required}
       - SUPABASE_DB_HOST=db
       - SUPABASE_DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -100,10 +100,10 @@ services:
       - redis
     environment:
       - DEBUG=True
-      - SECRET_KEY=dev-secret-key-replace-in-production
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - SUPABASE_DB_NAME=${SUPABASE_DB_NAME:-dailybrief}
       - SUPABASE_DB_USER=${SUPABASE_DB_USER:-postgres}
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:?SUPABASE_DB_PASSWORD is required}
       - SUPABASE_DB_HOST=db
       - SUPABASE_DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -127,10 +127,10 @@ services:
       - celery_beat
     environment:
       - DEBUG=True
-      - SECRET_KEY=dev-secret-key-replace-in-production
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - SUPABASE_DB_NAME=${SUPABASE_DB_NAME:-dailybrief}
       - SUPABASE_DB_USER=${SUPABASE_DB_USER:-postgres}
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres}
+      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:?SUPABASE_DB_PASSWORD is required}
       - SUPABASE_DB_HOST=db
       - SUPABASE_DB_PORT=5432
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -154,8 +154,8 @@ services:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api
       - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=dev-nextauth-secret-replace-in-production
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/dailybrief?schema=auth
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       # Google OAuth configuration
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
