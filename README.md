@@ -1,636 +1,145 @@
-# DailyBrief - AI-Powered News Reader
+# DailyBrief
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
-[![Django](https://img.shields.io/badge/Django-5.0-green?logo=django)](https://djangoproject.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue?logo=postgresql)](https://postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-Containerized-blue?logo=docker)](https://docker.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
+Personalized daily news digests — AI-summarized stories from dozens of sources, grouped by topic, so staying informed takes minutes instead of hours.
 
 <p align="center">
-  <!-- Replace with actual logo when available -->
-  <img src="docs/assets/dailybrief-logo.png" alt="DailyBrief Logo" width="200"/>
+  <!-- Screenshots / demo GIFs to be added -->
+  <em>Screenshots and demo video: coming soon.</em>
 </p>
 
-> Transform your news consumption with AI-powered summaries and personalized daily digests
+## About
 
-## 🚀 Overview
+DailyBrief is a [CS50W](https://cs50.harvard.edu/web/) capstone — a practice project, but one deliberately aimed at real-app architectural ambition. It's the second project in a self-directed software-engineering track after [BestWish](https://github.com/adanoliveira/bestwish), and a step up from BestWish's single-service Flask app into a multi-service architecture: Django + Next.js + Celery + PostgreSQL with pgvector, multi-stage LLM processing, and a DB-driven AI provider layer.
 
-DailyBrief is an intelligent content aggregation platform that transforms how users consume information from across the web. By providing AI-generated summaries, personalized daily digests, and a clean mobile-first interface, DailyBrief enables users to efficiently stay informed on topics that matter to them.
+The use case is concrete: keeping informed on specific topics without reading every article every day. The app ingests articles from RSS feeds and a news API twice a day, runs each article through a four-stage content pipeline (fetch → process → summarise → analyse), clusters related articles into events via vector similarity, and assembles a per-user daily digest from the user's selected topics and publications.
 
-### 🌐 Vision
+The goal was not a toy — the attention went to the things that separate "works" from "works well": background processing, status-machine-driven restarts, provider abstraction, and cost-aware use of LLMs.
 
-DailyBrief aims to be a comprehensive web content aggregator that goes beyond traditional news sources and addresses the limitations of existing content discovery platforms:
+## Tech stack
 
-- **Diverse Content Sources**: Aggregating from both established news outlets and independent creators across multiple platforms:
-  - Traditional publishers and news sites
-  - Independent blogs and Substack newsletters
-  - YouTube channels and video content
-  - Reddit communities and discussions
-  - Podcasts and audio content
-  - Social media thought leadership
+CS50W requires a Django backend, JavaScript on the frontend, at least one database model, and mobile responsiveness. Everything else was a free choice, explained in the *Why* column.
 
-- **Target Audiences**:
-  - **Professionals seeking domain expertise**: Stay updated on industry trends and developments from trusted sources in just minutes per day
-  - **Financial professionals and investors**: Track real-time updates on macro/microeconomic news affecting investment strategies, specific assets, companies, or regions
-  - **Reputation and sentiment monitoring**: Track citations and public sentiment around specific entities, brands, or topics of interest
+| Layer | Choice | Why |
+| ----- | ------ | --- |
+| Backend | Django 5 (modular monolith) | Required by CS50W. Structured as per-domain Django apps (`articles`, `feeds`, `content`, `aiproviders`, `notifications`) rather than one monolithic app, so boundaries are legible. |
+| API | Custom decorator layer over Django views (`@api_view`) | Free choice. Lightweight alternative to full DRF viewsets — sufficient for a read-heavy JSON API without the framework overhead. |
+| Database | PostgreSQL 15 + pgvector | At least one model was required; Postgres was a free choice over SQLite. pgvector enables 1536-dim embedding similarity for entity deduplication and story clustering in the same database as the domain data. |
+| Async pipeline | Celery + Redis, Celery Beat, Flower | Free choice. News ingestion and LLM calls are slow and bursty; running them off the request thread is the only way to keep user-facing reads responsive once real article volume lands. |
+| AI providers | OpenAI + Anthropic, routed via a DB-configured `AIProviderConfig` table | Free choice. Operation names (`rbc_compression`, `entity_extraction`, …) map to `(provider, model)` tuples in the DB. Model/provider swaps ship as config changes, not code changes. |
+| NLP tooling | spaCy, fasttext (language ID), langdetect, sentence-transformers | Free choice. Cheap free tooling handles language detection and entity canonicalization; LLMs are reserved for work where they measurably outperform heuristics. |
+| Frontend | Next.js 15 (App Router) + TypeScript | JavaScript was required; framework choice was free. App Router + Server Components is current-generation React and supports per-route server rendering cleanly. |
+| Styling | Tailwind CSS + shadcn/ui | Mobile-responsive was required. shadcn provides a consistent component baseline without pulling in a full design system. |
+| Auth | NextAuth (Google OAuth + email magic link) + Prisma adapter | Free choice. Passwordless + OAuth over a self-rolled password flow. Prisma owns the auth-adapter schema; Django owns domain data — the two ORMs don't overlap. |
+| Infra | Docker Compose (dev); Railway (backend + workers) + Vercel (frontend) | Free choice. The full stack — Postgres, Redis, Django, Celery worker + Beat, Flower, Next.js — runs locally with one command; deployment is split across the two managed platforms that fit each service best. |
 
-### 🔄 Market Positioning
+## Architecture
 
-DailyBrief serves as both an alternative and complement to existing major web platforms for content consumption:
-
-- **Unlike Google**: DailyBrief offers passive discovery rather than requiring proactive searching. Content comes to you based on your interests, not your search queries.
-
-- **Unlike Meta platforms** (Facebook, Instagram): DailyBrief focuses exclusively on informational content without personal updates from friends that add noise. Content isn't subject to social feed algorithm bias, and users don't need to post content to receive value.
-
-- **Unlike X/Twitter**: DailyBrief doesn't require users to post content or follow specific accounts. It focuses on comprehensive content aggregation rather than user announcements and discussions.
-
-- **Modern reinvention**: Similar to the classic Yahoo homepage concept but reimagined with AI-powered recommendations, intelligent summarization, and personalized content curation for efficient consumption.
-
-The platform processes content through a sophisticated 5-stage AI pipeline to deliver concise, relevant information tailored to each user's specific interests and needs.
-
-### ✨ Key Features
-
-- **Personalized Daily Digests**: AI-curated summaries of content from across the web, tailored to user interests
-- **Cross-Platform Aggregation**: Unified content from traditional news, blogs, videos, podcasts, and social platforms
-- **Intelligent Summaries**: Every piece of content includes structured summaries (headline, abstract, key facts, opinions, impact)
-- **Smart Event Clustering**: Related content from different sources automatically grouped into meaningful events
-- **Domain-Specific Monitoring**: Track industry trends, financial news, or specific topics with custom filters
-- **Entity & Sentiment Tracking**: Monitor mentions and sentiment around specific companies, people, or topics
-- **Mobile-First Design**: Clean, distraction-free reading experience optimized for mobile devices
-- **Cost-Optimized AI**: Smart combination of open-source NLP and targeted LLM usage for scalable processing
-
-<details>
-<summary><strong>📸 Screenshots</strong></summary>
-<br>
-
-<!-- Replace with actual screenshots when available -->
-| Daily Digest | Article View | Headlines Feed |
-|:-------------------------:|:-------------------------:|:-------------------------:|
-| <img src="docs/assets/screenshot-digest.png" alt="Daily Digest" width="250"/> | <img src="docs/assets/screenshot-article.png" alt="Article View" width="250"/> | <img src="docs/assets/screenshot-feed.png" alt="Headlines Feed" width="250"/> |
-
-</details>
-
-## 📋 Table of Contents
-
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-- [Development](#-development)
-- [Project Structure](#-project-structure)
-- [Data Models](#-data-models)
-- [Pipeline Architecture](#-pipeline-architecture)
-- [Team Workflow](#-team-workflow)
-- [Project Status](#-project-status)
-
-## 🏛 Architecture
-
-DailyBrief implements a modular monolith architecture that combines the simplicity of a single deployable unit with the organizational benefits of microservices. This approach provides better code maintainability and organization while keeping operational overhead low.
-
-<p align="center">
-  <!-- Replace with actual architecture diagram when available -->
-  <img src="docs/assets/architecture-diagram.png" alt="DailyBrief Architecture" width="700"/>
-</p>
-
-### Modular Monolith Structure
+A multi-service monorepo. Django owns the domain data and the async content pipeline; Next.js is a separate service that reads assembled digests over a JSON API. Ingestion is scheduled by Celery Beat; workers run each article through four stages and persist state on the Article row (not in the queue), so the pipeline is restartable mid-flight and stage failures don't cascade.
 
 ```
-DailyBrief Architecture
-├── accounts/          → User management & authentication
-├── feeds/             → RSS feed management & publication tracking  
-├── articles/          → Central article repository
-├── content/           → AI processing pipeline (5 sub-apps)
-│   ├── fetcher/          → News content extraction
-│   ├── processor/        → AI content processing (content structuring & cleaning)
-│   ├── summariser/       → 4-stage AI summarization pipeline
-│   ├── analyzer/         → 8-stage analysis (entities, events, topics)
-│   └── digest/           → Daily digest generation with multiple strategies
-├── newsapi/           → News API client & request tracking
-├── aiproviders/       → AI provider abstraction & usage tracking
-├── notifications/     → User notification system
-└── core/              → Shared API utilities & authentication
+   ┌──────────────────────────┐       schedule
+   │  RSS feeds + News API    │◄──── Celery Beat (twice daily)
+   └───────────┬──────────────┘
+               │ enqueue fetch batch
+               ▼
+   ┌────────────────────────────────────────────────────────────┐
+   │  Content pipeline — Celery workers, 4 stages per article   │
+   │                                                             │
+   │   Fetch ─► Process ─► Summarise ─► Analyse                  │
+   │   raw     cleaned    RBC + headline +    entities, events,  │
+   │   HTML    content    abstract + critic   topics, regions    │
+   │                      + conditional                           │
+   │                      repair                                  │
+   └───────────┬────────────────────────────────────┬────────────┘
+               │ writes article rows + embeddings   │ LLM calls
+               ▼                                     ▼
+   ┌──────────────────────────┐      ┌─────────────────────────────┐
+   │  PostgreSQL 15 + pgvec   │◄────►│  AIProviderService          │
+   │  Article, ArticleSummary │      │  OpenAI / Anthropic,        │
+   │  Entity, Event,          │      │  per-operation routing,     │
+   │  ArticleEmbedding,       │      │  per-call token + cost log  │
+   │  Digest, DigestTopic     │      └─────────────────────────────┘
+   └───────────┬──────────────┘
+               │
+               │ Django REST (JWT-authenticated JSON)
+               ▼
+   ┌──────────────────────────┐
+   │  Next.js 15 (App Router) │
+   │  NextAuth + Prisma       │
+   │  Per-user daily digest   │
+   │  filtered by topic /     │
+   │  region / publication    │
+   └──────────────────────────┘
 ```
 
-## 🛠 Tech Stack
+A separate per-user digest-assembly job runs after the analyse stage completes, groups related articles into events via centroid embeddings in pgvector, and composes the daily digest against the user's saved preferences.
 
-### Backend
-- **Django 5**: REST API with modular monolith architecture
-- **Celery + Redis**: Background task processing and scheduling  
-- **PostgreSQL + pgvector**: Database with vector embeddings for semantic search
-- **OpenAI & Anthropic APIs**: AI content processing and summarization
-- **News API**: External news source integration
-- **spaCy + langdetect**: Cost-optimized natural language processing
+## Key capabilities
 
-### Frontend
-- **Next.js 15**: React framework with App Router and Server Components
-- **TypeScript**: Type-safe JavaScript development throughout
-- **NextAuth.js**: Authentication with Google and Email magic links
-- **Tailwind CSS + shadcn/ui**: Modern UI components and responsive design
-- **Prisma**: Database ORM for frontend authentication layer
+- **Runs a four-stage content pipeline driven by status columns on the Article row**, not Celery chains. Each stage queries for articles where the previous stage completed and this stage hasn't started, processes a batch, and updates status + attempts counters. The pipeline is restartable mid-flight, survives worker restarts, and stage failures don't cascade — bad articles fail out after N attempts and the rest of the pipeline keeps moving.
+- **Routes every LLM call through a DB-configured provider abstraction**. `AIProviderConfig(operation, provider, model, config)` maps operation names to concrete model tuples. Swapping providers or models is a config update, not a deploy. Every call is persisted to `AIProviderUsage` with token counts, response time, and a cost estimate — observability over LLM spend comes for free.
+- **Generates, critiques, and repairs summaries in four LLM calls** per article — rich-bullet compression (temperature 0.3) → skeleton summary (0.25) → faithfulness critique (0.0, deterministic) → conditional repair (0.2). The critic step catches hallucinations and length drift before the summary reaches the digest.
+- **Deduplicates entities and clusters stories via pgvector**. Entity dedup is two-tier: canonical-name match first, then 1536-dim vector similarity as fallback. Related articles about the same underlying news event are grouped via centroid embeddings, so the daily digest collapses "5 sites covering the same story" into a single entry.
+- **Keeps LLM cost down by mixing free tooling with targeted calls**. Language detection (fasttext + langdetect) and entity canonicalization (spaCy) run as free heuristics; LLM calls happen only at stages where they measurably beat the cheaper approach.
+- **Splits frontend and backend into independent services**. Next.js 15 (App Router) handles auth, UI, and per-user routing via Server Components; Django REST handles domain data and the pipeline. NextAuth issues the JWT that bridges them. Either service redeploys independently — the frontend can ship UI fixes without touching the backend and vice versa.
+- **Boots the full stack locally with `docker compose up`**. Postgres + pgvector, Redis, Django, Celery worker, Celery Beat, Flower, and Next.js all wired together with health checks. Required secrets fail fast (`${VAR:?…}`); optional API keys degrade gracefully.
 
-### Infrastructure
-- **Docker**: Containerized development and deployment
-- **GitHub Actions**: CI/CD pipeline
-- **Vercel**: Frontend hosting
-- **PostgreSQL**: Database with pgvector extension
+## What I learned
 
-## 🚦 Getting Started
+- **Multi-service architecture pays for itself the moment anything in the pipeline gets slow.** Background processing isn't optional once an LLM call enters the hot path — users see ingestion lag once per day, never a spinner in the middle of a read.
+- **Status machines on the domain row beat Celery chains** for anything that needs to be restartable. A status enum + attempts counter on `Article` survives worker restarts, DB reboots, and mid-stage failures without custom recovery code — the next worker picks up where the last one left off.
+- **Provider abstraction earns its keep earlier than expected.** Pricing changes, rate-limit tweaks, and model deprecations all hit within the build window; a DB-driven operation-to-model map made each one a config edit instead of a patch.
+- **The gap between "works" and "works well" is timeouts, retries, observability, and cost tracking** — not features. Most of the post-first-pass engineering went into those four concerns, and each one is load-bearing once real content volume is flowing through the pipeline.
+- **AI pipelines need an eval harness before they need more features.** Without a way to measure summary faithfulness across prompt edits, every prompt change is a guess. Building the harness is the first thing this repo would need for serious iteration — and it's still a known gap (below).
 
-### Prerequisites
+## Known gaps / next steps
 
-- **Docker & Docker Compose** (recommended for development)
-- **Python 3.11+** and **Node.js 18+** (if running without Docker)  
-- **PostgreSQL 15+** with pgvector extension (if running without Docker)
-- **Redis** (for Celery task processing)
+Kept out of scope for the capstone:
 
-### Required API Keys
+- **Not a shipped product.** No real users, no uptime SLA, no billing. The app runs for demonstration and for personal use.
+- **Web-first delivery is suboptimal for the use case.** A Chrome new-tab replacement, a morning email, or a WhatsApp push would fit "daily briefing" better than a destination site. The web app was the deliberate choice for CS50W scope and full-stack web practice — in a product version, the delivery channel would change first.
+- **No evaluation harness for summary quality.** The critic / repair loop catches obvious faithfulness breaks, but there's no dataset-backed regression eval, so summaries can drift between prompt edits without anything noticing.
+- **Test coverage is thin.** Backend contract tests cover the algorithmic processor only; the rest of the pipeline and most of the frontend are untested end-to-end.
+- **Email deliverability not fully wired** ([#1](https://github.com/adanoliveira/dailybrief/issues/1)) — domain verification on the transactional sender is still pending.
+- **Onboarding polish** ([#4](https://github.com/adanoliveira/dailybrief/issues/4), [#7](https://github.com/adanoliveira/dailybrief/issues/7), [#14](https://github.com/adanoliveira/dailybrief/issues/14)) — publication search needs backend pagination, a few preferences are missing, and margins drift on small screens.
+- **Newsfeed UX refinements** ([#8](https://github.com/adanoliveira/dailybrief/issues/8), [#11](https://github.com/adanoliveira/dailybrief/issues/11)) — minor behavioral items on the article and digest pop-over.
+- **Frontend state domain decomposition** ([#23](https://github.com/adanoliveira/dailybrief/issues/23)) — the local-state and data-manager modules were structurally split into barrels, but most of the logic still lives in a single file per domain; the per-feature migration is incomplete.
 
-To work on DailyBrief, you'll need access to these API keys (contact the team lead):
+## Running locally
+
+Requires Docker and Docker Compose. The stack boots Postgres + pgvector, Redis, the Django API, Celery worker + Beat, Flower, and the Next.js frontend.
 
 ```bash
-OPENAI_API_KEY          # For AI content processing
-ANTHROPIC_API_KEY       # Alternative AI provider  
-NEWS_API_KEY            # For news article fetching
+# 1. Clone
+git clone https://github.com/adanoliveira/dailybrief.git
+cd dailybrief
+
+# 2. Configure environment
+cp .env.example .env
+cp frontend/.env.example frontend/.env.local
+# then edit .env to fill in at minimum:
+#   SECRET_KEY, NEXTAUTH_SECRET, SUPABASE_DB_PASSWORD, DATABASE_URL,
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+#   and one of OPENAI_API_KEY / ANTHROPIC_API_KEY
+# news ingestion additionally needs NEWS_API_KEY
+
+# 3. Bring up the stack
+docker compose up --build
+
+# 4. First-boot migrations and reference data
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py loaddata \
+  apps/feeds/fixtures/production_feeds.json
 ```
 
-If these keys are missing, the app can still boot locally, but news ingestion and AI processing features will be unavailable.
+Services after boot:
 
-### Environment Setup
+- Next.js frontend — http://localhost:3000
+- Django API — http://localhost:8000/api/
+- Flower (Celery monitoring) — http://localhost:5555
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/company-internal/dailybrief.git
-   cd dailybrief
-   ```
+If external API keys are missing, the app still boots locally — news ingestion and AI processing features will be unavailable until they are provided.
 
-2. **Set up environment files**:
-   ```bash
-   # Copy environment templates
-   cp backend/.env.example backend/.env
-   cp frontend/.env.example frontend/.env
-   
-   # Add your API keys to the .env files (get these from the team lead)
-   ```
+## License
 
-3. **Start the development environment**:
-   ```bash
-   # Build and start all containers
-   ./docker.sh up
-   
-   # Run database migrations
-   ./docker.sh django migrate
-   
-   # Load initial feed data
-   ./docker.sh django loaddata feeds/fixtures/initial_data.json
-   
-   # Create superuser (optional)
-   ./docker.sh django createsuperuser
-   ```
-
-4. **Access the application**:
-   - **Frontend**: http://localhost:3000
-   - **Backend API**: http://localhost:8000
-   - **Admin Panel**: http://localhost:8000/admin
-
-### Local Setup (Alternative)
-
-<details>
-<summary>View local development setup instructions</summary>
-
-1. **Backend setup**:
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   
-   # Database setup
-   python manage.py migrate
-   python manage.py loaddata feeds/fixtures/initial_data.json
-   python manage.py runserver
-   ```
-
-2. **Frontend setup** (new terminal):
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-3. **Background workers** (new terminal):
-   ```bash
-   cd backend
-   celery -A dailybrief worker --loglevel=info
-   celery -A dailybrief beat --loglevel=info
-   ```
-</details>
-
-## 🧑‍💻 Development
-
-### Development Commands
-
-```bash
-# Development workflow
-./docker.sh up              # Start all services
-./docker.sh down            # Stop all services
-./docker.sh django <cmd>    # Run Django management commands
-./docker.sh logs <service>  # View service logs
-
-# Database operations
-./docker.sh django migrate                  # Apply migrations
-./docker.sh django makemigrations           # Create migrations
-./docker.sh django shell                    # Django shell
-
-# Content pipeline operations
-./docker.sh django fetch_articles           # Fetch new articles from News API
-./docker.sh django process_articles         # Stage 2: AI content processing
-./docker.sh django generate_summaries       # Stage 3: AI summarization
-./docker.sh django analyze_events           # Stage 4: Event clustering and analysis
-./docker.sh django generate_digest          # Create personalized daily digest
-
-# Pipeline monitoring and maintenance
-./docker.sh django test_pipeline --status   # Check pipeline health and status
-./docker.sh django cleanup_stuck_articles   # Reset failed processing attempts
-./docker.sh django reset_failed_to_fetch_pending  # Retry failed articles
-```
-
-### Initial Data Population
-
-```bash
-# Fetch latest articles from News API
-./docker.sh django fetch_articles
-
-# Process articles through complete AI pipeline
-./docker.sh django process_articles
-
-# Generate AI summaries for processed articles
-./docker.sh django generate_summaries
-
-# Analyze articles and cluster into events
-./docker.sh django analyze_events
-
-# Create personalized daily digest
-./docker.sh django generate_digest
-```
-
-## 📁 Project Structure
-
-<details>
-<summary><strong>Backend Structure</strong></summary>
-
-```bash
-backend/
-├── apps/
-│   ├── accounts/           # User authentication & profiles
-│   │   ├── models.py      # User profile extensions
-│   │   ├── views.py       # Auth API endpoints
-│   │   └── management/    # User management commands
-│   ├── feeds/              # RSS feed management
-│   │   ├── models.py      # Feed, Publication, Category models
-│   │   ├── views.py       # Feed CRUD API
-│   │   └── fixtures/      # Initial feed data
-│   ├── articles/           # Core article storage
-│   │   ├── models.py      # Article, StoryGroup models
-│   │   └── views.py       # Article retrieval API
-│   ├── content/            # AI processing pipeline
-│   │   ├── fetcher/       # Content aggregation
-│   │   │   ├── models.py  # FetchLog, RSSEntry models
-│   │   │   ├── services.py # RSS parsing & News API integration
-│   │   │   └── tasks.py   # Celery fetch tasks
-│   │   ├── processor/     # AI content processing
-│   │   │   ├── ai_processor.py      # OpenAI/Anthropic integration
-│   │   │   ├── algorithmic_processor.py # Fallback processing
-│   │   │   └── services.py # Processing orchestration
-│   │   ├── summariser/    # AI summarization
-│   │   │   ├── models.py  # Summary storage & embeddings
-│   │   │   ├── services.py # AI summary generation
-│   │   │   └── tasks.py   # Background summarization
-│   │   ├── analyzer/      # Event clustering & analysis
-│   │   │   ├── models.py  # Event, Entity models
-│   │   │   ├── services.py # Semantic clustering algorithms
-│   │   │   └── tasks.py   # Analysis pipeline
-│   │   └── digest/        # Daily digest creation
-│   │       ├── models.py  # Digest, DigestEvent models
-│   │       ├── services/  # Digest generation strategies
-│   │       └── tasks.py   # Scheduled digest creation
-│   ├── newsapi/           # News API integration
-│   │   ├── models.py      # External article tracking
-│   │   └── services/      # API client & processing
-│   ├── aiproviders/       # AI model configuration
-│   │   ├── models.py      # Provider & model definitions
-│   │   └── services.py    # Dynamic AI client factory
-│   └── notifications/     # User notifications
-│       ├── models.py      # Notification preferences
-│       └── services.py    # Notification delivery
-├── dailybrief/            # Django project configuration
-│   ├── settings.py        # Environment-based configuration
-│   ├── celery.py         # Celery task processing setup
-│   └── urls.py           # API route definitions
-├── requirements.txt       # Python dependencies
-├── manage.py             # Django management interface
-└── Dockerfile            # Backend containerization
-```
-</details>
-
-<details>
-<summary><strong>Frontend Structure</strong></summary>
-
-```bash
-frontend/
-├── app/                  # Next.js 15 App Router
-│   ├── (authenticated)/  # Protected route groups
-│   │   ├── (main)/       # Main app navigation
-│   │   │   ├── home/     # Dashboard & recent articles
-│   │   │   ├── headlines/ # Top news headlines
-│   │   │   └── world/    # World news category
-│   │   ├── (digest)/     # Daily digest interface
-│   │   │   └── digest/   # Digest viewing & archive
-│   │   └── (article)/    # Individual article view
-│   │       └── article/  # Article reading interface
-│   ├── auth/             # Authentication pages
-│   │   ├── page.tsx      # Sign-in interface
-│   │   ├── error/        # Auth error handling
-│   │   └── verify-request/ # Email verification
-│   ├── onboarding/       # New user setup
-│   │   └── page.tsx      # Multi-step onboarding flow
-│   ├── api/              # API route handlers
-│   │   └── auth/         # NextAuth.js configuration
-│   ├── globals.css       # Global styles & Tailwind imports
-│   └── layout.tsx        # Root layout with providers
-├── components/           # Reusable React components
-│   ├── ui/              # shadcn/ui component library (50+ components)
-│   ├── auth-provider.tsx # NextAuth session management
-│   ├── authenticated-shell.tsx # App layout & navigation
-│   ├── article/         # Article-specific components
-│   ├── digest/          # Digest interface components
-│   ├── onboarding/      # User setup workflow
-│   └── preferences/     # Settings management
-├── lib/                 # Utility functions & configurations
-│   ├── api-client.ts    # Django API integration
-│   ├── auth.ts          # NextAuth.js configuration
-│   └── utils.ts         # Helper functions
-├── types/               # TypeScript type definitions
-├── hooks/               # Custom React hooks
-├── public/              # Static assets & PWA files
-├── package.json         # Node.js dependencies
-├── next.config.js       # Next.js configuration
-├── tailwind.config.js   # Tailwind CSS setup
-└── Dockerfile           # Frontend containerization
-```
-</details>
-
-## 📊 Data Models
-
-<details>
-<summary><strong>Core Data Models</strong></summary>
-
-### User Management
-- **User**: Django's built-in user model extended with profile
-- **UserProfile**: User preferences, timezone, onboarding status, digest settings
-
-### Content Classification
-- **Publication**: News sources with metadata and authority scoring
-- **Topic**: Content categories (business, technology, sports, etc.)
-- **Region**: Geographic classification (US, BR, UK, etc.)  
-- **Language**: Supported languages with ISO codes
-
-### Article Pipeline
-- **Article**: Central content model with 4-stage processing status
-- **ArticleRBC**: Rich Bullet Compression (first summarization stage)
-- **ArticleSummary**: Structured summary output
-- **ArticleEmbedding**: Vector embeddings for semantic similarity
-
-### Analysis and Events
-- **Entity**: Master entity catalog with deduplication
-- **Event**: Clustered article groupings representing real-world events
-- **ArticleAnalysis**: Comprehensive analysis metadata
-
-### Digest System
-- **Digest**: Daily personalized news summary
-- **DigestTopic**: Topic sections within digests
-- **DigestStory**: Individual stories with AI-enhanced summaries
-
-### Infrastructure Models
-- **AIProviderUsage**: Tracks AI costs and performance across providers
-- **FetchLog**: Content fetching attempts and success rates  
-- **ProcessingLog**: AI processing performance and error tracking
-- **QualityScoring**: Content quality assessment results
-
-</details>
-
-## 🔄 Pipeline Architecture
-
-DailyBrief processes content through a sophisticated 5-stage AI pipeline:
-
-<p align="center">
-  <!-- Replace with actual pipeline diagram when available -->
-  <img src="docs/assets/pipeline-diagram.png" alt="Content Pipeline" width="700"/>
-</p>
-
-1. **Fetching**: Intelligent content extraction from public news articles pages
-2. **Processing**: AI-powered content cleaning and structuring using LLM or algorithmic routes
-3. **Summarization**: 4-stage AI pipeline (RBC → Summary → Critic → Embeddings)
-4. **Analysis**: 8-stage cost-optimized pipeline combining free tools (spaCy, langdetect) with targeted LLM usage
-5. **Digestion**: Daily digest creation with multiple strategies
-
-<details>
-<summary><strong>Pipeline Implementation Details</strong></summary>
-
-### Stage 1: Fetching
-- Multi-source aggregation (News API, RSS feeds)
-- Content extraction with intelligent fallbacks
-- Publication recognition and metadata enrichment
-
-### Stage 2: Processing
-- Content cleaning and structuring
-- AI-powered content extraction
-- Algorithmic fallback processing
-
-### Stage 3: Summarization
-- Rich Bullet Compression (RBC)
-- Structured summary generation
-- Critical review and quality assessment
-- Vector embedding generation
-
-### Stage 4: Analysis
-- Entity extraction and disambiguation
-- Event detection and clustering
-- Sentiment analysis
-- Topic classification
-
-### Stage 5: Digestion
-- Personalized content selection
-- Multi-perspective event coverage
-- AI-generated introductions and transitions
-- Readability optimization
-
-</details>
-
-## 👥 Team Workflow
-
-### Development Process
-
-1. **Task Assignment**: Tasks are assigned through our internal project management system
-2. **Branch Creation**: Create a feature branch from `main` using the naming convention `feature/[task-id]-description`
-3. **Development**: Implement the feature or fix following our code standards
-4. **Testing**: Write tests and ensure all existing tests pass
-5. **Code Review**: Submit a pull request for review by at least one team member
-6. **Deployment**: After approval, changes are merged and deployed to the staging environment
-
-### Code Standards
-
-- **Python**: Black formatter (88 columns), isort, strict type hints
-- **TypeScript**: ESLint, Prettier, strict type checking
-- **Tests**: pytest for backend, vitest + React Testing Library for frontend
-
-### Commit Message Format
-
-We follow a standardized commit message format:
-
-```
-[type]: Short description (50 chars)
-
-Longer description if needed, explaining the context or why the
-change was made. Wrap at 72 characters.
-
-Refs #123
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-### Code Review Guidelines
-
-- Review for functionality, code quality, and adherence to standards
-- Provide constructive feedback
-- Focus on the code, not the person
-- Approve only when all issues are addressed
-
-## 📈 Project Status
-
-### Current Focus
-
-We are currently focused on completing Milestone 1 (Core Experience Completion):
-
-- **Pipeline Resilience**: Improving error handling, recovery mechanisms, and monitoring
-- **User Experience**: Finalizing profile settings, PWA capabilities, and notification system
-- **Performance**: Optimizing event clustering and content processing for production scale
-- **Business Model**: Implementing subscription management and usage tracking
-
-## 🗓️ Project Roadmap
-
-Our development plan is structured into clear milestones with specific goals and deliverables. This roadmap may evolve based on user feedback and market demands after initial launch.
-
-### 🚀 Milestone 1: Core Experience Completion (Current)
-- **Pipeline Enhancements**
-  - Automated content enrichment pipeline with error handling
-  - Improved pipeline resilience and recovery mechanisms
-  - Monitoring and alerting for pipeline health
-- **User Experience**
-  - Complete profile and preference settings
-  - PWA implementation for offline reading
-  - Push notification system for digests and breaking news
-- **Business Model**
-  - Subscription billing integration
-  - Usage limits for free/premium tiers
-
-### 🌐 Milestone 2: Production Deployment
-- **Infrastructure**
-  - Production environment setup with high availability
-  - Database scaling and optimization
-  - CDN integration for global content delivery
-- **Performance**
-  - Load testing and optimization
-  - API rate limiting and caching strategies
-  - Response time optimization for mobile users
-
-### 🚀 Milestone 3: Launch Preparation & Execution
-- **Pre-Launch**
-  - Marketing website and landing pages
-  - User onboarding flow optimization
-  - Beta testing program with feedback collection
-- **Launch**
-  - Public availability of core features
-  - User acquisition campaigns
-- **Post-Launch**
-  - Usage analytics and tracking implementation
-  - In-app feedback collection mechanisms
-  - Comprehensive logging and monitoring
-  - Rapid iteration based on initial user feedback
-
-### 🔄 Milestone 4: Core Improvements - Phase 1
-- **Content Acquisition**
-  - Direct publisher integration for real-time content
-  - Custom web crawlers for authorized content sources
-  - Improved content freshness metrics
-- **User Experience**
-  - Localization and internationalization
-  - Real-time digest updates throughout the day
-  - Dynamic article summary refreshes with new developments
-- **Content Organization**
-  - Enhanced topic mapping and classification
-  - Improved content recommendation algorithms
-  - Interest graph development for users
-
-### 📈 Milestone 5: Content Source Expansion - Phase 2
-- **New Content Types**
-  - Blog aggregation with author verification
-  - Substack newsletter integration
-  - Podcast transcription and summarization
-  - YouTube channel content processing
-  - Reddit community insights
-- **Content Integration**
-  - Cross-platform content linking
-  - Source credibility scoring
-  - Multi-format content presentation
-
-### 🔍 Milestone 6: Specialized Features - Phase 3
-- **Tracking & Monitoring**
-  - Custom search term monitoring and alerts
-  - Financial asset and market news tracking
-  - Entity citation tracking across sources
-  - Sentiment analysis for tracked entities
-- **Professional Tools**
-  - API access for enterprise integrations
-  - Custom digest creation tools
-  - Team collaboration features
-  - Export and sharing capabilities
-
-> **Note**: Milestones 4-6 represent our post-launch vision and may be reprioritized based on user feedback, market demands, and emerging opportunities. We maintain a flexible approach to product development that balances our strategic vision with user needs.
-
-### Known Issues
-
-- Pipeline bottleneck in article fetching stage
-- Occasional duplicate events in digest generation
-- High API costs for certain processing operations
-- Limited content source diversity in current version
-
-### Upcoming Features
-
-Our immediate development priorities align with Milestones 1-3:
-
-- **Core Platform**
-  - Push notification system for digest delivery and breaking news
-  - Mobile PWA with offline reading capabilities
-  - Subscription management and billing integration
-  
-- **Production Readiness**
-  - High-availability infrastructure deployment
-  - Performance optimization for mobile users
-  - Comprehensive monitoring and alerting
-  
-- **Launch Features**
-  - Marketing website and user onboarding flow
-  - Usage analytics and feedback collection
-  - Initial user acquisition tools
-
-### Recent Achievements
-
-- Successfully implemented retroactive event deduplication
-- Updated event semantic matching criteria for better clustering
-- Modified content processing pipeline to improve retry mechanism
-- Standardized API response format across backend and frontend
-
----
-
-<p align="center">
-  DailyBrief - Internal Team Documentation   
-</p># Trigger redeploy with NEXT_PUBLIC_API_URL
+MIT — see [LICENSE](LICENSE).
