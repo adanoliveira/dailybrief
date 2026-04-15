@@ -3,4 +3,4 @@ export {
   clearFeedCache,
   clearUserPreferencesCache,
   clearAllCaches,
-} from './legacy'
+} from './monolith'

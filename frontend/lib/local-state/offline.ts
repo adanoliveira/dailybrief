@@ -1,1 +1,1 @@
-export { useOfflineStatus } from './legacy'
+export { useOfflineStatus } from './monolith'

@@ -1,1 +1,1 @@
-export { useSyncStatus, useBackgroundSync } from './legacy'
+export { useSyncStatus, useBackgroundSync } from './monolith'

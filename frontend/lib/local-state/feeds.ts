@@ -1,1 +1,1 @@
-export { useFeed } from './legacy'
+export { useFeed } from './monolith'

@@ -1,1 +1,1 @@
-export { useArticleDetail } from './legacy'
+export { useArticleDetail } from './monolith'

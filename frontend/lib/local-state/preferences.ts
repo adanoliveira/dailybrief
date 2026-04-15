@@ -1,1 +1,1 @@
-export { useUserPreferences } from './legacy'
+export { useUserPreferences } from './monolith'
