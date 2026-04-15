@@ -1,12 +1,25 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.*.sw?
+
 # Python / Django
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 *.py[cod]
 *$py.class
-*.so
 .Python
 env/
 venv/
 ENV/
+backend/venv/
 build/
 develop-eggs/
 dist/
@@ -22,25 +35,39 @@ var/
 .installed.cfg
 *.egg
 .pytest_cache/
+.mypy_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
 .hypothesis/
-.coverage.*
-db.sqlite3
-db.sqlite3-journal
+
+# Build artifacts
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+.installed.cfg
+
+# Static/media
 staticfiles/
+backend/staticfiles/
 media/
 
-# Node.js / Next.js
+# Databases
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+db.sqlite3-journal
+
+# Node / Next.js
 node_modules/
 .next/
 out/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+coverage/
+*.tsbuildinfo
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -48,58 +75,37 @@ yarn-error.log*
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-.DS_Store
-*.pem
-coverage/
-*.tsbuildinfo
+frontend/.turbo/
+frontend/generated/
+frontend/src/generated/prisma/
 
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.staging
-.env.production
-# Keep example files
-!.env.example
-
-# Docker
-.docker/
-docker-compose.override.yml
-
-# Editor directories and files
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.*.sw?
-# docs/ - Removed to allow deployment documentation
-.cursorrules
-
-# OS specific
-.DS_Store
-Thumbs.db
-
-# Logs
+# Logs and runtime files
 logs/
 *.log
-
-# Backup files
-*.bak 
-
-# DailyBrief specific development files
-# Large log files and generated content
 backend/debug.log
 backend/celerybeat-schedule*
-backend/venv/
-backend/staticfiles/
 
-# Frontend generated files  
-frontend/generated/
-frontend/.turbo/ 
-# Environment files with sensitive data
-.env.production
-.env.staging
-.vercel
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+
+# Local platform metadata
+.vercel/
+frontend/.vercel/
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Misc
+*.bak
+.cursorrules
