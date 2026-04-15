@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { getSession } from 'next-auth/react'
-import { apiCache } from './api-cache'
 import type { Session } from 'next-auth'
 
 // NEW: Standardized API response interfaces
@@ -39,6 +38,8 @@ type ApiClientOptions = {
 };
 
 // In-memory cache for API responses
+// NOTE: This replaces the previously separate api-cache module so transport
+// and cache invalidation behavior stay co-located in the canonical client.
 const cache: Record<string, { data: any; timestamp: number }> = {};
 const CACHE_TTL = 60 * 1000; // 60 seconds
 const pendingRequests: Record<string, Promise<any> | null> = {};
