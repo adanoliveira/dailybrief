@@ -1,0 +1,1 @@
+export { useArticleDetail } from './legacy'
