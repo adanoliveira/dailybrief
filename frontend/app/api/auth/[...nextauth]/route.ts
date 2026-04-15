@@ -1,6 +1,5 @@
 import NextAuth, { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
-import AppleProvider from "next-auth/providers/apple"
 import EmailProvider from "next-auth/providers/email"
 import { JWT } from "next-auth/jwt"
 import { SendVerificationRequestParams } from "next-auth/providers/email"
@@ -18,11 +17,31 @@ interface SessionUser {
   has_completed_onboarding?: boolean
 }
 
+const OFFLINE_MODE_TOKEN = "offline_mode_token"
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development"
+
+function getBackendSyncUrl(): string {
+  const envApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
+  if (envApiUrl) {
+    const cleanUrl = envApiUrl.endsWith("/api") ? envApiUrl.slice(0, -4) : envApiUrl
+    return `${cleanUrl}/api/accounts/sync/`
+  }
+
+  const isDocker = process.env.DATABASE_URL?.includes("db:5432") || process.env.SUPABASE_DB_HOST === "db"
+  return isDocker ? "http://backend:8000/api/accounts/sync/" : "http://localhost:8000/api/accounts/sync/"
+}
+
+function debugLog(message: string): void {
+  if (IS_DEVELOPMENT) {
+    console.log(message)
+  }
+}
+
 // Custom function to handle email verification requests
 async function sendVerificationRequest(params: SendVerificationRequestParams) {
   const { identifier: email, url } = params
   
-  console.log(`[NextAuth] sendVerificationRequest called with:`, { email, url, urlType: typeof url });
+  debugLog("[NextAuth] sendVerificationRequest called")
   
   try {
     // Try to use our custom token tracking, but continue even if it fails
@@ -62,25 +81,21 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
       }
     } catch (modelError) {
       // Log error but continue with sending the email
-      console.warn("Could not access EmailVerificationRequest model:", modelError);
+      console.warn("Could not access EmailVerificationRequest model")
     }
     
     // Use our custom email service to send the magic link
-    console.log(`[NextAuth] About to call sendMagicLinkEmail with URL: "${url}"`);
+    debugLog("[NextAuth] Sending magic link email")
     await sendMagicLinkEmail({ email, url });
-    console.log(`[NextAuth] sendMagicLinkEmail completed successfully`);
+    debugLog("[NextAuth] Magic link email sent")
   } catch (error) {
-    console.error("Error sending verification email:", error);
-    console.error("Error details:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      email,
-      url,
-      urlType: typeof url
-    });
+    console.error("Error sending verification email")
+    if (IS_DEVELOPMENT) {
+      console.error(error)
+    }
     
     // In development, always log the magic link URL to the console as a fallback
-    if (process.env.NODE_ENV === "development") {
+    if (IS_DEVELOPMENT) {
       console.log(`[DEV FALLBACK] Magic link for ${email}: ${url}`)
     }
     
@@ -94,62 +109,7 @@ async function sendVerificationRequest(params: SendVerificationRequestParams) {
 // Function to sync user with Django backend
 async function syncUserWithBackend(user: any): Promise<any> {
   try {
-    // Handle server-side vs client-side URL construction
-    let apiUrl: string;
-    
-    // Check if we're running on the server (NextAuth JWT callback runs server-side)
-    if (typeof window === 'undefined') {
-      // Server-side: Detect if we're in Docker by checking hostname resolution
-      let backendHost: string;
-      
-      try {
-        // Try to detect if we're in Docker by checking environment or using backend hostname
-        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-        
-        // If we have a DATABASE_URL with 'db:5432', we're likely in Docker
-        const isDocker = process.env.DATABASE_URL?.includes('db:5432') || false;
-        
-        if (isDocker) {
-          // We're in Docker - use the backend service name
-          backendHost = 'backend:8000';
-          apiUrl = `http://${backendHost}/api/accounts/sync/`;
-          console.log(`[Sync] Detected Docker environment, using backend service: ${apiUrl}`);
-        } else {
-          // Not in Docker - use NEXT_PUBLIC_API_URL (works for both localhost dev and production)
-          const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-          if (envApiUrl) {
-            // Remove /api suffix if present to avoid duplication  
-            const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-            apiUrl = `${cleanUrl}/api/accounts/sync/`;
-          } else {
-            // Final fallback to localhost
-            apiUrl = "http://localhost:8000/api/accounts/sync/";
-          }
-          console.log(`[Sync] Using environment API URL for server-side request: ${apiUrl}`);
-        }
-      } catch (error) {
-        // Fallback to environment URL or localhost if detection fails
-        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (envApiUrl) {
-          const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-          apiUrl = `${cleanUrl}/api/accounts/sync/`;
-        } else {
-          apiUrl = "http://localhost:8000/api/accounts/sync/";
-        }
-        console.log(`[Sync] Failed to detect environment, using fallback: ${apiUrl}`);
-      }
-    } else {
-      // Client-side: Always use localhost (browser can't resolve Docker hostnames)
-      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (envApiUrl) {
-        // Remove /api if it's already in the base URL to avoid duplication
-        const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-        apiUrl = `${cleanUrl}/api/accounts/sync/`;
-      } else {
-        apiUrl = "http://localhost:8000/api/accounts/sync/";
-      }
-      console.log(`[Sync] Client-side request URL: ${apiUrl}`);
-    }
+    const apiUrl = getBackendSyncUrl()
     
     const requestData = {
       email: user.email,
@@ -159,11 +119,7 @@ async function syncUserWithBackend(user: any): Promise<any> {
       image: user.image || "",
     };
     
-    console.log(`[Sync] Syncing user with backend:`, {
-      email: user.email,
-      apiUrl,
-      requestData
-    });
+    debugLog("[Sync] Syncing user with backend")
     
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -175,11 +131,11 @@ async function syncUserWithBackend(user: any): Promise<any> {
       signal: AbortSignal.timeout(10000) // Increased to 10 seconds
     })
     
-    console.log(`[Sync] Backend sync response status: ${response.status}`);
+    debugLog(`[Sync] Backend sync response status: ${response.status}`)
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Backend sync failed with status ${response.status}: ${errorText}`);
+      console.error(`Backend sync failed with status ${response.status}`)
       throw new Error(`Backend sync failed: ${response.status} - ${errorText}`)
     }
     
@@ -190,32 +146,29 @@ async function syncUserWithBackend(user: any): Promise<any> {
       const token = data.django_token.trim();
       
       // Basic JWT validation - should have 3 segments separated by dots
-      if (!token || token === "offline_mode_token" || !token.includes('.') || token.split('.').length !== 3) {
-        console.error("Invalid token format received from backend:", 
-          token ? `Length: ${token.length}, Segments: ${token.split('.').length}` : "No token");
+      if (!token || token === OFFLINE_MODE_TOKEN || !token.includes('.') || token.split('.').length !== 3) {
+        console.error("Invalid token format received from backend")
         throw new Error("Invalid token format received from backend");
       }
       
       // JWT token validated successfully
     } else {
-      console.error("No django_token in backend response:", data);
+      console.error("No django_token in backend response")
       throw new Error("No django_token received from backend");
     }
     
     return data;
   } catch (error) {
-    console.error("Error syncing user with backend:", error);
-    console.error("Error details:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      name: error instanceof Error ? error.name : 'Unknown',
-      stack: error instanceof Error ? error.stack : 'No stack trace'
-    });
+    console.error("Error syncing user with backend")
+    if (IS_DEVELOPMENT) {
+      console.error(error)
+    }
     
     // Return a default response that allows the user to continue
-    console.log("Falling back to offline_mode_token");
+    debugLog("Falling back to offline mode token")
     return {
       id: 0,
-      django_token: "offline_mode_token",
+      django_token: OFFLINE_MODE_TOKEN,
       has_completed_onboarding: false
     }
   }
@@ -227,57 +180,8 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
   
   try {
     // If using the offline mode token, return false to direct to onboarding
-    if (token === "offline_mode_token") return false;
-    
-    // Handle server-side vs client-side URL construction
-    let apiUrl: string;
-    
-    if (typeof window === 'undefined') {
-      // Server-side: Detect if we're in Docker environment
-      try {
-        // If we have a DATABASE_URL with 'db:5432', we're likely in Docker
-        const isDocker = process.env.DATABASE_URL?.includes('db:5432') || false;
-        
-        if (isDocker) {
-          // We're in Docker - use the backend service name
-          apiUrl = `http://backend:8000/api/accounts/sync/`;
-          console.log(`[OnboardingCheck] Using Docker backend service: ${apiUrl}`);
-        } else {
-          // Not in Docker - use NEXT_PUBLIC_API_URL (works for both localhost dev and production)
-          const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-          if (envApiUrl) {
-            // Remove /api suffix if present to avoid duplication
-            const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-            apiUrl = `${cleanUrl}/api/accounts/sync/`;
-          } else {
-            // Final fallback to localhost
-            apiUrl = "http://localhost:8000/api/accounts/sync/";
-          }
-          console.log(`[OnboardingCheck] Using environment API URL: ${apiUrl}`);
-        }
-      } catch (error) {
-        // Fallback to environment URL or localhost if detection fails
-        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (envApiUrl) {
-          const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-          apiUrl = `${cleanUrl}/api/accounts/sync/`;
-        } else {
-          apiUrl = "http://localhost:8000/api/accounts/sync/";
-        }
-        console.log(`[OnboardingCheck] Failed to detect environment, using fallback: ${apiUrl}`);
-      }
-    } else {
-      // Client-side: Always use localhost
-      const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (envApiUrl) {
-        const cleanUrl = envApiUrl.endsWith('/api') ? envApiUrl.slice(0, -4) : envApiUrl;
-        apiUrl = `${cleanUrl}/api/accounts/sync/`;
-      } else {
-        apiUrl = "http://localhost:8000/api/accounts/sync/";
-      }
-    }
-    
-    // Checking onboarding status with backend
+    if (token === OFFLINE_MODE_TOKEN) return false;
+    const apiUrl = getBackendSyncUrl()
     
     const response = await fetch(apiUrl, {
       method: "GET",
@@ -290,16 +194,17 @@ async function checkOnboardingStatus(token: string): Promise<boolean> {
     })
     
     if (!response.ok) {
-      console.error(`Failed to check user status: ${response.status}`);
-      const responseText = await response.text();
-      console.error(`Response body: ${responseText}`);
+      console.error(`Failed to check user status: ${response.status}`)
       return false;
     }
     
     const data = await response.json();
     return !!data.has_completed_onboarding;
   } catch (error) {
-    console.error("Error checking onboarding status:", error);
+    console.error("Error checking onboarding status")
+    if (IS_DEVELOPMENT) {
+      console.error(error)
+    }
     return false;
   }
 }
@@ -362,10 +267,13 @@ export const authOptions: NextAuthOptions = {
         
         // Google OAuth accounts are inherently verified through the OAuth process
         // Email provider verification happens through magic link clicks
-        console.log(`Sign in allowed: ${account?.provider} authentication for ${userEmail}`);
+        debugLog(`Sign in allowed for provider ${account?.provider}`)
         return true;
       } catch (error) {
-        console.error("Sign in callback error:", error);
+        console.error("Sign in callback error")
+        if (IS_DEVELOPMENT) {
+          console.error(error)
+        }
         return false;
       }
     },
@@ -379,18 +287,13 @@ export const authOptions: NextAuthOptions = {
         // If user just signed in, sync with backend
         if (account) {
           try {
-            console.log(`[JWT] Starting backend sync for user: ${user.email} (provider: ${account.provider})`);
+            debugLog(`[JWT] Starting backend sync (provider: ${account.provider})`)
             const backendUser = await syncUserWithBackend({
               ...user,
               provider: account.provider
             });
             
-            console.log(`[JWT] Backend sync completed:`, {
-              userId: backendUser?.id,
-              hasToken: !!backendUser?.django_token,
-              tokenLength: backendUser?.django_token?.length,
-              onboardingComplete: backendUser?.has_completed_onboarding
-            });
+            debugLog("[JWT] Backend sync completed")
             
             if (backendUser) {
               token.django_user_id = backendUser.id;
@@ -398,27 +301,33 @@ export const authOptions: NextAuthOptions = {
               token.has_completed_onboarding = backendUser.has_completed_onboarding;
             }
           } catch (error) {
-            console.error("[JWT] Backend sync failed, using offline mode:", error);
+            console.error("[JWT] Backend sync failed, using offline mode")
+            if (IS_DEVELOPMENT) {
+              console.error(error)
+            }
             // Continue with auth flow even if backend sync fails
             token.django_user_id = 0;
-            token.django_token = "offline_mode_token";
+            token.django_token = OFFLINE_MODE_TOKEN;
             token.has_completed_onboarding = false;
           }
         }
       }
       
       // Handle session updates (triggered manually by updateSession() call)
-      if (trigger === "update" && token.django_token && token.django_token !== "offline_mode_token") {
+      if (trigger === "update" && token.django_token && token.django_token !== OFFLINE_MODE_TOKEN) {
         try {
-          console.log("JWT callback: Session update triggered, refreshing onboarding status");
+          debugLog("JWT callback: Session update triggered, refreshing onboarding status")
           const onboardingCompleted = await checkOnboardingStatus(token.django_token);
           
           if (onboardingCompleted) {
-            console.log("JWT callback: User has completed onboarding, updating token");
+            debugLog("JWT callback: User has completed onboarding, updating token")
             token.has_completed_onboarding = true;
           }
         } catch (error) {
-          console.error("JWT callback: Error checking onboarding status during session update:", error);
+          console.error("JWT callback: Error checking onboarding status during session update")
+          if (IS_DEVELOPMENT) {
+            console.error(error)
+          }
           // Don't update the token if the check fails, keep the existing value
         }
       }

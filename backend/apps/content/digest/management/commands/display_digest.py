@@ -154,14 +154,20 @@ class Command(BaseCommand):
                 return None
         
         else:
-            # Default to the first user with email adan.arnord@gmail.com
-            try:
-                return User.objects.get(email='adan.arnord@gmail.com')
-            except User.DoesNotExist:
+            # Default to the first available user when no selector is provided
+            default_user = User.objects.order_by('id').first()
+            if default_user:
                 self.stdout.write(
-                    self.style.ERROR("❌ Please specify --user-id, --username, or --email")
+                    self.style.WARNING(
+                        f"⚠️  No user selector provided; defaulting to first user (ID: {default_user.id})"
+                    )
                 )
-                return None
+                return default_user
+
+            self.stdout.write(
+                self.style.ERROR("❌ No users found. Please create a user or specify --user-id, --username, or --email")
+            )
+            return None
     
     def _get_target_digest(self, user: User, options) -> Optional[Digest]:
         """Get the target digest based on options."""

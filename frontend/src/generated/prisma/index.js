@@ -170,7 +170,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/Users/adan/Documents/Dev/projects/dailybrief/frontend/src/generated/prisma",
+      "value": "/workspace/frontend/src/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -184,7 +184,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/Users/adan/Documents/Dev/projects/dailybrief/frontend/prisma/schema.prisma",
+    "sourceFilePath": "/workspace/frontend/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

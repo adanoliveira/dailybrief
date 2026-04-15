@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 import os
 import sys
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Set a safer recursion limit
@@ -24,18 +25,32 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+def _get_required_env(var_name: str) -> str:
+    value = os.getenv(var_name)
+    if not value:
+        raise ImproperlyConfigured(f"Missing required environment variable: {var_name}")
+    return value
+
+def _get_bool_env(var_name: str, default: bool = False) -> bool:
+    raw_value = os.getenv(var_name, str(default)).strip().lower()
+    return raw_value in {"1", "true", "yes", "on"}
+
+def _get_list_env(var_name: str, default: str) -> list[str]:
+    return [item.strip() for item in os.getenv(var_name, default).split(",") if item.strip()]
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-ul2m53&s_0=7rm3e+xeb3c6b4oopc%=860)t@z(pgwo-$7-^j(')
+SECRET_KEY = _get_required_env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Force DEBUG to False to avoid recursive errors
-DEBUG = False
+DEBUG = _get_bool_env("DEBUG", False)
 
-ALLOWED_HOSTS = ['*']  # Allow all hosts for now
+ALLOWED_HOSTS = _get_list_env("ALLOWED_HOSTS", "localhost,127.0.0.1,backend")
+if not DEBUG and "*" in ALLOWED_HOSTS:
+    raise ImproperlyConfigured("Wildcard ALLOWED_HOSTS is not permitted when DEBUG is disabled.")
 
 # Production-ready logging configuration
 LOGGING = {
@@ -123,11 +138,17 @@ MIDDLEWARE = [
 ]
 
 # CORS configuration
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+CORS_ALLOWED_ORIGINS = _get_list_env(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://frontend:3000",
+)
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF configuration for cross-origin requests
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000').split(',')
+CSRF_TRUSTED_ORIGINS = _get_list_env(
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost:3000,http://frontend:3000",
+)
 
 ROOT_URLCONF = 'dailybrief.urls'
 
@@ -153,12 +174,17 @@ WSGI_APPLICATION = 'dailybrief.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+def _get_database_password() -> str:
+    if DEBUG:
+        return os.getenv('SUPABASE_DB_PASSWORD', '')
+    return _get_required_env('SUPABASE_DB_PASSWORD')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('SUPABASE_DB_NAME', 'postgres'),
         'USER': os.getenv('SUPABASE_DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('SUPABASE_DB_PASSWORD', ''),
+        'PASSWORD': _get_database_password(),
         'HOST': os.getenv('SUPABASE_DB_HOST', 'localhost'),
         'PORT': os.getenv('SUPABASE_DB_PORT', '5432'),
     }
