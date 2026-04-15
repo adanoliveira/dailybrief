@@ -1,17 +1,16 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 import { getSession } from 'next-auth/react'
 import { Session } from 'next-auth'
+import apiClient, { ApiError } from './api-client'
 
-// Extended session type
 interface ExtendedSession extends Session {
   user: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-    django_token?: string;
-    django_user_id?: number;
-    has_completed_onboarding?: boolean;
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+    django_token?: string
+    django_user_id?: number
+    has_completed_onboarding?: boolean
   }
 }
 
@@ -26,9 +25,8 @@ export class ApiService {
   private token: string | null = null
 
   private constructor() {
-    // Initialize token from localStorage if available
-    if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("auth_token")
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('auth_token')
     }
   }
 
@@ -36,20 +34,23 @@ export class ApiService {
     if (!ApiService.instance) {
       ApiService.instance = new ApiService()
     }
+
     return ApiService.instance
   }
 
   public setToken(token: string): void {
     this.token = token
-    if (typeof window !== "undefined") {
-      localStorage.setItem("auth_token", token)
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_token', token)
     }
   }
 
   public clearToken(): void {
     this.token = null
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_token")
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token')
     }
   }
 
@@ -58,132 +59,122 @@ export class ApiService {
   }
 
   private async getAuthToken(): Promise<string | null> {
-    // First try to use the token from NextAuth session
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       try {
-        const session = await getSession() as ExtendedSession | null;
+        const session = (await getSession()) as ExtendedSession | null
         if (session?.user?.django_token) {
-          // Update our stored token
-          this.setToken(session.user.django_token);
-          return session.user.django_token;
+          this.setToken(session.user.django_token)
+          return session.user.django_token
         }
       } catch (error) {
-        console.error("Error getting session:", error);
+        console.error('Error getting session:', error)
       }
     }
-    
-    // Fall back to stored token
-    return this.token;
+
+    return this.token
   }
 
-  private async getHeaders(): Promise<HeadersInit> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    }
-
+  private async getRequestHeaders(): Promise<Record<string, string>> {
     const token = await this.getAuthToken()
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`
+
+    if (!token) {
+      return {}
     }
 
-    return headers
+    return {
+      Authorization: `Bearer ${token}`,
+    }
+  }
+
+  private buildEndpoint(endpoint: string, params?: Record<string, string>): string {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+
+    if (!params || Object.keys(params).length === 0) {
+      return cleanEndpoint
+    }
+
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      query.append(key, value)
+    })
+
+    const queryString = query.toString()
+    return queryString ? `${cleanEndpoint}?${queryString}` : cleanEndpoint
+  }
+
+  private successResponse<T>(data: T): ApiResponse<T> {
+    return {
+      data,
+      status: 200,
+    }
+  }
+
+  private errorResponse<T>(error: unknown): ApiResponse<T> {
+    if (error instanceof ApiError) {
+      return {
+        error: error.message,
+        status: error.status || 0,
+      }
+    }
+
+    if (error instanceof Error) {
+      return {
+        error: error.message,
+        status: 0,
+      }
+    }
+
+    return {
+      error: 'Network error',
+      status: 0,
+    }
   }
 
   public async get<T>(endpoint: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
     try {
-      const url = new URL(`${API_BASE_URL}${endpoint}`)
-
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          url.searchParams.append(key, value)
-        })
-      }
-
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: await this.getHeaders(),
+      const data = await apiClient.get<T>(this.buildEndpoint(endpoint, params), {
+        headers: await this.getRequestHeaders(),
       })
 
-      const data = await response.json()
-
-      return {
-        data: response.ok ? data : undefined,
-        error: response.ok ? undefined : data.error || "An error occurred",
-        status: response.status,
-      }
+      return this.successResponse(data)
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "Network error",
-        status: 0,
-      }
+      return this.errorResponse<T>(error)
     }
   }
 
   public async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: await this.getHeaders(),
-        body: JSON.stringify(body),
+      const data = await apiClient.post<T>(this.buildEndpoint(endpoint), body, {
+        headers: await this.getRequestHeaders(),
       })
 
-      const data = await response.json()
-
-      return {
-        data: response.ok ? data : undefined,
-        error: response.ok ? undefined : data.error || "An error occurred",
-        status: response.status,
-      }
+      return this.successResponse(data)
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "Network error",
-        status: 0,
-      }
+      return this.errorResponse<T>(error)
     }
   }
 
   public async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "PUT",
-        headers: await this.getHeaders(),
-        body: JSON.stringify(body),
+      const data = await apiClient.put<T>(this.buildEndpoint(endpoint), body, {
+        headers: await this.getRequestHeaders(),
       })
 
-      const data = await response.json()
-
-      return {
-        data: response.ok ? data : undefined,
-        error: response.ok ? undefined : data.error || "An error occurred",
-        status: response.status,
-      }
+      return this.successResponse(data)
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "Network error",
-        status: 0,
-      }
+      return this.errorResponse<T>(error)
     }
   }
 
   public async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "DELETE",
-        headers: await this.getHeaders(),
+      const data = await apiClient.delete<T>(this.buildEndpoint(endpoint), {
+        headers: await this.getRequestHeaders(),
       })
 
-      const data = await response.json()
-
-      return {
-        data: response.ok ? data : undefined,
-        error: response.ok ? undefined : data.error || "An error occurred",
-        status: response.status,
-      }
+      return this.successResponse(data)
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : "Network error",
-        status: 0,
-      }
+      return this.errorResponse<T>(error)
     }
   }
 }
