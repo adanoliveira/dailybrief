@@ -787,11 +787,10 @@ export function PublicationsStep({
                   const TopicIcon = getTopicIcon(topic.slug || "default");
                   return (
                     <Badge key={`active-${topicId}`} variant="secondary" className="flex items-center gap-1">
-                      <TopicIcon size={14} className="mr-1" />
+                      <TopicIcon className="mr-1 h-3.5 w-3.5" />
                       {topic.name}
                       <X 
-                        size={12} 
-                        className="cursor-pointer" 
+                        className="h-3 w-3 cursor-pointer" 
                         onClick={() => handleTopicFilter(topicId)}
                       />
                     </Badge>
@@ -805,8 +804,7 @@ export function PublicationsStep({
                       <span className="mr-1 text-xs">{getRegionFlag(regionCode)}</span>
                       {region.name}
                       <X 
-                        size={12} 
-                        className="cursor-pointer" 
+                        className="h-3 w-3 cursor-pointer" 
                         onClick={() => handleRegionFilter(regionCode)}
                       />
                     </Badge>

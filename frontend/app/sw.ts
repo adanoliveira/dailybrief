@@ -1,13 +1,13 @@
 /// <reference lib="webworker" />
+export {}
 
-declare const self: ServiceWorkerGlobalScope
-
+const serviceWorker = globalThis as unknown as ServiceWorkerGlobalScope
 const CACHE_NAME = "dailybrief-cache-v1"
 
 // Add list of files to cache here
 const urlsToCache = ["/", "/home", "/world", "/offline"]
 
-self.addEventListener("install", (event) => {
+serviceWorker.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(urlsToCache)
@@ -15,7 +15,7 @@ self.addEventListener("install", (event) => {
   )
 })
 
-self.addEventListener("fetch", (event) => {
+serviceWorker.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
       // Cache hit - return response
@@ -45,14 +45,27 @@ self.addEventListener("fetch", (event) => {
         .catch(() => {
           // If the network is unavailable, try to return the offline page
           if (event.request.mode === "navigate") {
-            return caches.match("/offline")
+            return caches.match("/offline").then(
+              (offlinePage) =>
+                offlinePage ||
+                new Response("Offline", {
+                  status: 503,
+                  statusText: "Offline",
+                  headers: { "Content-Type": "text/plain" },
+                }),
+            )
           }
+          return new Response("Network error", {
+            status: 504,
+            statusText: "Gateway Timeout",
+            headers: { "Content-Type": "text/plain" },
+          })
         })
     }),
   )
 })
 
-self.addEventListener("activate", (event) => {
+serviceWorker.addEventListener("activate", (event) => {
   const cacheWhitelist = [CACHE_NAME]
   event.waitUntil(
     caches.keys().then((cacheNames) => {

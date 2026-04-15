@@ -5,13 +5,6 @@ export interface NotificationOptions {
   body: string
   icon?: string
   data?: any
-  actions?: NotificationAction[]
-}
-
-export interface NotificationAction {
-  action: string
-  title: string
-  icon?: string
 }
 
 export class NotificationService {
@@ -62,7 +55,6 @@ export class NotificationService {
         body: options.body,
         icon: options.icon || "/icons/icon-192x192.png",
         data: { ...options.data, type },
-        actions: options.actions,
       })
 
       notification.onclick = (event) => {
