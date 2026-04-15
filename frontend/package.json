@@ -7,7 +7,8 @@
     "dev": "npx prisma generate && next dev",
     "build": "npx prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@auth/core": "^0.34.2",

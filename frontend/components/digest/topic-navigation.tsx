@@ -120,58 +120,35 @@ export function TopicNavigation({ topics, className }: TopicNavigationProps) {
     }
 
     observerRef.current = new IntersectionObserver((entries) => {
-      // Debug: log all entries
-      console.log('Intersection entries:', entries.map(e => ({
-        id: (e.target as HTMLElement).id,
-        isIntersecting: e.isIntersecting,
-        ratio: e.intersectionRatio
-      })))
-
-      // Find the entry with the highest intersection ratio that's actually intersecting
-      let bestEntry: IntersectionObserverEntry | null = null
-      let bestRatio = 0
-
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && entry.intersectionRatio > bestRatio) {
-          bestEntry = entry
-          bestRatio = entry.intersectionRatio
-        }
-      })
-
-      // If we found a good entry, update the active topic
-      if (bestEntry !== null) {
+      const intersectingEntries = entries.filter((entry) => entry.isIntersecting)
+      if (intersectingEntries.length > 0) {
+        const bestEntry = [...intersectingEntries].sort(
+          (a, b) => b.intersectionRatio - a.intersectionRatio,
+        )[0]
         const topicId = (bestEntry.target as HTMLElement).id.replace('topic-', '')
         setActiveTopicId(topicId)
-      } else {
-        // If no topic is intersecting well, find the one closest to the top
-        const visibleEntries = entries.filter(e => e.isIntersecting)
-        if (visibleEntries.length > 0) {
-          // Sort by how close to the top of the viewport they are
-          visibleEntries.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-          const topicId = (visibleEntries[0].target as HTMLElement).id.replace('topic-', '')
-          console.log('Fallback: Setting active topic to closest to top:', topicId)
-          setActiveTopicId(topicId)
-        }
+        return
+      }
+
+      // Fallback: pick the entry closest to the top of the viewport
+      const closestEntry = [...entries].sort(
+        (a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top),
+      )[0]
+      if (closestEntry) {
+        const topicId = (closestEntry.target as HTMLElement).id.replace('topic-', '')
+        setActiveTopicId(topicId)
       }
     }, observerOptions)
 
     // Delay to ensure DOM elements are rendered
     const timer = setTimeout(() => {
-      const observedElements: string[] = []
-      
       // Observe all topic sections
       topics.forEach((topic) => {
         const element = document.getElementById(`topic-${topic.id}`)
         if (element && observerRef.current) {
           observerRef.current.observe(element)
-          observedElements.push(topic.id)
-          console.log('Successfully observing topic:', topic.id, 'element:', element)
-        } else {
-          console.warn('Could not find element for topic:', topic.id)
         }
       })
-      
-      console.log('Total topics being observed:', observedElements.length, observedElements)
     }, 200) // Increased delay to 200ms
 
     return () => {
