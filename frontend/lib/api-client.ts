@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { getSession } from 'next-auth/react'
-import { apiCache } from './api-cache'
 import type { Session } from 'next-auth'
 
 // NEW: Standardized API response interfaces
