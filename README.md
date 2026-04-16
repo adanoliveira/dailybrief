@@ -77,18 +77,14 @@ A separate per-user digest-assembly job runs after analyse, groups related artic
 
 ## What I learned
 
-Mostly about the jump from BestWish's single-service Flask app to a multi-service system — how the new moving parts fit together, and what gets harder once they are wired.
+Working fluency with a modern web stack that could serve as a starting architecture for real products — relatively simple setups, each chosen for concrete benefits.
 
-- **Docker Compose for a full local stack.** Postgres, Redis, Django, Celery worker + Beat, Flower, and Next.js all booting with a single command. Services declaring their dependencies and health checks properly is the difference between "sometimes works" and "always works."
-- **Modular monolith.** Per-domain Django apps (`articles`, `feeds`, `content`, `aiproviders`, `notifications`) instead of one big app — a simple shape to start with that also keeps the option to split services later.
-- **Background work with Celery.** Queues, Beat schedules, worker pools, soft and hard time limits, retries, Flower for monitoring. Moving slow work off the request thread is the easy part; making it restartable and observable is the rest.
-- **Multi-stage AI pipelines.** Beyond a single LLM call — chaining fetch → process → summarise → analyse, adding a critic step, generating embeddings, clustering related articles via pgvector. Each stage is fine in isolation; running them in sequence is where cost and failure modes show up.
-- **Modern frontend with Next.js App Router.** Server Components, file-based routing, per-route loading states, and client-side data caching with stale-while-revalidate. Better UX and perceived performance than BestWish's Jinja + vanilla JS.
-- **Split deployment.** Railway for Django + workers, Vercel for the Next.js frontend. Two deploy targets, two sets of environment variables, cross-origin auth via JWT — more pieces than Vercel-only, also closer to how real systems are deployed.
-- **A design system on top of Tailwind.** shadcn/ui primitives gave the UI consistency without owning a full design system — noticeably cleaner visually than BestWish's Bootstrap baseline.
-- **"Works" and "works well" are different milestones.** The first-pass version runs, but observability, retry semantics, deployment hardening, eval coverage, and UI edge cases all need their own iteration after the happy path lights up.
-
-Overall: built and deployed a meaningfully more complex system than BestWish, with more fluency across the stack and a much clearer sense of the rough edges that are still open (see below).
+- **Modular monolith backend.** Per-domain Django apps (`articles`, `feeds`, `content`, `aiproviders`, `notifications`). Keeps each domain's models, views, and logic isolated; makes it easier to reason about changes, test in isolation, and split into separate services later if needed.
+- **Modern frontend with Next.js App Router.** Server Components, file-based routing, per-route loading states, client-side data caching with stale-while-revalidate. Pages load faster, navigation feels instant, and the server handles the heavy rendering so the client stays light.
+- **Background processing with Celery.** Long-running work (API calls, LLM inference, content fetching) runs off the request thread, so users never wait on slow operations. Beat handles scheduling, workers handle retries and timeouts, Flower provides visibility into what's running and what failed.
+- **Docker Compose for local development.** The full stack (Postgres, Redis, Django, Celery worker + Beat, Flower, Next.js) boots with a single command. New contributors get a working environment without installing services individually, and the setup is consistent across machines.
+- **Multi-stage AI pipelines.** Instead of a single LLM call per article, a four-stage pipeline (fetch → process → summarise → analyse) with a critique-and-repair step and vector-based story clustering. Each stage adds structure — summaries are checked for faithfulness, related articles are grouped, entities are deduplicated — so the final digest is more useful and less noisy than raw model output.
+- **Design system with Tailwind + shadcn/ui.** Reusable component primitives that keep the UI consistent without building a full design system from scratch. Faster to build new views, easier to maintain visual coherence across pages.
 
 ## Known gaps
 
