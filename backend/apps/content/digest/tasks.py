@@ -479,3 +479,34 @@ def _process_user_batch(users: List[User], target_date: datetime, force_regenera
         'failed': failed,
         'skipped': skipped
     } 
+
+@shared_task
+def cleanup_stale_digests(digest_age_days: int = 30) -> Dict[str, Any]:
+    """Delete digests older than ``digest_age_days`` (by ``created_at``).
+
+    DigestTopic and DigestStory rows cascade via ``on_delete=CASCADE`` on
+    their FK to Digest, so this single delete clears the full digest
+    subtree. Keeps the database light and reduces per-user history growth.
+
+    Args:
+        digest_age_days: Maximum age (in days) before a digest is removed.
+
+    Returns:
+        Summary dict with the count removed.
+    """
+    cutoff = timezone.now() - timedelta(days=digest_age_days)
+
+    logger.info("Starting cleanup_stale_digests (digest_age_days=%s)", digest_age_days)
+
+    stale = Digest.objects.filter(created_at__lt=cutoff)
+    count = stale.count()
+    if count:
+        stale.delete()
+
+    logger.info("cleanup_stale_digests removed %s digests", count)
+
+    return {
+        "success": True,
+        "removed": count,
+        "digest_age_days": digest_age_days,
+    }

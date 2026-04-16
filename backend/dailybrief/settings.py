@@ -319,6 +319,23 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=2, minute=0, day_of_week=1),  # Monday at 2:00 AM
         'kwargs': {'days_to_keep': 30},
     },
+
+    # Cleanup stale articles - Weekly on Monday at 2:30 AM
+    # Deletes articles >30d old (any status) plus articles >7d old that
+    # never started fetching. Keeps the articles table bounded.
+    'cleanup-stale-articles-weekly': {
+        'task': 'apps.articles.tasks.cleanup_stale_articles',
+        'schedule': crontab(hour=2, minute=30, day_of_week=1),  # Monday at 2:30 AM
+        'kwargs': {'article_age_days': 30, 'unfetched_age_days': 7},
+    },
+
+    # Cleanup stale digests - Weekly on Monday at 2:45 AM
+    # Deletes digests >30d old (by created_at). Cascades topics + stories.
+    'cleanup-stale-digests-weekly': {
+        'task': 'apps.content.digest.tasks.cleanup_stale_digests',
+        'schedule': crontab(hour=2, minute=45, day_of_week=1),  # Monday at 2:45 AM
+        'kwargs': {'digest_age_days': 30},
+    },
     
     # CONTENT ENRICHMENT PIPELINE - CONTINUOUS PROCESSING SCHEDULE
     # Runs continuously every 15-30 minutes to ensure all articles are processed
