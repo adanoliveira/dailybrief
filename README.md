@@ -13,9 +13,9 @@ Personalized daily news digests — AI-summarized stories from dozens of sources
 
 DailyBrief is a practice project — the second in a self-directed software-engineering track after [BestWish](https://github.com/adanoliveira/bestwish), and a [CS50W](https://cs50.harvard.edu/web/) capstone submission.
 
-Users pick topics and publications they care about; the app ingests articles twice a day, summarizes each one with AI, clusters related coverage into single stories, and delivers a personalized daily digest. Staying up to date takes minutes instead of hours.
+Users pick topics and publications they care about; the app ingests articles twice a day, summarizes each one with AI, clusters related coverage into single stories, and delivers a personalized daily digest.
 
-Architecturally a deliberate step up from BestWish's single-service Flask app: a multi-service system with background processing, a multi-stage AI pipeline, and a modern frontend. The stack, architecture, and design choices are broken down in the sections below.
+Architecturally a deliberate step up from BestWish's single-service Flask app: a multi-service system with background processing, a multi-stage AI pipeline, and a modern frontend. Details in the sections below.
 
 ## Tech stack
 
@@ -69,7 +69,7 @@ A multi-service monorepo. Django owns the domain data and the async content pipe
    └──────────────────────────┘
 ```
 
-A separate per-user digest-assembly job runs after analyse, groups related articles into events via centroid embeddings, and composes the digest against the user's saved preferences.
+A separate per-user digest-assembly job runs after the analyse stage, groups related articles into events via centroid embeddings, and composes the digest against the user's saved preferences.
 
 ## Key capabilities
 
