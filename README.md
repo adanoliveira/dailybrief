@@ -40,13 +40,13 @@ A multi-service monorepo. Django owns the domain data and the async content pipe
                ▼
    ┌────────────────────────────────────────────────────────────┐
    │  Content pipeline — Celery workers, 4 stages per article   │
-   │                                                             │
-   │   Fetch ─► Process ─► Summarise ─► Analyse                  │
-   │   raw     cleaned    RBC + headline +    entities, events,  │
-   │   HTML    content    abstract + critic   topics, regions    │
-   │                      + conditional                           │
-   │                      repair                                  │
-   └───────────┬────────────────────────────────────┬────────────┘
+   │                                                            │
+   │   Fetch ─► Process ─► Summarise ─► Analyse                 │
+   │   raw     cleaned    RBC + headline +    entities, events, │
+   │   HTML    content    abstract + critic   topics, regions   │
+   │                      + conditional                         │
+   │                      repair                                │
+   └───────────┬────────────────────────────────────┬───────────┘
                │ writes rows + embeddings           │ LLM calls
                ▼                                     ▼
    ┌──────────────────────────┐      ┌─────────────────────────────┐
