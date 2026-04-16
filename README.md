@@ -88,16 +88,7 @@ Working fluency with a modern web stack that could serve as a starting architect
 
 ## Known gaps
 
-Kept out of scope for this project:
-
-- **Not a shipped product.** No real users, no uptime SLA, no billing.
-- **Web-first delivery is suboptimal for the use case.** A Chrome new-tab replacement, a morning email, or a WhatsApp push would fit "daily briefing" better than a destination site.
-- **No evaluation harness for summary quality.** The critic / repair loop catches obvious breaks, but there's no dataset-backed regression eval, so summaries can drift silently.
-- **Test coverage is thin.** Contract tests cover the algorithmic processor only; the rest of the pipeline and most of the frontend are untested end-to-end.
-- **Email deliverability not fully wired** ([#1](https://github.com/adanoliveira/dailybrief/issues/1)).
-- **Onboarding polish** ([#4](https://github.com/adanoliveira/dailybrief/issues/4), [#7](https://github.com/adanoliveira/dailybrief/issues/7), [#14](https://github.com/adanoliveira/dailybrief/issues/14)).
-- **Newsfeed UX refinements** ([#8](https://github.com/adanoliveira/dailybrief/issues/8), [#11](https://github.com/adanoliveira/dailybrief/issues/11)).
-- **Frontend state domain decomposition** ([#23](https://github.com/adanoliveira/dailybrief/issues/23)).
+The goal was a lean proof of concept with good UX and a solid base for expansion — not full coverage. Digests would be more valuable delivered through channels users already check (WhatsApp, email), not just a web app. News currently comes from a news aggregation API, chosen for initial velocity and simplicity; RSS integration, which is more complex, was pushed to the backlog. The original vision included other content sources beyond news outlets — podcasts, blogs, Substacks, X feeds, YouTube — so users could get a unified summary of everything they follow online. That scope was deferred to keep the first version focused and shippable. Test coverage and summary quality evaluation are also thin and would need investment before serious iteration.
 
 ## Running locally
 
