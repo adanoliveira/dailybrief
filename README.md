@@ -2,6 +2,11 @@
 
 Personalized daily news digests — AI-summarized stories from dozens of sources, grouped by topic, so staying informed takes minutes instead of hours.
 
+<p align="center">
+  <!-- Demo GIFs: replace with actual paths when available -->
+  <em>Demo GIFs coming soon.</em>
+</p>
+
 **Live:** [dailybrief.press](https://dailybrief.press)
 
 ## About
