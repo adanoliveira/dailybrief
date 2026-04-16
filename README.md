@@ -9,9 +9,9 @@ Personalized daily news digests — AI-summarized stories from dozens of sources
 
 ## About
 
-There's too much to read and not enough time to read it. DailyBrief pulls articles from RSS feeds and a news API, summarizes them with AI, clusters related coverage into single stories, and delivers a personalized daily digest based on the user's selected topics and publications.
+DailyBrief is a practice project — the second in a self-directed software-engineering track after [BestWish](https://github.com/adanoliveira/bestwish), and the one that also served as a [CS50W](https://cs50.harvard.edu/web/) capstone submission. The app ingests articles from RSS feeds and a news API, runs each one through a four-stage AI pipeline (fetch → process → summarise → analyse), clusters related stories via pgvector similarity, and assembles a per-user daily digest from selected topics and publications.
 
-A practice project — the second in a self-directed software-engineering track after [BestWish](https://github.com/adanoliveira/bestwish), and the one that also served as a [CS50W](https://cs50.harvard.edu/web/) capstone submission. Architecturally it's a deliberate step up from BestWish's single-service Flask app: Django + Next.js + Celery, PostgreSQL with pgvector, multi-stage LLM processing, a DB-driven provider layer, and a containerized dev + split-deploy setup.
+Architecturally it's a deliberate step up from BestWish's single-service Flask app: Django + Next.js + Celery, PostgreSQL with pgvector, multi-stage LLM processing, a DB-driven provider layer, and a containerized dev + split-deploy setup.
 
 ## Tech stack
 
