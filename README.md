@@ -7,6 +7,8 @@ Personalized daily news digests — AI-summarized stories from dozens of sources
   <em>Screenshots and demo video: coming soon.</em>
 </p>
 
+**Live:** [dailybrief.press](https://dailybrief.press)
+
 ## About
 
 DailyBrief is a practice project — the second in a self-directed software-engineering track after [BestWish](https://github.com/adanoliveira/bestwish), and the one that also served as a [CS50W](https://cs50.harvard.edu/web/) capstone submission. The app ingests articles from RSS feeds and a news API, runs each one through a four-stage AI pipeline (fetch → process → summarise → analyse), clusters related stories via pgvector similarity, and assembles a per-user daily digest from selected topics and publications.
