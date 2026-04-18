@@ -9,6 +9,7 @@ import "./globals.css"
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 import SessionRedirect from "@/components/session-redirect"
 import { Analytics } from "@vercel/analytics/react"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -145,6 +146,7 @@ export default function RootLayout({
                 <Toaster />
                 <ServiceWorkerRegistration />
                 <Analytics />
+                <SpeedInsights />
               </LanguageProvider>
             </UserProvider>
           </AuthProvider>
