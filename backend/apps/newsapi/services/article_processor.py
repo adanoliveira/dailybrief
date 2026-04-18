@@ -354,16 +354,23 @@ class ArticleProcessor:
             content, title, description
         )
         
+        # Truncate fields to fit database constraints
+        author = (article_data.get('author') or '')[:255]
+        source_name = (source_name or '')[:255]
+        title = (title or '')[:512]
+        article_url = (article_url or '')[:1024]
+        image_url = (article_data.get('urlToImage') or '')[:1024] or None
+
         # Create the article with enhanced fields
         article = Article(
             title=title,
             description=description,
             content=content,
             url=article_url,
-            image_url=article_data.get('urlToImage'),
+            image_url=image_url,
             source_name=source_name,
             publication=publication,
-            author=article_data.get('author', ''),
+            author=author,
             language=language,
             published_at=published_at,
             is_top_headline=is_top_headline,
@@ -395,13 +402,13 @@ class ArticleProcessor:
             article.regions.set(publication.regions.all())
         
         # Create the NewsAPIArticle
+        newsapi_id = f"{source_id}:{hashlib.md5(article.url.encode()).hexdigest()[:8]}"
         newsapi_article = NewsAPIArticle(
             article=article,
-            source_id=source_id,
+            source_id=(source_id or '')[:255],
             source_name=source_name,
-            domain=domain,
-            # Generate a composite ID using source and URL hash
-            newsapi_id=f"{source_id}:{hashlib.md5(article.url.encode()).hexdigest()[:8]}",
+            domain=(domain or '')[:255],
+            newsapi_id=newsapi_id[:255],
             category=category or article_data.get('category'),  # Use provided category or from data
             raw_data=article_data,
             is_top_headline=is_top_headline,
@@ -432,31 +439,36 @@ class ArticleProcessor:
         created_count = 0
         updated_count = 0
         
-        # Process in batches for better performance
-        with transaction.atomic():
-            for article_data in articles_data:
-                article, newsapi_article, created = self._get_or_create_article(
-                    article_data, 
-                    is_top_headline,
-                    sync_log,
-                    category
-                )
-                
-                if article:
-                    if created:
-                        created_count += 1
-                    else:
-                        # Update existing article with new data if needed
-                        if is_top_headline and not article.is_top_headline:
-                            article.is_top_headline = True
-                            article.save(update_fields=['is_top_headline'])
-                            updated_count += 1
-                        
-                        # Add topic from category if provided and not already present
-                        if category and category.lower() in self.topic_mapping:
-                            topic = self.topic_mapping[category.lower()]
-                            if not article.topics.filter(id=topic.id).exists():
-                                article.topics.add(topic)
+        # Process articles individually — each in its own savepoint so one
+        # bad article doesn't roll back the entire batch.
+        for article_data in articles_data:
+            try:
+                with transaction.atomic():
+                    article, newsapi_article, created = self._get_or_create_article(
+                        article_data,
+                        is_top_headline,
+                        sync_log,
+                        category
+                    )
+
+                    if article:
+                        if created:
+                            created_count += 1
+                        else:
+                            # Update existing article with new data if needed
+                            if is_top_headline and not article.is_top_headline:
+                                article.is_top_headline = True
+                                article.save(update_fields=['is_top_headline'])
+                                updated_count += 1
+
+                            # Add topic from category if provided and not already present
+                            if category and category.lower() in self.topic_mapping:
+                                topic = self.topic_mapping[category.lower()]
+                                if not article.topics.filter(id=topic.id).exists():
+                                    article.topics.add(topic)
+            except Exception as e:
+                title = article_data.get('title', 'unknown')[:80]
+                logger.error(f"Failed to process article '{title}': {e}")
         
         total_count = created_count + updated_count
         return created_count, updated_count, total_count 
