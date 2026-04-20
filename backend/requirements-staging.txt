@@ -35,8 +35,11 @@ textstat==0.7.3            # Used in analyzer for linguistic analysis
 spacy==3.7.4               # Used in analyzer for NER and NLP
 scipy==1.12.0              # Used for cosine distance calculations
 
+# RSS feed parsing
+feedparser>=6.0.0
+
 # REMOVED (not used in codebase):
 # sentence-transformers>=4.1.0  # No imports found
-# newspaper3k==0.2.8            # No imports found  
+# newspaper3k==0.2.8            # No imports found
 # yake==0.4.8                   # No imports found
-# spacytextblob==4.0.0          # No imports found 
+# spacytextblob==4.0.0          # No imports found
