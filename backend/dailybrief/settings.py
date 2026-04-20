@@ -112,6 +112,7 @@ INSTALLED_APPS = [
     'apps.feeds',
     'apps.articles',
     'apps.newsapi',
+    'apps.rssfeeds',
     'apps.aiproviders',
     'apps.notifications',
     
@@ -499,6 +500,20 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-stuck-analyzer-articles': {
         'task': 'apps.content.analyzer.tasks.cleanup_stuck_analyzer_articles',
         'schedule': crontab(minute=35, hour='*'),  # Every hour at :35
+    },
+
+    # ===== RSS FEEDS SYNC TASKS =====
+    # All active RSS feeds - Every 2 hours at :30
+    'sync-rss-feeds': {
+        'task': 'rssfeeds.sync_all_feeds',
+        'schedule': crontab(minute=30, hour='*/2'),
+    },
+
+    # Finance/business RSS feeds - Every hour at :00 (higher frequency)
+    'sync-rss-finance-feeds': {
+        'task': 'rssfeeds.sync_feeds_by_topic',
+        'schedule': crontab(minute=0, hour='*/1'),
+        'kwargs': {'topic_slug': 'business'},
     },
 }
 
