@@ -1,0 +1,579 @@
+[
+  {
+    "model": "feeds.publication",
+    "pk": 2001,
+    "fields": {
+      "name": "Valor Econômico",
+      "domain": "valor.globo.com",
+      "website_url": "https://valor.globo.com",
+      "logo_url": "https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128",
+      "description": "Brazil's leading financial newspaper",
+      "authority": 9.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2002,
+    "fields": {
+      "name": "Estadão",
+      "domain": "estadao.com.br",
+      "website_url": "https://www.estadao.com.br",
+      "logo_url": "https://www.google.com/s2/favicons?domain=estadao.com.br&sz=128",
+      "description": "O Estado de S. Paulo — major Brazilian newspaper",
+      "authority": 8.5
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2003,
+    "fields": {
+      "name": "Folha de S.Paulo",
+      "domain": "folha.uol.com.br",
+      "website_url": "https://www.folha.uol.com.br",
+      "logo_url": "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128",
+      "description": "Brazil's largest-circulation newspaper",
+      "authority": 9.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2004,
+    "fields": {
+      "name": "G1",
+      "domain": "g1.globo.com",
+      "website_url": "https://g1.globo.com",
+      "logo_url": "https://www.google.com/s2/favicons?domain=g1.globo.com&sz=128",
+      "description": "Globo's news portal — most-read news site in Brazil",
+      "authority": 8.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2005,
+    "fields": {
+      "name": "Tecnoblog",
+      "domain": "tecnoblog.net",
+      "website_url": "https://tecnoblog.net",
+      "logo_url": "https://www.google.com/s2/favicons?domain=tecnoblog.net&sz=128",
+      "description": "Brazil's leading tech publication",
+      "authority": 6.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2006,
+    "fields": {
+      "name": "Globo Esporte",
+      "domain": "ge.globo.com",
+      "website_url": "https://ge.globo.com",
+      "logo_url": "https://www.google.com/s2/favicons?domain=ge.globo.com&sz=128",
+      "description": "Brazil's largest sports portal",
+      "authority": 7.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2007,
+    "fields": {
+      "name": "Scientific American",
+      "domain": "scientificamerican.com",
+      "website_url": "https://www.scientificamerican.com",
+      "logo_url": "https://www.google.com/s2/favicons?domain=scientificamerican.com&sz=128",
+      "description": "Leading popular science magazine",
+      "authority": 8.0
+    }
+  },
+  {
+    "model": "feeds.publication",
+    "pk": 2008,
+    "fields": {
+      "name": "CBS Sports",
+      "domain": "cbssports.com",
+      "website_url": "https://www.cbssports.com",
+      "logo_url": "https://www.google.com/s2/favicons?domain=cbssports.com&sz=128",
+      "description": "Major US sports network",
+      "authority": 7.0
+    }
+  },
+
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 1,
+    "fields": {
+      "publication": 4,
+      "feed_url": "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best",
+      "title": "Reuters Top News",
+      "topic": 1,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 2,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 2,
+    "fields": {
+      "publication": 20,
+      "feed_url": "https://feeds.bloomberg.com/markets/news.rss",
+      "title": "Bloomberg Markets",
+      "topic": 1,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 1,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 3,
+    "fields": {
+      "publication": 3,
+      "feed_url": "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+      "title": "NYT Homepage",
+      "topic": 3,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 4,
+    "fields": {
+      "publication": 119,
+      "feed_url": "https://feeds.washingtonpost.com/rss/national",
+      "title": "Washington Post National",
+      "topic": 3,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 5,
+    "fields": {
+      "publication": 1,
+      "feed_url": "https://feeds.bbci.co.uk/news/rss.xml",
+      "title": "BBC News Top Stories",
+      "topic": 3,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 6,
+    "fields": {
+      "publication": 117,
+      "feed_url": "https://www.theverge.com/rss/index.xml",
+      "title": "The Verge",
+      "topic": 7,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 4,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 7,
+    "fields": {
+      "publication": 103,
+      "feed_url": "https://techcrunch.com/feed/",
+      "title": "TechCrunch",
+      "topic": 7,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 4,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 8,
+    "fields": {
+      "publication": 124,
+      "feed_url": "https://www.wired.com/feed/rss",
+      "title": "Wired",
+      "topic": 7,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 4,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 9,
+    "fields": {
+      "publication": 3,
+      "feed_url": "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml",
+      "title": "NYT Science",
+      "topic": 5,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 10,
+    "fields": {
+      "publication": 3,
+      "feed_url": "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml",
+      "title": "NYT Health",
+      "topic": 4,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 11,
+    "fields": {
+      "publication": 2007,
+      "feed_url": "https://rss.sciam.com/ScientificAmerican-Global",
+      "title": "Scientific American",
+      "topic": 5,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 12,
+    "fields": {
+      "publication": 33,
+      "feed_url": "https://www.espn.com/espn/rss/news",
+      "title": "ESPN Top News",
+      "topic": 6,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 13,
+    "fields": {
+      "publication": 3,
+      "feed_url": "https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml",
+      "title": "NYT Sports",
+      "topic": 6,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 14,
+    "fields": {
+      "publication": 2008,
+      "feed_url": "https://www.cbssports.com/rss/headlines/",
+      "title": "CBS Sports Headlines",
+      "topic": 6,
+      "region": 1,
+      "language": 1,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 15,
+    "fields": {
+      "publication": 2001,
+      "feed_url": "https://pox.globo.com/rss/valor/",
+      "title": "Valor Econômico",
+      "topic": 1,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 1,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 16,
+    "fields": {
+      "publication": 63,
+      "feed_url": "https://www.infomoney.com.br/feed/",
+      "title": "InfoMoney",
+      "topic": 1,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 2,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 17,
+    "fields": {
+      "publication": 2002,
+      "feed_url": "https://www.estadao.com.br/pf/feed/rss/economia.xml",
+      "title": "Estadão Economia",
+      "topic": 1,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 2,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 18,
+    "fields": {
+      "publication": 2004,
+      "feed_url": "https://g1.globo.com/rss/g1/",
+      "title": "G1 Top News",
+      "topic": 3,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 19,
+    "fields": {
+      "publication": 2003,
+      "feed_url": "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml",
+      "title": "Folha de S.Paulo — Em Cima da Hora",
+      "topic": 3,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 20,
+    "fields": {
+      "publication": 2002,
+      "feed_url": "https://www.estadao.com.br/pf/feed/rss/ultimas.xml",
+      "title": "Estadão Últimas",
+      "topic": 3,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 3,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 21,
+    "fields": {
+      "publication": 2005,
+      "feed_url": "https://tecnoblog.net/feed/",
+      "title": "Tecnoblog",
+      "topic": 7,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 22,
+    "fields": {
+      "publication": 2003,
+      "feed_url": "https://feeds.folha.uol.com.br/esporte/rss091.xml",
+      "title": "Folha Esporte",
+      "topic": 6,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 23,
+    "fields": {
+      "publication": 2004,
+      "feed_url": "https://g1.globo.com/rss/g1/ciencia-e-saude/",
+      "title": "G1 Ciência e Saúde",
+      "topic": 5,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  },
+  {
+    "model": "rssfeeds.rssfeed",
+    "pk": 24,
+    "fields": {
+      "publication": 2006,
+      "feed_url": "https://ge.globo.com/rss/ge/",
+      "title": "Globo Esporte",
+      "topic": 6,
+      "region": 10,
+      "language": 12,
+      "status": "active",
+      "priority": 5,
+      "etag": "",
+      "last_modified": "",
+      "feed_type": "",
+      "feed_description": "",
+      "consecutive_errors": 0,
+      "last_error_message": ""
+    }
+  }
+]
