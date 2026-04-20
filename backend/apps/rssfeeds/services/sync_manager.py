@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Polite delay between feed fetches (seconds)
 INTER_FEED_DELAY = 0.5
+SCHEDULED_FEED_STATUSES = ('active', 'error')
 
 
 class RSSSyncManager:
@@ -33,18 +34,20 @@ class RSSSyncManager:
 
     def sync_all_active_feeds(self) -> dict:
         """
-        Sync all active RSS feeds ordered by priority.
+        Sync all schedulable RSS feeds ordered by priority.
 
         Returns:
             Summary dict with total counts.
         """
-        feeds = RSSFeed.objects.filter(status='active').order_by('priority', 'last_fetched_at')
+        feeds = RSSFeed.objects.filter(
+            status__in=SCHEDULED_FEED_STATUSES
+        ).order_by('priority', 'last_fetched_at')
         return self._sync_feeds(feeds)
 
     def sync_feeds_by_topic(self, topic_slug: str) -> dict:
         """Sync only feeds matching a given topic slug."""
         feeds = RSSFeed.objects.filter(
-            status='active',
+            status__in=SCHEDULED_FEED_STATUSES,
             topic__slug=topic_slug,
         ).order_by('priority', 'last_fetched_at')
         return self._sync_feeds(feeds)
@@ -52,7 +55,7 @@ class RSSSyncManager:
     def sync_feeds_by_region(self, region_code: str) -> dict:
         """Sync only feeds matching a given region code."""
         feeds = RSSFeed.objects.filter(
-            status='active',
+            status__in=SCHEDULED_FEED_STATUSES,
             region__code=region_code,
         ).order_by('priority', 'last_fetched_at')
         return self._sync_feeds(feeds)

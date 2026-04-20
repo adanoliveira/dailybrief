@@ -3,16 +3,14 @@ import hashlib
 import re
 from datetime import datetime
 from django.utils import timezone
-from django.db import transaction, models
-from apps.articles.models import Article, StoryGroup
+from django.db import transaction
 from apps.articles.services.deduplication import (
     ArticleDeduplicator,
     compute_content_hash,
     normalize_url,
 )
 from apps.articles.services.publication_matcher import PublicationMatcher
-from apps.feeds.models import Publication, Language, Topic, Region
-from apps.feeds.utils import generate_logo_url
+from apps.feeds.models import Language, Topic
 from apps.newsapi.models import NewsAPIArticle
 from apps.newsapi.utils import extract_domain
 
@@ -93,7 +91,10 @@ class ArticleProcessor:
         source_id = source_info.get('id', '').lower() if source_info.get('id') else None
         source_name = source_info.get('name', '')
 
-        publication = self._get_or_create_publication(source_id, source_name, url)
+        publication = self.publication_matcher.match_existing(
+            source_id=source_id,
+            article_url=url,
+        )
         published_at = self._parse_date(article_data.get('publishedAt'))
 
         existing_article = self.deduplicator.find_duplicate(
@@ -137,6 +138,9 @@ class ArticleProcessor:
             return existing_article, existing_newsapi_article, False
 
         # No duplicate found — create new article
+        if not publication:
+            publication = self._get_or_create_publication(source_id, source_name, url)
+
         logger.info(f"Creating new article: {title[:50]}...")
         article, newsapi_article = self._create_article_pair(
             article_data, is_top_headline, sync_log, category, publication, published_at

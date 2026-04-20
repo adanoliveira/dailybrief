@@ -88,6 +88,35 @@ class PublicationMatcher:
 
         return None
 
+    def match_existing(
+        self,
+        source_id: str | None = None,
+        article_url: str = '',
+    ) -> Publication | None:
+        """
+        Find an existing publication without creating new rows.
+
+        Useful when callers need publication context for deduplication but
+        want to avoid side effects before deciding whether to create an article.
+        """
+        domain = extract_domain(article_url)
+
+        if source_id:
+            key = f"id:{source_id.lower()}"
+            if key in self._mapping:
+                pub = self._mapping[key]
+                self._update_if_needed(pub, domain)
+                return pub
+
+        if domain:
+            key = f"domain:{domain.lower()}"
+            if key in self._mapping:
+                pub = self._mapping[key]
+                self._update_if_needed(pub, domain)
+                return pub
+
+        return None
+
     def match_by_publication(self, publication: Publication) -> Publication:
         """
         Directly return a known publication (used by RSS where feed→publication FK exists).

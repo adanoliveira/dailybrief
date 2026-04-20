@@ -16,8 +16,6 @@ import re
 from datetime import timedelta
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
-from django.utils import timezone
-
 from apps.articles.models import Article
 
 logger = logging.getLogger(__name__)
@@ -41,6 +39,10 @@ def normalize_url(url: str) -> str:
 
     try:
         parsed = urlparse(url)
+        if not parsed.netloc:
+            parsed = urlparse(f"https://{url}")
+            if not parsed.netloc:
+                return ''
 
         # Remove www. prefix
         netloc = re.sub(r'^www\.', '', parsed.netloc.lower())
@@ -54,14 +56,23 @@ def normalize_url(url: str) -> str:
             k: v for k, v in params.items()
             if k.lower() not in TRACKING_PARAMS
         }
-        clean_query = urlencode(filtered_params, doseq=True)
+        query_items = []
+        for key in sorted(filtered_params):
+            for value in sorted(filtered_params[key]):
+                query_items.append((key, value))
+        clean_query = urlencode(query_items, doseq=True)
+
+        # Normalize scheme for web URLs
+        scheme = parsed.scheme.lower()
+        if scheme in ('http', 'https', ''):
+            scheme = 'https'
 
         # Strip trailing slash from path
         path = parsed.path.rstrip('/')
 
         # Rebuild without fragment
         normalized = urlunparse((
-            parsed.scheme.lower(),
+            scheme,
             netloc,
             path,
             parsed.params,
@@ -152,6 +163,9 @@ class ArticleDeduplicator:
         normalized = normalize_url(url)
         if normalized:
             match = Article.objects.filter(url=normalized).first()
+            if not match and normalized.startswith('https://'):
+                alternate = f"http://{normalized[8:]}"
+                match = Article.objects.filter(url=alternate).first()
             if not match:
                 # Also check against un-normalized URLs already in DB
                 match = Article.objects.filter(url=url).first()

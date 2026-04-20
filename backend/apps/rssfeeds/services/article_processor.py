@@ -5,11 +5,10 @@ Transforms feedparser entries into Article + RSSArticle records.
 Delegates deduplication and publication matching to shared services.
 """
 
-import hashlib
 import logging
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from email.utils import parsedate_to_datetime
 
 from django.db import transaction
@@ -69,10 +68,12 @@ class RSSArticleProcessor:
         for entry in entries:
             try:
                 with transaction.atomic():
-                    article, rss_article, was_created = self._process_entry(entry, feed, sync_log)
+                    _, _, was_created, was_updated = self._process_entry(
+                        entry, feed, sync_log
+                    )
                     if was_created:
                         created += 1
-                    elif article:
+                    elif was_updated:
                         updated += 1
             except Exception as e:
                 title = entry.get('title', 'unknown')[:80]
@@ -82,12 +83,12 @@ class RSSArticleProcessor:
 
     def _process_entry(
         self, entry: dict, feed: RSSFeed, sync_log: RSSFeedSyncLog
-    ) -> tuple[Article | None, RSSArticle | None, bool]:
+    ) -> tuple[Article | None, RSSArticle | None, bool, bool]:
         """Process a single RSS entry."""
         # Extract basic fields
         url = entry.get('link', '')
         if not url:
-            return None, None, False
+            return None, None, False, False
 
         title = (entry.get('title') or '')[:512]
         description = self._extract_description(entry)
@@ -128,16 +129,16 @@ class RSSArticleProcessor:
             if is_headline and not existing.is_top_headline:
                 existing.is_top_headline = True
                 existing.save(update_fields=['is_top_headline'])
-                return existing, None, False
+                return existing, None, False, True
 
-            return existing, None, False
+            return existing, None, False, False
 
         # Create new article
         article, rss_article = self._create_article(
             entry, feed, sync_log, url, title, description, content,
             published_at, guid, publication,
         )
-        return article, rss_article, True
+        return article, rss_article, True, False
 
     def _create_article(
         self, entry, feed, sync_log, url, title, description, content,
@@ -278,7 +279,7 @@ class RSSArticleProcessor:
             time_struct = entry.get(field)
             if time_struct:
                 try:
-                    return datetime(*time_struct[:6], tzinfo=timezone.utc)
+                    return datetime(*time_struct[:6], tzinfo=datetime_timezone.utc)
                 except (TypeError, ValueError):
                     pass
 
@@ -287,7 +288,12 @@ class RSSArticleProcessor:
             date_str = entry.get(field)
             if date_str:
                 try:
-                    return parsedate_to_datetime(date_str)
+                    parsed = parsedate_to_datetime(date_str)
+                    if parsed is None:
+                        continue
+                    if timezone.is_naive(parsed):
+                        parsed = timezone.make_aware(parsed, datetime_timezone.utc)
+                    return parsed
                 except (TypeError, ValueError):
                     pass
 
