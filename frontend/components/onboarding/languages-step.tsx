@@ -43,8 +43,8 @@ export function LanguagesStep({
     setSelected(selectedLanguages)
   }, [selectedLanguages])
 
-  // Define available languages (only English for now)
-  const availableLanguages = ['en']
+  // Define available languages
+  const availableLanguages = ['en', 'pt']
   
   // Check if a language is available
   const isLanguageAvailable = (languageCode: string) => availableLanguages.includes(languageCode.toLowerCase())
@@ -112,7 +112,7 @@ export function LanguagesStep({
           <p className="text-muted-foreground">Select languages for your news content</p>
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-900 dark:text-blue-100">
-              <strong>Initial Release:</strong> Currently supporting English only. More languages coming soon!
+              Currently supporting English and Portuguese. More languages coming soon!
             </p>
           </div>
         </CardHeader>

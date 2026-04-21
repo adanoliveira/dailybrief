@@ -43,8 +43,8 @@ export function RegionsStep({
     )
   }, [regions, searchTerm])
 
-  // Define available regions (only US for now)
-  const availableRegions = ['us']
+  // Define available regions
+  const availableRegions = ['us', 'br']
   
   // Check if a region is available
   const isRegionAvailable = (regionCode: string) => availableRegions.includes(regionCode.toLowerCase())
@@ -104,7 +104,7 @@ export function RegionsStep({
           <p className="text-muted-foreground">Select regions you want to follow</p>
           <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-900 dark:text-blue-100">
-              <strong>Initial Release:</strong> Currently supporting United States only. More regions coming soon!
+              Currently supporting United States and Brazil. More regions coming soon!
             </p>
           </div>
         </CardHeader>
