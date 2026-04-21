@@ -44,4 +44,5 @@ class JWTAuthenticationMiddleware(MiddlewareMixin):
             return None
             
         # Attach user to request if authenticated
-        request.user = SimpleLazyObject(lambda: get_user_from_token(request) or request.user) 
+        original_user = request.user
+        request.user = SimpleLazyObject(lambda: get_user_from_token(request) or original_user)
