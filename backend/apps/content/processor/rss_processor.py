@@ -108,6 +108,12 @@ def _heading_level(tag_name: str) -> int:
         return 2
 
 
+def _mark_descendants_seen(tag: Tag, seen: set[int]) -> None:
+    """Mark all descendants as seen to avoid duplicate block extraction."""
+    for descendant in tag.find_all(recursive=True):
+        seen.add(id(descendant))
+
+
 def _build_blocks_from_soup(soup: BeautifulSoup, base_url: Optional[str]) -> List[ContentBlock]:
     """Walk the cleaned soup and emit ContentBlock entries for paragraphs, headings, lists, etc."""
     blocks: List[ContentBlock] = []
@@ -160,6 +166,7 @@ def _build_blocks_from_soup(soup: BeautifulSoup, base_url: Optional[str]) -> Lis
                 ))
                 position += 1
                 seen.add(id(tag))
+                _mark_descendants_seen(tag, seen)
 
         elif name in _LIST_TAGS:
             items: List[str] = []
@@ -177,6 +184,7 @@ def _build_blocks_from_soup(soup: BeautifulSoup, base_url: Optional[str]) -> Lis
                 ))
                 position += 1
                 seen.add(id(tag))
+                _mark_descendants_seen(tag, seen)
 
         elif name in ("img", "figure"):
             if name == "figure":
@@ -215,6 +223,7 @@ def _build_blocks_from_soup(soup: BeautifulSoup, base_url: Optional[str]) -> Lis
             seen.add(id(tag))
             if name == "figure":
                 seen.add(id(img))
+                _mark_descendants_seen(tag, seen)
 
     return blocks
 

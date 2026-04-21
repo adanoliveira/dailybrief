@@ -102,6 +102,14 @@ class ProcessRssContentTests(SimpleTestCase):
         self.assertEqual(list_blocks[0].metadata["items"], ["First", "Second"])
         self.assertEqual(list_blocks[0].metadata["list_type"], "ol")
 
+    def test_blockquote_with_nested_paragraph_is_not_duplicated(self):
+        html = "<blockquote><p>Quoted line</p></blockquote>"
+        result = process_rss_content(html)
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.content_blocks), 1)
+        self.assertEqual(result.content_blocks[0].type, "quote")
+        self.assertEqual(result.content_blocks[0].content, "Quoted line")
+
 
 class ResolveContentForProcessingTests(SimpleTestCase):
     def setUp(self):
