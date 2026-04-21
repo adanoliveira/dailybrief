@@ -111,8 +111,14 @@ class ContentProcessor:
             )
 
         # RSS feeds that delivered the full body already skipped the fetcher.
-        # Use the local RSS processor to avoid a redundant LLM extraction call.
+        # Top headlines get LLM processing for digest quality; others use local regex.
         if content_source in ('rss_content', 'basic_content') and not article.raw_html:
+            if article.is_top_headline:
+                logger.info(
+                    f"Using LLM for top-headline RSS-direct article {article.id} "
+                    f"(source={content_source})"
+                )
+                return self._process_rss_content_with_llm(article, content)
             logger.info(
                 f"Using rss_direct route for article {article.id} "
                 f"(source={content_source}, no raw_html)"
@@ -164,7 +170,47 @@ class ContentProcessor:
             )
 
         return result
-    
+
+    def _process_rss_content_with_llm(self, article, html_content) -> ProcessingResult:
+        """
+        Process RSS-delivered content through the LLM processor for higher quality.
+
+        Used for top-headline RSS-direct articles that deserve LLM-quality
+        content blocks for digest generation. Passes the RSS HTML content
+        to the LLM processor (which normally reads article.raw_html).
+        """
+        logger.info(f"Processing article {article.id} via rss_llm_enhanced route")
+
+        article_metadata = {
+            'title': article.title,
+            'author': article.author,
+            'source_name': article.source_name,
+            'published_at': _ensure_timezone_aware(article.published_at).isoformat() if article.published_at else None,
+            'paywall_detected': False,
+            'paywall_indicators': [],
+        }
+
+        result = self.llm_processor.process_content(
+            html_content, article_metadata, base_url=article.url
+        )
+
+        if result.success:
+            quality = getattr(result, 'quality_score', None)
+            quality_str = f"{quality:.3f}" if isinstance(quality, (int, float)) else str(quality)
+            logger.info(
+                f"RSS LLM processing successful for article {article.id}, "
+                f"quality: {quality_str}"
+            )
+        else:
+            # Fall back to regex processing if LLM fails
+            logger.warning(
+                f"RSS LLM processing failed for article {article.id}, "
+                f"falling back to rss_direct: {result.error_message}"
+            )
+            result = process_rss_content(html_content, base_url=article.url or None)
+
+        return result
+
     def _process_algorithmic_mode(self, article) -> ProcessingResult:
         """
         Process content using algorithmic (Safari-like) mode.
@@ -397,7 +443,16 @@ class ContentProcessor:
             
             # Update rich content metadata
             article.update_rich_content_metadata()
-            
+
+            # Backfill image_url from content_blocks if still missing
+            if not article.image_url and article.content_blocks:
+                for block in article.content_blocks:
+                    if block.get('type') in ('image', 'img', 'figure'):
+                        src = (block.get('metadata') or {}).get('src')
+                        if src and src.startswith('http'):
+                            article.image_url = src[:1024]
+                            break
+
             article.save()
     
     def _update_processing_status(self, article: Article, status: ProcessingStatus):
