@@ -3,7 +3,7 @@ Tests for Step 1 content fetching functionality.
 Tests the clean extraction, fetcher, and tasks modules.
 """
 
-from django.test import TestCase
+from django.test import TestCase, SimpleTestCase
 from django.utils import timezone
 from unittest.mock import patch, MagicMock, Mock
 import requests
@@ -377,8 +377,26 @@ class TasksTestCase(TestCase):
     def test_fetch_article_content_task_invalid_id(self):
         """Test task with invalid article ID."""
         from .tasks import fetch_article_content
-        
+
         result = fetch_article_content(99999)  # Non-existent ID
-        
+
         self.assertFalse(result['success'])
         self.assertIn('not found', result['error'])
+
+
+class FetcherMetadataExtractionTests(SimpleTestCase):
+    """Unit tests for OG metadata extraction helpers."""
+
+    def test_extract_og_tag_handles_extra_attributes(self):
+        html = '<meta property="og:image" data-rh="true" content="https://img.example/a.jpg">'
+        self.assertEqual(
+            ContentFetcher._extract_og_tag(html, "og:image"),
+            "https://img.example/a.jpg",
+        )
+
+    def test_extract_og_tag_handles_single_quotes(self):
+        html = "<meta content='short desc' property='og:description' data-x='1'>"
+        self.assertEqual(
+            ContentFetcher._extract_og_tag(html, "og:description"),
+            "short desc",
+        )

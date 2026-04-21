@@ -466,7 +466,7 @@ class RSSArticleProcessor:
                         continue
                 except (ValueError, TypeError):
                     pass
-                return src
+                return self._upgrade_image_url(src)
 
         return None
 

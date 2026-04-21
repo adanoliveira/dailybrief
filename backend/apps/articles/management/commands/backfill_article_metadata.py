@@ -26,6 +26,21 @@ logger = logging.getLogger(__name__)
 
 def extract_og_tag(html: str, property_name: str) -> str | None:
     """Extract an Open Graph meta tag value from HTML."""
+    from bs4 import BeautifulSoup
+
+    try:
+        soup = BeautifulSoup(html[:100000], 'html.parser')
+        wanted = property_name.lower()
+        for tag in soup.find_all('meta'):
+            prop = (tag.get('property') or tag.get('name') or '').strip().lower()
+            if prop == wanted:
+                content = (tag.get('content') or '').strip()
+                if content:
+                    return content
+    except Exception:
+        # Fall back to regex matching below.
+        pass
+
     patterns = [
         rf'property="{property_name}"\s+content="([^"]+)"',
         rf'content="([^"]+)"\s+property="{property_name}"',

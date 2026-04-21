@@ -195,8 +195,6 @@ class ContentFetcher:
         Extract og:image and og:description from fetched HTML to enrich article metadata.
         Upgrades image_url if a higher quality source is found.
         """
-        import re as _re
-
         og_image = self._extract_og_tag(html, 'og:image')
         if og_image and og_image.startswith('http'):
             if self._should_upgrade_image(og_image, article.image_url):
@@ -211,10 +209,28 @@ class ContentFetcher:
     @staticmethod
     def _extract_og_tag(html: str, property_name: str) -> str | None:
         """Extract an Open Graph meta tag value from raw HTML."""
+        from bs4 import BeautifulSoup
         import re as _re
+
+        # Parse HTML properly first so tag-attribute ordering doesn't matter.
+        try:
+            soup = BeautifulSoup(html[:100000], 'html.parser')
+            wanted = property_name.lower()
+            for tag in soup.find_all('meta'):
+                prop = (tag.get('property') or tag.get('name') or '').strip().lower()
+                if prop == wanted:
+                    content = (tag.get('content') or '').strip()
+                    if content:
+                        return content
+        except Exception:
+            # Fall through to regex fallback.
+            pass
+
         patterns = [
             rf'property="{property_name}"\s+content="([^"]+)"',
             rf'content="([^"]+)"\s+property="{property_name}"',
+            rf"property='{property_name}'\s+content='([^']+)'",
+            rf"content='([^']+)'\s+property='{property_name}'",
         ]
         for pattern in patterns:
             match = _re.search(pattern, html[:50000], _re.IGNORECASE)

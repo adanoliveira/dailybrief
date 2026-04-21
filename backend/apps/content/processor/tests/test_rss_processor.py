@@ -153,13 +153,14 @@ class ProcessArticleContentRoutingTests(SimpleTestCase):
     def setUp(self):
         self.processor = ContentProcessor()
 
-    def _make_article(self, raw_html="", content="", basic_content="", url=""):
+    def _make_article(self, raw_html="", content="", basic_content="", url="", is_top_headline=False):
         article = MagicMock()
         article.id = 1
         article.raw_html = raw_html
         article.content = content
         article.basic_content = basic_content
         article.url = url
+        article.is_top_headline = is_top_headline
         return article
 
     def test_rss_article_routes_to_rss_direct(self):
@@ -170,6 +171,37 @@ class ProcessArticleContentRoutingTests(SimpleTestCase):
         with patch.object(self.processor, "llm_processor") as mock_llm:
             result = self.processor.process_article_content(article)
         mock_llm.process_content.assert_not_called()
+        self.assertTrue(result.success)
+        self.assertEqual(result.route_used, "rss_direct")
+
+    def test_top_headline_rss_article_routes_to_llm_path(self):
+        article = self._make_article(
+            content=RSS_HTML_FULL_ARTICLE,
+            url="https://example.com/article",
+            is_top_headline=True,
+        )
+        llm_result = MagicMock(success=True, quality_score=0.91, route_used="llm_enhanced")
+        with patch.object(self.processor, "llm_processor") as mock_llm:
+            mock_llm.process_content.return_value = llm_result
+            result = self.processor.process_article_content(article)
+
+        mock_llm.process_content.assert_called_once()
+        args, kwargs = mock_llm.process_content.call_args
+        self.assertEqual(args[0], RSS_HTML_FULL_ARTICLE)
+        self.assertEqual(kwargs["base_url"], "https://example.com/article")
+        self.assertIs(result, llm_result)
+
+    def test_top_headline_rss_llm_failure_falls_back_to_rss_direct(self):
+        article = self._make_article(
+            content=RSS_HTML_FULL_ARTICLE,
+            url="https://example.com/article",
+            is_top_headline=True,
+        )
+        llm_failure = MagicMock(success=False, error_message="llm boom")
+        with patch.object(self.processor, "llm_processor") as mock_llm:
+            mock_llm.process_content.return_value = llm_failure
+            result = self.processor.process_article_content(article)
+
         self.assertTrue(result.success)
         self.assertEqual(result.route_used, "rss_direct")
 

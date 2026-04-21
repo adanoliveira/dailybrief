@@ -195,9 +195,11 @@ class ContentProcessor:
         )
 
         if result.success:
+            quality = getattr(result, 'quality_score', None)
+            quality_str = f"{quality:.3f}" if isinstance(quality, (int, float)) else str(quality)
             logger.info(
                 f"RSS LLM processing successful for article {article.id}, "
-                f"quality: {result.quality_score:.3f}"
+                f"quality: {quality_str}"
             )
         else:
             # Fall back to regex processing if LLM fails
