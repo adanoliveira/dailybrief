@@ -19,7 +19,8 @@ from apps.feeds.models import Publication
 logger = logging.getLogger(__name__)
 
 # Articles with a score at or above this threshold enter the pipeline
-HEADLINE_THRESHOLD = 0.45
+# Calibrated on 776 articles: 0.60 yields ~30% pass rate
+HEADLINE_THRESHOLD = 0.60
 
 # High-importance RSS category terms (case-insensitive matching)
 HIGH_IMPORTANCE_TAGS = {
@@ -104,9 +105,9 @@ class HeadlineScorer:
             0.15 * burst
         )
 
-        # Safety net: exclusive stories from top outlets should still pass
-        if authority > 0.85 and cluster_size == 1:
-            score = max(score, 0.55)
+        # Safety net: exclusive stories from the very top outlets should still pass
+        if authority > 0.90 and cluster_size == 1:
+            score = max(score, 0.60)
 
         return min(score, 1.0)
 
