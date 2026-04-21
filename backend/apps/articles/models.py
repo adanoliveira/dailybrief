@@ -203,7 +203,8 @@ class Article(models.Model):
         choices=[
             ('safari_mode', 'Safari Reader Mode'),
             ('llm_enhanced', 'LLM Enhanced'),
-            ('hybrid', 'Hybrid Processing')
+            ('hybrid', 'Hybrid Processing'),
+            ('rss_direct', 'RSS Direct'),
         ],
         null=True, blank=True
     )
@@ -341,7 +342,8 @@ class Article(models.Model):
         route_map = {
             'safari_mode': 'Safari Reader Mode',
             'llm_enhanced': 'LLM Enhanced',
-            'hybrid': 'Hybrid Processing'
+            'hybrid': 'Hybrid Processing',
+            'rss_direct': 'RSS Direct',
         }
         return route_map.get(self.process_route, 'Unknown')
     

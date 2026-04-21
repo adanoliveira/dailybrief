@@ -15,6 +15,9 @@ from apps.articles.models import Article, ProcessingStatus, FetchStatus
 from .routing import ProcessingRouter, ComplexityAnalysis
 from .algorithmic_processor import AlgorithmicProcessor, ProcessingResult
 from .ai_processor import AIContentProcessor
+from .rss_processor import process_rss_content
+
+RSS_MIN_CONTENT_LENGTH = 200
 
 logger = logging.getLogger(__name__)
 
@@ -68,33 +71,65 @@ class ContentProcessor:
         self.max_attempts = getattr(settings, 'CONTENT_PROCESS_MAX_ATTEMPTS', 3)
         self.timeout_seconds = getattr(settings, 'CONTENT_PROCESS_TIMEOUT', 60)
     
+    def _resolve_content_for_processing(self, article):
+        """
+        Resolve the best available content for processing.
+
+        Priority:
+        1. raw_html — full page HTML from fetcher (BrowserSimulation, etc.)
+        2. content — HTML from RSS content:encoded (when fetch was skipped)
+        3. basic_content — fallback, RSS content or partial extraction
+
+        Returns (content_string, source_label) or (None, None).
+        """
+        if article.raw_html:
+            return article.raw_html, 'raw_html'
+        if article.content and len(article.content) > RSS_MIN_CONTENT_LENGTH:
+            return article.content, 'rss_content'
+        if article.basic_content and len(article.basic_content) > RSS_MIN_CONTENT_LENGTH:
+            return article.basic_content, 'basic_content'
+        return None, None
+
     def process_article_content(self, article, route: str = None) -> ProcessingResult:
         """
         Process article content using intelligent routing or specified route.
-        
+
         Args:
-            article: Article instance with raw_html
-            route: Optional route override ('algorithmic', 'llm_enhanced', 'hybrid')
-        
+            article: Article instance with raw_html, content, or basic_content
+            route: Optional route override ('algorithmic', 'llm_enhanced', 'hybrid', 'rss_direct')
+
         Returns:
             ProcessingResult with processed content
         """
-        
-        if not article.raw_html:
+
+        content, content_source = self._resolve_content_for_processing(article)
+
+        if not content:
             return ProcessingResult(
                 success=False,
-                error_message="No raw HTML content available for processing"
+                error_message="No usable content available for processing"
             )
-        
-        # Always use AI processor for now
+
+        # RSS feeds that delivered the full body already skipped the fetcher.
+        # Use the local RSS processor to avoid a redundant LLM extraction call.
+        if content_source in ('rss_content', 'basic_content') and not article.raw_html:
+            logger.info(
+                f"Using rss_direct route for article {article.id} "
+                f"(source={content_source}, no raw_html)"
+            )
+            return self._process_rss_content(article, content)
+
+        # Always use AI processor for raw_html path
         if not route:
             route = 'llm_enhanced'
             logger.info(f"Auto-selected AI processing route for article {article.id}")
         else:
             logger.info(f"Using specified route '{route}' for article {article.id}")
-        
+
         # Process based on route (always use LLM enhanced for now)
-        if route == 'algorithmic':
+        if route == 'rss_direct':
+            return self._process_rss_content(article, content)
+        elif route == 'algorithmic':
             logger.info(f"Overriding algorithmic route to use AI processing for article {article.id}")
             return self._process_llm_enhanced_mode(article)
         elif route == 'llm_enhanced':
@@ -105,6 +140,30 @@ class ContentProcessor:
         else:
             logger.warning(f"Unknown route '{route}', using AI processing for article {article.id}")
             return self._process_llm_enhanced_mode(article)
+
+    def _process_rss_content(self, article, html_content) -> ProcessingResult:
+        """
+        Process RSS-delivered article content without calling the LLM.
+
+        RSS content:encoded is already the article body, so we just need to clean,
+        structure, and validate it locally. Produces blocks/clean_content compatible
+        with the rest of the pipeline (summarizer, analyzer).
+        """
+        logger.info(f"Processing article {article.id} via rss_direct route")
+
+        result = process_rss_content(html_content, base_url=article.url or None)
+
+        if result.success:
+            logger.info(
+                f"RSS direct processing successful for article {article.id}, "
+                f"blocks: {len(result.content_blocks)}, quality: {result.quality_score}"
+            )
+        else:
+            logger.warning(
+                f"RSS direct processing failed for article {article.id}: {result.error_message}"
+            )
+
+        return result
     
     def _process_algorithmic_mode(self, article) -> ProcessingResult:
         """
