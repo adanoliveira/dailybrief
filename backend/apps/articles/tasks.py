@@ -1,8 +1,10 @@
-"""Article cleanup tasks.
+"""Article tasks: cleanup and headline clustering maintenance.
 
-Celery tasks for keeping the articles table bounded so the database stays
-light and query-fast. Runs on a weekly Beat schedule — see
-``CELERY_BEAT_SCHEDULE`` in ``backend/dailybrief/settings.py``.
+Celery tasks for:
+- Keeping the articles table bounded (weekly cleanup)
+- Maintaining the headline clustering system (daily vectorizer rebuild, periodic cluster expiry)
+
+See ``CELERY_BEAT_SCHEDULE`` in ``backend/dailybrief/settings.py``.
 """
 
 import logging
@@ -90,3 +92,29 @@ def cleanup_stale_articles(
         "article_age_days": article_age_days,
         "unfetched_age_days": unfetched_age_days,
     }
+
+
+@shared_task(name='articles.rebuild_headline_vectorizer')
+def rebuild_headline_vectorizer() -> Dict[str, Any]:
+    """Rebuild the TF-IDF vectorizer used for headline clustering.
+
+    Runs daily to keep the vocabulary current with recent article titles.
+    """
+    from apps.articles.services.story_clustering import rebuild_vectorizer
+
+    logger.info("Rebuilding headline TF-IDF vectorizer")
+    rebuild_vectorizer()
+    return {"success": True}
+
+
+@shared_task(name='articles.expire_headline_clusters')
+def expire_headline_clusters() -> Dict[str, Any]:
+    """Expire old headline clusters that are past the active window.
+
+    Runs every 4 hours to clean up clusters older than 12 hours.
+    """
+    from apps.articles.services.story_clustering import expire_old_clusters
+
+    logger.info("Expiring old headline clusters")
+    expired = expire_old_clusters()
+    return {"success": True, "expired_count": expired}

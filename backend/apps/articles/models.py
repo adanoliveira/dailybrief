@@ -37,6 +37,31 @@ class AnalyzerStatus(models.TextChoices):
     FAILED = 'failed', 'Analysis Failed'
 
 
+class HeadlineCluster(models.Model):
+    """
+    A cluster of articles covering the same news story within a time window.
+    Used for cross-source centrality scoring: more sources = higher importance.
+    """
+    representative_title = models.CharField(max_length=512)
+    article_count = models.IntegerField(default=1)
+    first_seen = models.DateTimeField()
+    last_updated = models.DateTimeField()
+    burst_score = models.FloatField(default=0.0)
+    is_active = models.BooleanField(default=True)
+    language = models.CharField(max_length=10, default='en')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['is_active', 'last_updated'], name='articles_he_is_acti_idx'),
+            models.Index(fields=['language', 'is_active'], name='articles_he_languag_idx'),
+        ]
+
+    def __str__(self):
+        return f"[{self.article_count} sources] {self.representative_title[:60]}"
+
+
 class StoryGroup(models.Model):
     """
     A group of related articles that form a comprehensive story.
@@ -45,16 +70,16 @@ class StoryGroup(models.Model):
     title = models.CharField(max_length=255)
     summary = models.TextField(blank=True)
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    
+
     # Timeframe
     start_date = models.DateTimeField()
     end_date = models.DateTimeField(null=True, blank=True)
     is_ongoing = models.BooleanField(default=True)
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.title
 
@@ -132,8 +157,14 @@ class Article(models.Model):
     related_articles = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='related_to')
     story_group = models.ForeignKey(StoryGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name='articles')
     
-    # Status flags
+    # Headline scoring
     is_top_headline = models.BooleanField(default=False)
+    headline_score = models.FloatField(default=0.0)
+    headline_cluster = models.ForeignKey(
+        HeadlineCluster, on_delete=models.SET_NULL, null=True, blank=True, related_name='articles'
+    )
+
+    # Status flags
     summary_ready = models.BooleanField(default=False)
     
     # ===== STEP 1: EXTRACTION FIELDS =====
@@ -248,6 +279,7 @@ class Article(models.Model):
             models.Index(fields=['public_id']),
             models.Index(fields=['summary_ready']),
             models.Index(fields=['is_top_headline']),
+            models.Index(fields=['headline_score'], name='articles_ar_headlin_idx'),
             models.Index(fields=['content_hash']),
             models.Index(fields=['popularity_score']),
             models.Index(fields=['fetch_status']),
@@ -481,4 +513,3 @@ class UserArticleInteraction(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.article.title[:30]}..."
-

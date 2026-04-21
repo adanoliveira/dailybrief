@@ -51,6 +51,9 @@ class RSSFeed(models.Model):
     # Priority (1=highest, 10=lowest). Finance feeds get 1-3.
     priority = models.IntegerField(default=5)
 
+    # Whether this feed is editorially curated (top stories, homepage) vs chronological (section feeds)
+    is_curated = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -37,6 +37,7 @@ var/
 *.egg
 .pytest_cache/
 .mypy_cache/
+backend/.cache/
 .coverage
 .coverage.*
 htmlcov/

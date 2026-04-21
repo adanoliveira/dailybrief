@@ -22,6 +22,7 @@ from apps.articles.services.deduplication import (
 )
 from apps.articles.services.headline_scoring import HeadlineScorer
 from apps.articles.services.publication_matcher import PublicationMatcher
+from apps.articles.services.story_clustering import StoryClustering
 from apps.feeds.models import Language
 from apps.feeds.utils import extract_domain
 from apps.rssfeeds.models import RSSArticle, RSSFeed, RSSFeedSyncLog
@@ -43,6 +44,7 @@ class RSSArticleProcessor:
         self.deduplicator = ArticleDeduplicator()
         self.publication_matcher = PublicationMatcher()
         self.headline_scorer = HeadlineScorer()
+        self.story_clustering = StoryClustering()
         self._language_cache = {lang.iso_code.lower(): lang for lang in Language.objects.all()}
 
     def process_feed_entries(
@@ -64,12 +66,13 @@ class RSSArticleProcessor:
         """
         created = 0
         updated = 0
+        total_entries = len(entries)
 
-        for entry in entries:
+        for entry_index, entry in enumerate(entries):
             try:
                 with transaction.atomic():
                     _, _, was_created, was_updated = self._process_entry(
-                        entry, feed, sync_log
+                        entry, feed, sync_log, entry_index, total_entries
                     )
                     if was_created:
                         created += 1
@@ -79,10 +82,11 @@ class RSSArticleProcessor:
                 title = entry.get('title', 'unknown')[:80]
                 logger.error(f"Failed to process RSS entry '{title}': {e}")
 
-        return created, updated, len(entries)
+        return created, updated, total_entries
 
     def _process_entry(
-        self, entry: dict, feed: RSSFeed, sync_log: RSSFeedSyncLog
+        self, entry: dict, feed: RSSFeed, sync_log: RSSFeedSyncLog,
+        entry_index: int = 0, total_entries: int = 1,
     ) -> tuple[Article | None, RSSArticle | None, bool, bool]:
         """Process a single RSS entry."""
         # Extract basic fields
@@ -124,29 +128,73 @@ class RSSArticleProcessor:
                         sync_log=sync_log,
                     )
 
-            # Update headline status if needed
-            is_headline = self.headline_scorer.should_process(publication)
-            if is_headline and not existing.is_top_headline:
-                existing.is_top_headline = True
-                existing.save(update_fields=['is_top_headline'])
-                return existing, None, False, True
+            # Existing rows from a duplicate sync should not increment cluster counters.
+            # Only backfill cluster assignment once for legacy articles that predate
+            # the headline_cluster field.
+            if not existing.headline_cluster:
+                lang_code = feed.language.iso_code if feed.language else 'en'
+                try:
+                    cluster, _, _ = self.story_clustering.assign_to_cluster(
+                        title=existing.title,
+                        description=existing.description or '',
+                        published_at=existing.published_at,
+                        language=lang_code,
+                    )
+                    if cluster:
+                        existing.headline_cluster = cluster
+                        existing.save(update_fields=['headline_cluster'])
+                except Exception as e:
+                    logger.debug(f"Clustering failed for existing article: {e}")
 
             return existing, None, False, False
 
         # Create new article
         article, rss_article = self._create_article(
             entry, feed, sync_log, url, title, description, content,
-            published_at, guid, publication,
+            published_at, guid, publication, entry_index, total_entries,
         )
         return article, rss_article, True, False
 
     def _create_article(
         self, entry, feed, sync_log, url, title, description, content,
-        published_at, guid, publication,
+        published_at, guid, publication, entry_index=0, total_entries=1,
     ) -> tuple[Article, RSSArticle]:
         """Create a new Article + RSSArticle pair."""
-        # Determine headline eligibility
-        is_headline = self.headline_scorer.should_process(publication)
+        # Compute feed-level signals
+        feed_signals = self.headline_scorer.compute_feed_signals(
+            entry_index=entry_index,
+            total_entries=total_entries,
+            is_curated_feed=feed.is_curated,
+            entry_tags=entry.get('tags', []),
+            entry_data=entry,
+        )
+
+        # Compute cross-source centrality via clustering
+        lang_code = feed.language.iso_code if feed.language else 'en'
+        cluster = None
+        centrality = 0.33  # default for single-source
+        burst = 0.0
+        try:
+            cluster, centrality, burst = self.story_clustering.assign_to_cluster(
+                title=title,
+                description=description,
+                published_at=published_at,
+                language=lang_code,
+            )
+        except Exception as e:
+            logger.warning(f"Story clustering failed: {e}")
+
+        # Compute combined headline score
+        authority = self.headline_scorer.compute_authority(publication)
+        cluster_size = cluster.article_count if cluster else 1
+        headline_score = self.headline_scorer.compute_combined_score(
+            authority=authority,
+            centrality=centrality,
+            feed_signals=feed_signals,
+            burst=burst,
+            cluster_size=cluster_size,
+        )
+        is_headline = headline_score >= self.headline_scorer.threshold
 
         # Content metrics
         full_text = f"{title} {description} {content}".strip()
@@ -192,6 +240,8 @@ class RSSArticleProcessor:
             language=language,
             published_at=published_at,
             is_top_headline=is_headline,
+            headline_score=headline_score,
+            headline_cluster=cluster,
             summary_ready=False,
             word_count=word_count,
             read_time_minutes=read_time,

@@ -515,6 +515,18 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0, hour='*/1'),
         'kwargs': {'topic_slug': 'business'},
     },
+
+    # Headline clustering maintenance — daily at 03:00 UTC
+    'rebuild-headline-vectorizer': {
+        'task': 'articles.rebuild_headline_vectorizer',
+        'schedule': crontab(minute=0, hour=3),
+    },
+
+    # Expire old headline clusters — every 4 hours at :15
+    'expire-headline-clusters': {
+        'task': 'articles.expire_headline_clusters',
+        'schedule': crontab(minute=15, hour='*/4'),
+    },
 }
 
 # News API

@@ -6,10 +6,10 @@ from .models import RSSFeed, RSSArticle, RSSFeedSyncLog
 @admin.register(RSSFeed)
 class RSSFeedAdmin(admin.ModelAdmin):
     list_display = [
-        'publication', 'title', 'status', 'priority', 'topic', 'region',
+        'publication', 'title', 'status', 'priority', 'is_curated', 'topic', 'region',
         'last_fetched_at', 'consecutive_errors',
     ]
-    list_filter = ['status', 'priority', 'topic', 'region']
+    list_filter = ['status', 'priority', 'is_curated', 'topic', 'region']
     search_fields = ['title', 'feed_url', 'publication__name']
     readonly_fields = ['etag', 'last_modified', 'last_fetched_at', 'last_successful_fetch_at', 'feed_type']
     actions = ['activate_feeds', 'pause_feeds', 'reset_errors']
