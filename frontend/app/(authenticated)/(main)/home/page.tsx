@@ -141,17 +141,22 @@ export default function Home() {
     if (justCompletedOnboarding) {
       // Ensure we're at the top of the page
       window.scrollTo(0, 0)
-      
+
       // Remove the query parameter without navigation
       window.history.replaceState({}, document.title, '/home')
-      
+
       // Clear any saved scroll positions for a fresh start
       const feedTypes = ['personalized:for-you', 'world:all']
       feedTypes.forEach(feedKey => {
         sessionStorage.removeItem(`scroll-${feedKey}::relevance`)
         sessionStorage.removeItem(`scroll-restored-${feedKey}::relevance`)
       })
-      
+
+      // Invalidate feed caches so feeds load with the onboarding preferences
+      import('@/lib/use-local-data').then(({ invalidateFeedCachesForPreferenceChange }) => {
+        invalidateFeedCachesForPreferenceChange()
+      })
+
       toast({
         title: "Setup complete!",
         description: "Welcome to your personalized news feed.",

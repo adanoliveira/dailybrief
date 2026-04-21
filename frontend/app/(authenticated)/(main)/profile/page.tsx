@@ -67,40 +67,30 @@ export default function Profile() {
 
   // Handle preferences update - reload fresh data from server
   const handlePreferencesUpdated = async (newPreferences: UserPreferences) => {
-    console.log("🔄 Preferences updated, refreshing profile data...")
-    console.log("📥 New preferences received:", newPreferences)
-    
     try {
       setIsRefreshingPreferences(true)
-      
+
       // Update local state immediately for better UX
       setUserPreferences(newPreferences)
-      console.log("✅ Local state updated")
-      
-      // Give the backend a moment to process the save before reloading
-      await new Promise(resolve => setTimeout(resolve, 500))
-      console.log("⏱️ Waited 500ms for backend processing")
-      
+
+      // Invalidate all feed caches so feeds reload with new preferences
+      const { invalidateFeedCachesForPreferenceChange } = await import('@/lib/use-local-data')
+      await invalidateFeedCachesForPreferenceChange()
+
       // Reload fresh data from server with cache bypass
-      console.log("🌐 Fetching fresh data from server with forceRefresh=true...")
-      await loadUserData(true) // Force refresh to bypass API cache
-      console.log("✅ Fresh data loaded successfully")
-      
-      // Show success message
+      await loadUserData(true)
+
       toast({
         title: "Preferences saved!",
-        description: "Your news preferences have been updated successfully.",
+        description: "Your news feed will update with your new preferences.",
         duration: 3000,
       })
-      
-      console.log("🎉 Profile data refreshed successfully")
     } catch (error) {
-      console.error("❌ Failed to refresh profile data after preferences update:", error)
-      
-      // Show error message
+      console.error("Failed to refresh after preferences update:", error)
+
       toast({
         title: "Preferences saved",
-        description: "Your preferences were saved, but there was an issue refreshing the display. Please refresh the page.",
+        description: "Your preferences were saved, but there was an issue refreshing. Please refresh the page.",
         variant: "default",
         duration: 5000,
       })
