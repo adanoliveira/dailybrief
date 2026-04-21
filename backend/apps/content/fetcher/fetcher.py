@@ -163,28 +163,80 @@ class ContentFetcher:
         """
         Store extraction results in the article model.
         """
-        
+
         with transaction.atomic():
             # Store raw content and basic info
             article.raw_html = result.raw_html
             article.basic_content = result.basic_content
             article.extraction_metadata = result.extraction_metadata
-            
+
             # Update metadata if extracted
             if result.title and not article.title:
                 article.title = result.title
             if result.author and not article.author:
                 article.author = result.author
-            
+
             # Store paywall detection results
             article.paywall_detected = result.paywall_detected
             article.paywall_indicators = result.paywall_indicators
-            
+
             # Store extraction performance data
             article.fetch_strategy_used = result.strategy_used
             article.fetch_duration_ms = result.extraction_metadata.get('extraction_time_ms', 0)
-            
+
+            # Extract og:image and og:description from fetched HTML
+            if result.raw_html:
+                self._enrich_metadata_from_html(article, result.raw_html)
+
             article.save()
+
+    def _enrich_metadata_from_html(self, article: Article, html: str):
+        """
+        Extract og:image and og:description from fetched HTML to enrich article metadata.
+        Upgrades image_url if a higher quality source is found.
+        """
+        import re as _re
+
+        og_image = self._extract_og_tag(html, 'og:image')
+        if og_image and og_image.startswith('http'):
+            if self._should_upgrade_image(og_image, article.image_url):
+                article.image_url = og_image[:1024]
+
+        if not article.description:
+            og_desc = self._extract_og_tag(html, 'og:description')
+            if og_desc and len(og_desc) > 10:
+                import html as html_mod
+                article.description = html_mod.unescape(og_desc)[:500]
+
+    @staticmethod
+    def _extract_og_tag(html: str, property_name: str) -> str | None:
+        """Extract an Open Graph meta tag value from raw HTML."""
+        import re as _re
+        patterns = [
+            rf'property="{property_name}"\s+content="([^"]+)"',
+            rf'content="([^"]+)"\s+property="{property_name}"',
+        ]
+        for pattern in patterns:
+            match = _re.search(pattern, html[:50000], _re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    @staticmethod
+    def _should_upgrade_image(new_url: str, current_url: str | None) -> bool:
+        """Determine if a new image URL is better than the current one."""
+        if not current_url:
+            return True
+        # BBC low-res thumbnails
+        if '/standard/240/' in current_url:
+            return True
+        # NYT cropped square thumbnails
+        if 'mediumSquare' in current_url:
+            return True
+        # Empty or placeholder
+        if len(current_url) < 10:
+            return True
+        return False
     
     def _update_fetch_status(self, article: Article, status: FetchStatus):
         """

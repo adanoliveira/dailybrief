@@ -111,8 +111,14 @@ class ContentProcessor:
             )
 
         # RSS feeds that delivered the full body already skipped the fetcher.
-        # Use the local RSS processor to avoid a redundant LLM extraction call.
+        # Top headlines get LLM processing for digest quality; others use local regex.
         if content_source in ('rss_content', 'basic_content') and not article.raw_html:
+            if article.is_top_headline:
+                logger.info(
+                    f"Using LLM for top-headline RSS-direct article {article.id} "
+                    f"(source={content_source})"
+                )
+                return self._process_llm_enhanced_mode(article)
             logger.info(
                 f"Using rss_direct route for article {article.id} "
                 f"(source={content_source}, no raw_html)"
@@ -397,7 +403,16 @@ class ContentProcessor:
             
             # Update rich content metadata
             article.update_rich_content_metadata()
-            
+
+            # Backfill image_url from content_blocks if still missing
+            if not article.image_url and article.content_blocks:
+                for block in article.content_blocks:
+                    if block.get('type') in ('image', 'img', 'figure'):
+                        src = (block.get('metadata') or {}).get('src')
+                        if src and src.startswith('http'):
+                            article.image_url = src[:1024]
+                            break
+
             article.save()
     
     def _update_processing_status(self, article: Article, status: ProcessingStatus):

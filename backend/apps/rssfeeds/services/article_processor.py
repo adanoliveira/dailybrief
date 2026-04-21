@@ -295,7 +295,9 @@ class RSSArticleProcessor:
         rss_content_words = len(re.findall(r'\w+', content)) if content else 0
         if rss_content_is_usable(content, rss_content_words):
             fetch_status = 'completed'
-            basic_content = content
+            # Store clean text in basic_content (strip HTML tags)
+            basic_content = re.sub(r'<[^>]+>', '', content).strip()
+            basic_content = re.sub(r'\s+', ' ', basic_content)
             fetch_strategy_used = 'rss_content'
         else:
             fetch_status = 'pending'
@@ -323,7 +325,7 @@ class RSSArticleProcessor:
             word_count=word_count,
             read_time_minutes=read_time,
             content_hash=content_hash,
-            keywords=[],
+            keywords=self._extract_keywords(title, description),
             popularity_score=0.0,
             relevance_score=0.0,
             fetch_status=fetch_status,
@@ -358,8 +360,24 @@ class RSSArticleProcessor:
         return article, rss_article
 
     def _extract_description(self, entry: dict) -> str:
-        """Extract description/summary from an RSS entry."""
-        return entry.get('summary', '') or entry.get('description', '') or ''
+        """Extract description/summary from an RSS entry, with content fallback."""
+        desc = entry.get('summary', '') or entry.get('description', '') or ''
+        if desc:
+            return desc
+
+        # Fallback: extract first 1-2 sentences from content body
+        content = self._extract_content(entry)
+        if content:
+            # Strip HTML tags
+            text = re.sub(r'<[^>]+>', '', content).strip()
+            text = re.sub(r'\s+', ' ', text)
+            if len(text) > 30:
+                # Take first 2 sentences
+                sentences = re.split(r'(?<=[.!?])\s+', text)
+                desc = ' '.join(sentences[:2])
+                return desc[:500]
+
+        return ''
 
     def _extract_content(self, entry: dict) -> str:
         """
@@ -376,7 +394,20 @@ class RSSArticleProcessor:
         return ''
 
     def _extract_image(self, entry: dict) -> str | None:
-        """Extract image URL from RSS entry (media:content, enclosure, etc.)."""
+        """Extract image URL from RSS entry, with multiple fallback layers."""
+        url = self._extract_image_from_media_fields(entry)
+        if url:
+            return self._upgrade_image_url(url)
+
+        # Fallback: parse <img> tags from content/summary HTML
+        url = self._extract_image_from_html(entry)
+        if url:
+            return url
+
+        return None
+
+    def _extract_image_from_media_fields(self, entry: dict) -> str | None:
+        """Extract image from feedparser's parsed media fields."""
         # media:thumbnail
         if 'media_thumbnail' in entry and entry['media_thumbnail']:
             return entry['media_thumbnail'][0].get('url')
@@ -399,6 +430,70 @@ class RSSArticleProcessor:
                 return link.get('href')
 
         return None
+
+    def _extract_image_from_html(self, entry: dict) -> str | None:
+        """Parse <img> tags from RSS content/summary HTML."""
+        from bs4 import BeautifulSoup
+
+        for field_name in ('content', 'summary'):
+            html = ''
+            if field_name == 'content' and entry.get('content'):
+                for item in entry['content']:
+                    html += item.get('value', '')
+            else:
+                html = entry.get(field_name, '') or ''
+
+            if '<img' not in html:
+                continue
+
+            soup = BeautifulSoup(html, 'html.parser')
+            for img in soup.find_all('img'):
+                src = img.get('src') or img.get('data-src') or ''
+                if not src or not src.startswith('http'):
+                    continue
+                # Skip tracking pixels
+                src_lower = src.lower()
+                if any(p in src_lower for p in (
+                    'pixel', 'tracking', 'beacon', '1x1',
+                    'doubleclick', 'googletagmanager', 'facebook.com/tr',
+                )):
+                    continue
+                # Skip tiny images
+                w = img.get('width', '')
+                h = img.get('height', '')
+                try:
+                    if w and h and int(w) <= 2 and int(h) <= 2:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+                return src
+
+        return None
+
+    def _upgrade_image_url(self, url: str) -> str:
+        """Upgrade known low-resolution image URL patterns to higher quality."""
+        if not url:
+            return url
+        # BBC: /ace/standard/240/ → /ace/standard/960/
+        if 'ichef.bbci.co.uk/ace/standard/240/' in url:
+            return url.replace('/standard/240/', '/standard/960/')
+        # NYT: mediumSquareAt3X → superJumbo
+        if 'static01.nyt.com' in url and 'mediumSquare' in url:
+            return re.sub(r'-mediumSquareAt\dX', '-superJumbo', url)
+        return url
+
+    def _extract_keywords(self, title: str, description: str) -> list:
+        """Extract basic keywords from title and description."""
+        text = f"{title} {description}".strip()
+        if not text:
+            return []
+        stop_words = {
+            'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
+            'for', 'with', 'by', 'de', 'da', 'do', 'dos', 'das', 'em', 'no',
+            'na', 'um', 'uma', 'que', 'com', 'para', 'por', 'sobre', 'como',
+        }
+        words = re.findall(r'\b[a-zA-ZÀ-ú]{3,15}\b', text.lower())
+        return list(set(w for w in words if w not in stop_words))[:10]
 
     def _parse_published_date(self, entry: dict) -> datetime:
         """Parse published date from RSS entry."""
