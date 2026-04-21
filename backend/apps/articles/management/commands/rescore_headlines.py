@@ -60,12 +60,14 @@ class Command(BaseCommand):
         promoted = 0
         demoted = 0
         unchanged = 0
+        predicted_headlines = 0
 
         for article in articles.iterator(chunk_size=200):
             # Compute authority
             authority = scorer.compute_authority(article.publication)
 
             # Compute centrality from existing cluster
+            cluster = article.headline_cluster
             if article.headline_cluster:
                 cluster_size = article.headline_cluster.article_count
                 centrality = clustering._centrality_score(cluster_size)
@@ -101,10 +103,12 @@ class Command(BaseCommand):
                 centrality=centrality,
                 feed_signals=feed_signals,
                 burst=burst,
-                cluster_size=cluster_size if article.headline_cluster else 1,
+                cluster_size=cluster_size,
             )
             new_is_headline = new_score >= scorer.threshold
             old_is_headline = article.is_top_headline
+            if new_is_headline:
+                predicted_headlines += 1
 
             if new_is_headline and not old_is_headline:
                 promoted += 1
@@ -120,7 +124,11 @@ class Command(BaseCommand):
                     'headline_score', 'is_top_headline', 'headline_cluster'
                 ])
 
-        new_headline_count = articles.filter(is_top_headline=True).count() if not dry_run else promoted + unchanged
+        new_headline_count = (
+            articles.filter(is_top_headline=True).count()
+            if not dry_run
+            else predicted_headlines
+        )
         pass_rate = (new_headline_count / total * 100) if total else 0
 
         self.stdout.write("")

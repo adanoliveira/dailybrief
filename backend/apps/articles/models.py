@@ -54,8 +54,8 @@ class HeadlineCluster(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['is_active', 'last_updated']),
-            models.Index(fields=['language', 'is_active']),
+            models.Index(fields=['is_active', 'last_updated'], name='articles_he_is_acti_idx'),
+            models.Index(fields=['language', 'is_active'], name='articles_he_languag_idx'),
         ]
 
     def __str__(self):
@@ -279,7 +279,7 @@ class Article(models.Model):
             models.Index(fields=['public_id']),
             models.Index(fields=['summary_ready']),
             models.Index(fields=['is_top_headline']),
-            models.Index(fields=['headline_score']),
+            models.Index(fields=['headline_score'], name='articles_ar_headlin_idx'),
             models.Index(fields=['content_hash']),
             models.Index(fields=['popularity_score']),
             models.Index(fields=['fetch_status']),
@@ -513,4 +513,3 @@ class UserArticleInteraction(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.article.title[:30]}..."
-

@@ -128,20 +128,23 @@ class RSSArticleProcessor:
                         sync_log=sync_log,
                     )
 
-            # Run clustering for existing articles too (grows cluster size)
-            lang_code = feed.language.iso_code if feed.language else 'en'
-            try:
-                cluster, centrality, burst = self.story_clustering.assign_to_cluster(
-                    title=existing.title,
-                    description=existing.description or '',
-                    published_at=existing.published_at,
-                    language=lang_code,
-                )
-                if cluster and not existing.headline_cluster:
-                    existing.headline_cluster = cluster
-                    existing.save(update_fields=['headline_cluster'])
-            except Exception as e:
-                logger.debug(f"Clustering failed for existing article: {e}")
+            # Existing rows from a duplicate sync should not increment cluster counters.
+            # Only backfill cluster assignment once for legacy articles that predate
+            # the headline_cluster field.
+            if not existing.headline_cluster:
+                lang_code = feed.language.iso_code if feed.language else 'en'
+                try:
+                    cluster, _, _ = self.story_clustering.assign_to_cluster(
+                        title=existing.title,
+                        description=existing.description or '',
+                        published_at=existing.published_at,
+                        language=lang_code,
+                    )
+                    if cluster:
+                        existing.headline_cluster = cluster
+                        existing.save(update_fields=['headline_cluster'])
+                except Exception as e:
+                    logger.debug(f"Clustering failed for existing article: {e}")
 
             return existing, None, False, False
 
