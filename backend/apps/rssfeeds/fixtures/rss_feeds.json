@@ -71,30 +71,6 @@
       "authority": 7.0
     }
   },
-  {
-    "model": "feeds.publication",
-    "pk": 2007,
-    "fields": {
-      "name": "Scientific American",
-      "domain": "scientificamerican.com",
-      "website_url": "https://www.scientificamerican.com",
-      "logo_url": "https://www.google.com/s2/favicons?domain=scientificamerican.com&sz=128",
-      "description": "Leading popular science magazine",
-      "authority": 8.0
-    }
-  },
-  {
-    "model": "feeds.publication",
-    "pk": 2008,
-    "fields": {
-      "name": "CBS Sports",
-      "domain": "cbssports.com",
-      "website_url": "https://www.cbssports.com",
-      "logo_url": "https://www.google.com/s2/favicons?domain=cbssports.com&sz=128",
-      "description": "Major US sports network",
-      "authority": 7.0
-    }
-  },
 
   {
     "model": "rssfeeds.rssfeed",
@@ -300,7 +276,7 @@
     "model": "rssfeeds.rssfeed",
     "pk": 11,
     "fields": {
-      "publication": 2007,
+      "publication": 336,
       "feed_url": "https://rss.sciam.com/ScientificAmerican-Global",
       "title": "Scientific American",
       "topic": 5,
@@ -360,7 +336,7 @@
     "model": "rssfeeds.rssfeed",
     "pk": 14,
     "fields": {
-      "publication": 2008,
+      "publication": 145,
       "feed_url": "https://www.cbssports.com/rss/headlines/",
       "title": "CBS Sports Headlines",
       "topic": 6,
