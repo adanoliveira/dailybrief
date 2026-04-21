@@ -118,7 +118,7 @@ class ContentProcessor:
                     f"Using LLM for top-headline RSS-direct article {article.id} "
                     f"(source={content_source})"
                 )
-                return self._process_llm_enhanced_mode(article)
+                return self._process_rss_content_with_llm(article, content)
             logger.info(
                 f"Using rss_direct route for article {article.id} "
                 f"(source={content_source}, no raw_html)"
@@ -170,7 +170,45 @@ class ContentProcessor:
             )
 
         return result
-    
+
+    def _process_rss_content_with_llm(self, article, html_content) -> ProcessingResult:
+        """
+        Process RSS-delivered content through the LLM processor for higher quality.
+
+        Used for top-headline RSS-direct articles that deserve LLM-quality
+        content blocks for digest generation. Passes the RSS HTML content
+        to the LLM processor (which normally reads article.raw_html).
+        """
+        logger.info(f"Processing article {article.id} via rss_llm_enhanced route")
+
+        article_metadata = {
+            'title': article.title,
+            'author': article.author,
+            'source_name': article.source_name,
+            'published_at': _ensure_timezone_aware(article.published_at).isoformat() if article.published_at else None,
+            'paywall_detected': False,
+            'paywall_indicators': [],
+        }
+
+        result = self.llm_processor.process_content(
+            html_content, article_metadata, base_url=article.url
+        )
+
+        if result.success:
+            logger.info(
+                f"RSS LLM processing successful for article {article.id}, "
+                f"quality: {result.quality_score:.3f}"
+            )
+        else:
+            # Fall back to regex processing if LLM fails
+            logger.warning(
+                f"RSS LLM processing failed for article {article.id}, "
+                f"falling back to rss_direct: {result.error_message}"
+            )
+            result = process_rss_content(html_content, base_url=article.url or None)
+
+        return result
+
     def _process_algorithmic_mode(self, article) -> ProcessingResult:
         """
         Process content using algorithmic (Safari-like) mode.
