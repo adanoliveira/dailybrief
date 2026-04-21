@@ -29,8 +29,82 @@ from apps.rssfeeds.models import RSSArticle, RSSFeed, RSSFeedSyncLog
 
 logger = logging.getLogger(__name__)
 
-# If RSS content exceeds this word count, skip the fetcher stage
+# If RSS content exceeds this word count AND passes quality validation,
+# skip the fetcher stage and use the RSS body directly.
 FULL_CONTENT_WORD_THRESHOLD = 500
+
+# Trailing markers that indicate the feed shipped a teaser rather than the full body.
+_TRUNCATION_MARKERS = (
+    '...',
+    '…',
+    '[...]',
+    '[…]',
+    'read more',
+    'continue reading',
+    'leia mais',
+    'continuar lendo',
+    'continuar leyendo',
+    'ler mais',
+)
+
+# Minimum ratio of visible text to raw HTML. Values below this suggest the content
+# is mostly markup/boilerplate rather than prose.
+_MIN_TEXT_TO_HTML_RATIO = 0.3
+
+# The tail window we inspect for truncation markers (characters from the end).
+_TRUNCATION_TAIL_WINDOW = 120
+
+
+def _looks_truncated(content: str) -> bool:
+    """Return True if the RSS content ends with a typical teaser/truncation marker."""
+    if not content:
+        return False
+    tail = re.sub(r'<[^>]+>', '', content)[-_TRUNCATION_TAIL_WINDOW:].strip().lower()
+    if not tail:
+        return False
+    return any(tail.endswith(marker) for marker in _TRUNCATION_MARKERS)
+
+
+def _has_paragraph_structure(content: str) -> bool:
+    """Require at least two paragraph-like breaks (either <p> tags or double newlines)."""
+    if not content:
+        return False
+    p_tag_count = len(re.findall(r'<p[\s>]', content, flags=re.IGNORECASE))
+    if p_tag_count >= 2:
+        return True
+    double_breaks = content.count('\n\n')
+    return double_breaks >= 2
+
+
+def _text_to_html_ratio(content: str) -> float:
+    """Compute the ratio of visible text length to total HTML length."""
+    if not content:
+        return 0.0
+    text_only = re.sub(r'<[^>]+>', '', content).strip()
+    if not content.strip():
+        return 0.0
+    return len(text_only) / len(content)
+
+
+def rss_content_is_usable(content: str, word_count: int) -> bool:
+    """
+    Decide whether RSS body content is high-enough quality to skip the fetcher.
+
+    Criteria:
+    - word_count is already above FULL_CONTENT_WORD_THRESHOLD (caller enforces this)
+    - Content is not ending with a teaser/truncation marker
+    - Content has some paragraph structure
+    - Content is not mostly HTML boilerplate
+    """
+    if word_count < FULL_CONTENT_WORD_THRESHOLD:
+        return False
+    if _looks_truncated(content):
+        return False
+    if not _has_paragraph_structure(content):
+        return False
+    if _text_to_html_ratio(content) < _MIN_TEXT_TO_HTML_RATIO:
+        return False
+    return True
 
 
 class RSSArticleProcessor:
@@ -215,15 +289,18 @@ class RSSArticleProcessor:
         # Image extraction
         image_url = self._extract_image(entry)
 
-        # Determine fetch_status based on RSS content quality
-        # If RSS provides substantial content, skip the fetcher stage
+        # Determine fetch_status based on RSS content quality.
+        # Only skip the fetcher when the RSS body passes quality validation —
+        # otherwise truncated/boilerplate content would fail later stages.
         rss_content_words = len(re.findall(r'\w+', content)) if content else 0
-        if rss_content_words >= FULL_CONTENT_WORD_THRESHOLD:
+        if rss_content_is_usable(content, rss_content_words):
             fetch_status = 'completed'
             basic_content = content
+            fetch_strategy_used = 'rss_content'
         else:
             fetch_status = 'pending'
             basic_content = ''
+            fetch_strategy_used = ''
 
         # Author
         author = (entry.get('author') or '')[:255]
@@ -251,6 +328,7 @@ class RSSArticleProcessor:
             relevance_score=0.0,
             fetch_status=fetch_status,
             basic_content=basic_content,
+            fetch_strategy_used=fetch_strategy_used,
         )
         article.save()
 
