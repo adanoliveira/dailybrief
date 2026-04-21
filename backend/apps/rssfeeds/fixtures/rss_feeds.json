@@ -8,7 +8,9 @@
       "website_url": "https://valor.globo.com",
       "logo_url": "https://www.google.com/s2/favicons?domain=valor.globo.com&sz=128",
       "description": "Brazil's leading financial newspaper",
-      "authority": 9.0
+      "authority": 9.0,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -20,7 +22,9 @@
       "website_url": "https://www.estadao.com.br",
       "logo_url": "https://www.google.com/s2/favicons?domain=estadao.com.br&sz=128",
       "description": "O Estado de S. Paulo — major Brazilian newspaper",
-      "authority": 8.5
+      "authority": 8.5,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -32,7 +36,9 @@
       "website_url": "https://www.folha.uol.com.br",
       "logo_url": "https://www.google.com/s2/favicons?domain=folha.uol.com.br&sz=128",
       "description": "Brazil's largest-circulation newspaper",
-      "authority": 9.0
+      "authority": 9.0,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -44,7 +50,9 @@
       "website_url": "https://g1.globo.com",
       "logo_url": "https://www.google.com/s2/favicons?domain=g1.globo.com&sz=128",
       "description": "Globo's news portal — most-read news site in Brazil",
-      "authority": 8.0
+      "authority": 8.0,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -56,7 +64,9 @@
       "website_url": "https://tecnoblog.net",
       "logo_url": "https://www.google.com/s2/favicons?domain=tecnoblog.net&sz=128",
       "description": "Brazil's leading tech publication",
-      "authority": 6.0
+      "authority": 6.0,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -68,10 +78,11 @@
       "website_url": "https://ge.globo.com",
       "logo_url": "https://www.google.com/s2/favicons?domain=ge.globo.com&sz=128",
       "description": "Brazil's largest sports portal",
-      "authority": 7.0
+      "authority": 7.0,
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
-
   {
     "model": "rssfeeds.rssfeed",
     "pk": 1,
@@ -89,7 +100,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -109,7 +122,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -129,7 +144,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -149,7 +166,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -169,7 +188,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -189,7 +210,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -209,7 +232,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -229,7 +254,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -249,7 +276,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -269,7 +298,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -289,7 +320,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -309,7 +342,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -329,7 +364,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -349,7 +386,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -369,7 +408,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -389,7 +430,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -409,7 +452,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -429,7 +474,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -449,7 +496,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -469,7 +518,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -489,7 +540,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -509,7 +562,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -529,7 +584,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   },
   {
@@ -549,7 +606,9 @@
       "feed_type": "",
       "feed_description": "",
       "consecutive_errors": 0,
-      "last_error_message": ""
+      "last_error_message": "",
+      "created_at": "2026-04-20T22:00:00Z",
+      "updated_at": "2026-04-20T22:00:00Z"
     }
   }
 ]
