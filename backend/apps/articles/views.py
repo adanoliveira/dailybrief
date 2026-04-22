@@ -380,11 +380,9 @@ def personalized_feed(request):
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
     else:  # Default relevance sorting
-        # Time-decayed headline score: fresh + important articles rank highest
-        queryset = _annotate_feed_rank(_limit_feed_rank_candidates(queryset)).order_by(
-            '-feed_rank',
-            '-published_at'
-        )
+        # Emergency perf fallback: use indexed recency ordering on hot path.
+        # Relevance ranking can be reintroduced once query costs are stabilized.
+        queryset = queryset.order_by('-published_at')
 
     articles_data, pagination = _build_diversified_page(queryset, page, page_size)
 
@@ -505,8 +503,8 @@ def world_feed(request):
             'reference_time': reference_time.isoformat() if reference_time else None
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
-    # Time-decayed headline score for world feed too
-    queryset = _annotate_feed_rank(_limit_feed_rank_candidates(queryset)).order_by('-feed_rank', '-published_at')
+    # Emergency perf fallback: recency ordering avoids expensive computed ranking.
+    queryset = queryset.order_by('-published_at')
 
     articles_data, pagination = _build_diversified_page(queryset, page, page_size)
 
