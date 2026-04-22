@@ -98,12 +98,24 @@ class Command(BaseCommand):
                         entry_data=rss.raw_data,
                     )
 
+            # Count active feeds for this language market
+            lang_short = (article.language.iso_code[:2] if article.language else 'en')
+            try:
+                from apps.rssfeeds.models import RSSFeed
+                active_feeds = RSSFeed.objects.filter(
+                    status='active',
+                    language__iso_code__startswith=lang_short,
+                ).count() or 15
+            except Exception:
+                active_feeds = 15
+
             new_score = scorer.compute_combined_score(
                 authority=authority,
                 centrality=centrality,
                 feed_signals=feed_signals,
                 burst=burst,
                 cluster_size=cluster_size,
+                active_feeds_in_market=active_feeds,
             )
             new_is_headline = new_score >= scorer.threshold
             old_is_headline = article.is_top_headline

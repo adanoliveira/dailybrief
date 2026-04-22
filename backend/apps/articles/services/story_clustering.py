@@ -234,6 +234,16 @@ class StoryClustering:
         centrality = self._centrality_score(cluster.article_count)
         burst = cluster.burst_score
 
+        # Count active feeds for this language market
+        try:
+            from apps.rssfeeds.models import RSSFeed
+            active_feeds = RSSFeed.objects.filter(
+                status='active',
+                language__iso_code__startswith=cluster.language[:2],
+            ).count() or 15
+        except Exception:
+            active_feeds = 15
+
         articles = Article.objects.filter(
             headline_cluster=cluster
         ).select_related('publication')
@@ -247,6 +257,7 @@ class StoryClustering:
                 feed_signals=0.5,
                 burst=burst,
                 cluster_size=cluster.article_count,
+                active_feeds_in_market=active_feeds,
             )
             if new_score != article.headline_score:
                 article.headline_score = new_score

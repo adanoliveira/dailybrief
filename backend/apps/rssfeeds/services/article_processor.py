@@ -261,12 +261,22 @@ class RSSArticleProcessor:
         # Compute combined headline score
         authority = self.headline_scorer.compute_authority(publication)
         cluster_size = cluster.article_count if cluster else 1
+
+        # Count active feeds for this language market to adjust centrality
+        from apps.rssfeeds.models import RSSFeed
+        lang_code_short = lang_code[:2] if lang_code else 'en'
+        active_feeds_in_market = RSSFeed.objects.filter(
+            status='active',
+            language__iso_code__startswith=lang_code_short,
+        ).count() or 15  # fallback to 15 if no feeds found
+
         headline_score = self.headline_scorer.compute_combined_score(
             authority=authority,
             centrality=centrality,
             feed_signals=feed_signals,
             burst=burst,
             cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
         )
         is_headline = headline_score >= self.headline_scorer.threshold
 
