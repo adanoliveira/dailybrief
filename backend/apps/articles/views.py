@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Maximum articles from a single publication per feed page
 MAX_PER_PUBLICATION_PER_PAGE = 5
+# Hard cap for diversification scan per request to avoid heavy DB scans/timeouts.
+DIVERSIFICATION_SCAN_LIMIT = 200
 
 
 def _strip_html(text: str) -> str:
@@ -155,33 +157,28 @@ def _serialize_feed_article(article):
 
 def _build_diversified_page(queryset, page: int, page_size: int) -> tuple[list, Paginator, object]:
     """
-    Build a stable page while applying diversity rules.
+    Build a diversified page using a bounded scan window.
 
-    To avoid skipping records between pages, diversify from the beginning of the
-    ordered queryset up to the requested window and then slice the requested
-    page from that diversified sequence.
+    We intentionally limit how many rows are scanned per request to avoid
+    expensive full-range rescans that can trigger worker timeouts.
     """
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)
 
+    if paginator.count == 0:
+        return [], paginator, page_obj
+
     safe_page = max(page_obj.number, 1)
-    target_end = safe_page * page_size
-    fetch_step = max(page_size * 3, page_size)
-    fetch_limit = min(paginator.count, max(target_end * 3, fetch_step))
+    start_offset = (safe_page - 1) * page_size
+    scan_window = min(
+        max(page_size * 6, page_size),
+        DIVERSIFICATION_SCAN_LIMIT,
+    )
 
-    diversified_articles = []
-    while fetch_limit > 0:
-        candidates = list(queryset[:fetch_limit])
-        serialized = [_serialize_feed_article(article) for article in candidates]
-        diversified_articles = _diversify_articles(serialized)
-
-        if len(diversified_articles) >= target_end or fetch_limit >= paginator.count:
-            break
-        fetch_limit = min(fetch_limit + fetch_step, paginator.count)
-
-    start = (safe_page - 1) * page_size
-    end = start + page_size
-    return diversified_articles[start:end], paginator, page_obj
+    candidates = list(queryset[start_offset:start_offset + scan_window])
+    serialized = [_serialize_feed_article(article) for article in candidates]
+    diversified = _diversify_articles(serialized)
+    return diversified[:page_size], paginator, page_obj
 
 
 def get_best_content(article):
