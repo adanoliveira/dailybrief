@@ -59,14 +59,14 @@ def _get_time_threshold() -> timezone.datetime:
 def _get_base_queryset():
     """
     Get base queryset for top headlines within the time window and target regions.
-    
+
     Filters to only include articles from US and BR regions to optimize processing costs
     while still allowing global headline sync for broad coverage.
     """
     return Article.objects.filter(
         is_top_headline=True,
         published_at__gte=_get_time_threshold(),
-        regions__code__in=TARGET_REGION_CODES  # Only US and BR regions
+        regions__code__in=TARGET_REGION_CODES
     ).distinct()  # distinct() needed because of many-to-many relationship
 
 
