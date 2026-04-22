@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from django.utils import timezone
 from django.db import transaction
+from apps.articles.models import Article
 from apps.articles.services.deduplication import (
     ArticleDeduplicator,
     compute_content_hash,

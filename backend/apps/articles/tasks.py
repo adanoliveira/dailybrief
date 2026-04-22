@@ -122,7 +122,7 @@ def expire_headline_clusters() -> Dict[str, Any]:
 
 @shared_task(name='articles.triage_pending_articles')
 def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
-    """Process articles in triage_status='pending_llm' through Tier 2 LLM.
+    """Process articles pending triage decisions.
 
     Runs every 15 minutes via Celery Beat. Also auto-accepts any
     pending_llm articles older than 1 hour (better to process than miss).
@@ -153,9 +153,11 @@ def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
     if auto_accepted:
         logger.info("Auto-accepted %d timed-out pending_llm articles", auto_accepted)
 
-    # Process pending_llm articles through Tier 2
+    # Process pending articles through the next required tier:
+    # - pending: Tier 1 (algorithmic)
+    # - pending_llm: Tier 2 (LLM)
     pending = Article.objects.filter(
-        triage_status='pending_llm',
+        triage_status__in=['pending', 'pending_llm'],
     ).select_related(
         'publication', 'headline_cluster',
     ).prefetch_related('topics').order_by(
@@ -167,6 +169,21 @@ def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
     errors = 0
 
     for article in pending:
+        if article.triage_status == 'pending':
+            tier1_result = triage.tier1_algorithmic(article)
+            triage.apply_result(article, tier1_result)
+
+            if tier1_result.status == 'accepted':
+                accepted += 1
+                continue
+            if tier1_result.status == 'rejected':
+                rejected += 1
+                continue
+            if tier1_result.status != 'pending_llm':
+                errors += 1
+                continue
+
+        # Article is pending_llm (either originally or after Tier 1).
         result = triage.tier2_llm_classify(article)
         triage.apply_result(article, result)
 

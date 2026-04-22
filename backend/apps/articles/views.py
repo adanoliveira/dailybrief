@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
@@ -13,11 +15,305 @@ from apps.core.api_utils import (
     api_view, create_response, create_error_response, 
     create_success_response, parse_request_body
 )
-from apps.feeds.models import UserTopic, UserRegion, UserPublication, UserLanguage
+import re
+
+from apps.feeds.models import Publication, UserTopic, UserRegion, UserPublication, UserLanguage
 from .models import Article, UserArticleInteraction
 from apps.content.summariser.models import ArticleSummary
 
 logger = logging.getLogger(__name__)
+
+# Maximum articles from a single publication per feed page
+MAX_PER_PUBLICATION_PER_PAGE = 5
+# Hard cap for diversification scan per request to avoid heavy DB scans/timeouts.
+DIVERSIFICATION_SCAN_LIMIT = 200
+# Relevance ranking scans a bounded recent pool to keep latency predictable.
+FEED_RELEVANCE_CANDIDATE_MULTIPLIER = 18
+FEED_RELEVANCE_MIN_PAGE_MULTIPLIER = 12
+FEED_RELEVANCE_GROWTH_MULTIPLIER = 12
+FEED_RELEVANCE_MAX_CANDIDATES = 5000
+FEED_ARTICLE_ONLY_FIELDS = (
+    'id',
+    'public_id',
+    'title',
+    'description',
+    'source_name',
+    'published_at',
+    'image_url',
+    'url',
+    'is_top_headline',
+    'read_time_minutes',
+    'headline_score',
+    'headline_cluster_id',
+    'extracted_metadata',
+    'publication_id',
+    'publication__name',
+    'publication__logo_url',
+    'publication__authority',
+)
+
+
+def _strip_html(text: str) -> str:
+    """Strip HTML tags and decode entities from text for plain-text display."""
+    if not text:
+        return ''
+    import html
+    cleaned = re.sub(r'<[^>]+>', ' ', text)
+    cleaned = html.unescape(cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
+
+def _diversify_articles(articles_data: list, max_per_source: int = MAX_PER_PUBLICATION_PER_PAGE) -> list:
+    """
+    Limit articles per publication and deduplicate by headline_cluster.
+
+    Ensures no single source dominates a feed page and that the same
+    story covered by multiple sources only appears once (highest-scored).
+    """
+    seen_sources = {}
+    seen_clusters = set()
+    result = []
+
+    for article in articles_data:
+        source_name = article.get('source', {}).get('name', 'Unknown')
+        cluster_id = article.get('_cluster_id')
+
+        # Skip if we've seen this story cluster already
+        if cluster_id and cluster_id in seen_clusters:
+            continue
+
+        # Skip if this source hit the per-page cap
+        source_count = seen_sources.get(source_name, 0)
+        if source_count >= max_per_source:
+            continue
+
+        seen_sources[source_name] = source_count + 1
+        if cluster_id:
+            seen_clusters.add(cluster_id)
+
+        # Remove internal field before sending to client
+        article.pop('_cluster_id', None)
+        result.append(article)
+
+    return result
+
+
+def _time_decay_factor(published_at, now):
+    """Mirror PR #49 time-decay bands for relevance scoring."""
+    age = now - published_at
+    if age <= timedelta(hours=6):
+        return 1.0
+    if age <= timedelta(hours=12):
+        return 0.9
+    if age <= timedelta(hours=24):
+        return 0.75
+    if age <= timedelta(hours=48):
+        return 0.5
+    return 0.25
+
+
+def _effective_score(article):
+    """
+    Score source used by PR #49:
+    - headline_score when available
+    - otherwise publication authority fallback for legacy/unscored rows
+    """
+    if article.headline_score and article.headline_score > 0:
+        return float(article.headline_score)
+
+    authority = 1.0
+    if article.publication and article.publication.authority is not None:
+        authority = float(article.publication.authority)
+
+    authority = max(0.0, min(authority, 10.0))
+    return (authority / 10.0) * 0.7
+
+
+def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tuple[list, dict]:
+    """
+    Relevance ordering with bounded candidate ranking.
+
+    We intentionally rank only the most recent candidate pool in Python to
+    avoid expensive DB-wide expression sorts while preserving PR #49 behavior.
+    """
+    safe_page = max(int(page or 1), 1)
+    start_offset = (safe_page - 1) * page_size
+    target_end = start_offset + page_size + 1
+    candidate_limit = min(
+        max(
+            target_end * FEED_RELEVANCE_CANDIDATE_MULTIPLIER,
+            page_size * FEED_RELEVANCE_MIN_PAGE_MULTIPLIER,
+        ),
+        FEED_RELEVANCE_MAX_CANDIDATES,
+    )
+    now = timezone.now()
+
+    ranked_articles = []
+    has_more_source = False
+    page_articles = []
+    has_next_ranked = False
+
+    while True:
+        raw_candidates = list(queryset.order_by('-published_at')[:candidate_limit + 1])
+        has_more_source = len(raw_candidates) > candidate_limit
+        raw_candidates = raw_candidates[:candidate_limit]
+
+        serialized = []
+        for article in raw_candidates:
+            article_data = _serialize_feed_article(article)
+            article_data['_feed_rank'] = _effective_score(article) * _time_decay_factor(article.published_at, now)
+            serialized.append(article_data)
+
+        serialized.sort(
+            key=lambda item: (item.get('_feed_rank', 0.0), item.get('_published_at')),
+            reverse=True,
+        )
+        ranked_articles = _diversify_articles(serialized)
+        page_articles = ranked_articles[start_offset:start_offset + page_size]
+        has_next_ranked = len(ranked_articles) > (start_offset + page_size)
+
+        if has_next_ranked:
+            break
+        if not has_more_source:
+            break
+        if candidate_limit >= FEED_RELEVANCE_MAX_CANDIDATES:
+            break
+
+        candidate_limit = min(
+            candidate_limit + max(page_size * FEED_RELEVANCE_GROWTH_MULTIPLIER, page_size),
+            FEED_RELEVANCE_MAX_CANDIDATES,
+        )
+
+    for article in ranked_articles:
+        article.pop('_feed_rank', None)
+
+    # Conservative hasNext when source data wasn't fully scanned yet.
+    has_next = has_next_ranked or (
+        has_more_source and candidate_limit < FEED_RELEVANCE_MAX_CANDIDATES
+    )
+
+    lower_bound_total = start_offset + len(page_articles) + (1 if has_next else 0)
+    pagination = {
+        'page': safe_page,
+        'pageSize': page_size,
+        'totalPages': safe_page + 1 if has_next else safe_page,
+        'totalItems': lower_bound_total,
+        'hasNext': has_next,
+        'hasPrevious': safe_page > 1,
+    }
+    return page_articles, pagination
+
+
+def _feed_base_queryset():
+    """
+    Base queryset for feed endpoints that avoids loading large content fields.
+    """
+    return (
+        Article.objects.filter(
+            is_top_headline=True,
+            analyzer_status='completed',
+        )
+        .select_related('publication')
+        .prefetch_related('topics')
+        .only(*FEED_ARTICLE_ONLY_FIELDS)
+    )
+
+
+def _filter_articles_by_topic_ids(queryset, topic_ids):
+    """Filter articles by topic ids using EXISTS to avoid duplicate row joins."""
+    through = Article.topics.through
+    topic_exists = through.objects.filter(
+        article_id=OuterRef('pk'),
+        topic_id__in=topic_ids,
+    )
+    return queryset.filter(Exists(topic_exists))
+
+
+def _filter_articles_by_topic_slug(queryset, topic_slug: str):
+    """Filter articles by topic slug using EXISTS to avoid duplicate row joins."""
+    through = Article.topics.through
+    topic_exists = through.objects.filter(
+        article_id=OuterRef('pk'),
+        topic__slug=topic_slug,
+    )
+    return queryset.filter(Exists(topic_exists))
+
+
+def _filter_articles_by_region_codes(queryset, region_codes):
+    """
+    Filter articles by publication regions using EXISTS to avoid duplicate joins.
+    """
+    through = Publication.regions.through
+    region_exists = through.objects.filter(
+        publication_id=OuterRef('publication_id'),
+        region__code__in=region_codes,
+    )
+    return queryset.filter(Exists(region_exists))
+
+
+def _serialize_feed_article(article):
+    """Serialize article for feed endpoints with internal fields for filtering/counting."""
+    topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
+    publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+    publication_logo = article.publication.logo_url if article.publication else None
+
+    return {
+        'id': str(article.public_id),
+        'title': article.title,
+        'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
+        'description': _strip_html(article.description or ''),
+        'source': {
+            'name': publication_name,
+            'logoUrl': publication_logo
+        },
+        'publishedAt': article.published_at.isoformat(),
+        'imageUrl': article.image_url,
+        'url': article.url,
+        'isTopHeadline': article.is_top_headline,
+        'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
+        'topics': topics,
+        '_cluster_id': article.headline_cluster_id,
+        '_published_at': article.published_at,
+    }
+
+
+def _build_diversified_page(queryset, page: int, page_size: int) -> tuple[list, dict]:
+    """
+    Build a diversified page using a bounded scan window.
+
+    We intentionally limit how many rows are scanned per request to avoid
+    expensive full-range rescans that can trigger worker timeouts.
+    """
+    safe_page = max(int(page or 1), 1)
+    start_offset = (safe_page - 1) * page_size
+    scan_window = min(
+        max(page_size * 6, page_size),
+        DIVERSIFICATION_SCAN_LIMIT,
+    )
+
+    # Fetch one extra row to infer hasNext without an expensive global COUNT(*).
+    candidates = list(queryset[start_offset:start_offset + scan_window + 1])
+    has_next_source = len(candidates) > scan_window
+    candidates = candidates[:scan_window]
+
+    serialized = [_serialize_feed_article(article) for article in candidates]
+    diversified = _diversify_articles(serialized)
+    page_articles = diversified[:page_size]
+    has_next = has_next_source or len(diversified) > page_size
+
+    # Provide conservative totals (lower-bound) while keeping hasNext accurate.
+    lower_bound_total = start_offset + len(page_articles) + (1 if has_next else 0)
+    pagination = {
+        'page': safe_page,
+        'pageSize': page_size,
+        'totalPages': safe_page + 1 if has_next else safe_page,
+        'totalItems': lower_bound_total,
+        'hasNext': has_next,
+        'hasPrevious': safe_page > 1,
+    }
+    return page_articles, pagination
+
 
 def get_best_content(article):
     """
@@ -80,11 +376,8 @@ def personalized_feed(request):
     count_only = request.GET.get('count_only', '').lower() == 'true'
     latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get top headlines only with completed analysis (temporary filter for initial version)
-    queryset = Article.objects.filter(
-        is_top_headline=True,
-        analyzer_status='completed'
-    ).select_related('language', 'publication').prefetch_related('topics')
+    # Base query - load only feed-needed fields to keep hot-path queries lightweight.
+    queryset = _feed_base_queryset()
     
     # Filter by user preferences (topics, languages, AND publications)
     user_topic_ids = UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
@@ -93,7 +386,7 @@ def personalized_feed(request):
     
     # Always filter by user's preferred topics
     if user_topic_ids:
-        queryset = queryset.filter(topics__in=user_topic_ids)
+        queryset = _filter_articles_by_topic_ids(queryset, user_topic_ids)
     else:
         # If user has no topic preferences, return empty queryset
         queryset = queryset.none()
@@ -106,11 +399,9 @@ def personalized_feed(request):
     if user_publication_ids:
         queryset = queryset.filter(publication__in=user_publication_ids)
     
-    queryset = queryset.distinct()
-    
     # Apply additional topic filter if specified (and not "for-you" which shows all user topics)
     if topic_slug and topic_slug != 'for-you':
-        queryset = queryset.filter(topics__slug=topic_slug)
+        queryset = _filter_articles_by_topic_slug(queryset, topic_slug)
     
     # Apply search filter if specified
     if search_query:
@@ -161,68 +452,31 @@ def personalized_feed(request):
     # Apply sorting
     if sort == 'newest':
         queryset = queryset.order_by('-published_at')
+        articles_data, pagination = _build_diversified_page(queryset, page, page_size)
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
+        articles_data, pagination = _build_diversified_page(queryset, page, page_size)
     else:  # Default relevance sorting
-        # Simplified sorting: relevance score → headlines → recency
-        queryset = queryset.order_by(
-            '-relevance_score',
-            '-is_top_headline',
-            '-published_at'
-        )
-    
-    # Paginate the results
-    paginator = Paginator(queryset, page_size)
-    page_obj = paginator.get_page(page)
-    
-    # Prepare the response
-    articles_data = []
-    for article in page_obj:
-        # Format the article data
-        # Get article topics
-        topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        
-        # Get publication details
-        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
-        publication_logo = article.publication.logo_url if article.publication else None
-        
-        articles_data.append({
-            'id': str(article.public_id),
-            'title': article.title,
-            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
-            'source': {
-                'name': publication_name,
-                'logoUrl': publication_logo
-            },
-            'publishedAt': article.published_at.isoformat(),
-            'imageUrl': article.image_url,
-            'url': article.url,
-            'isTopHeadline': article.is_top_headline,
-            'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
-            'topics': topics,
-        })
-    
+        articles_data, pagination = _build_relevance_diversified_page(queryset, page, page_size)
+
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
-        # Count how many articles in this result set are "new" (published after reference time)
         if reference_time:
-            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+            new_articles_count = len([
+                a for a in articles_data
+                if a.get('_published_at') and a['_published_at'] > reference_time
+            ])
         else:
-            new_articles_count = len(articles_data)  # All articles are considered new
+            new_articles_count = len(articles_data)
+
+    for article in articles_data:
+        article.pop('_published_at', None)
     
     # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
-        'pagination': {
-            'page': page,
-            'pageSize': page_size,
-            'totalPages': paginator.num_pages,
-            'totalItems': paginator.count,
-            'hasNext': page_obj.has_next(),
-            'hasPrevious': page_obj.has_previous(),
-        },
+        'pagination': pagination,
         'new_articles_count': new_articles_count,
         'has_newer_content': new_articles_count > 0,
         'reference_time': reference_time.isoformat() if reference_time else None
@@ -261,21 +515,17 @@ def world_feed(request):
     count_only = request.GET.get('count_only', '').lower() == 'true'
     latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get top headlines with completed analysis (temporary filter for initial version)
-    queryset = Article.objects.filter(
-        is_top_headline=True,
-        analyzer_status='completed'
-    ).select_related('language', 'publication').prefetch_related('topics')
+    # Base query - load only feed-needed fields to keep hot-path queries lightweight.
+    queryset = _feed_base_queryset()
     
     # Filter by user's preferred regions
     user_region_codes = UserRegion.objects.filter(user=user).values_list('region__code', flat=True)
     if user_region_codes:
-        # Filter articles from publications that serve the user's preferred regions
-        queryset = queryset.filter(publication__regions__code__in=user_region_codes).distinct()
+        queryset = _filter_articles_by_region_codes(queryset, user_region_codes)
     
     # Apply topic filter if specified
     if topic_slug and topic_slug != 'all':
-        queryset = queryset.filter(topics__slug=topic_slug)
+        queryset = _filter_articles_by_topic_slug(queryset, topic_slug)
     
     # Apply search filter if specified
     if search_query:
@@ -323,61 +573,26 @@ def world_feed(request):
             'reference_time': reference_time.isoformat() if reference_time else None
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
-    # Sort by published date (newest first)
-    queryset = queryset.order_by('-published_at')
-    
-    # Paginate the results
-    paginator = Paginator(queryset, page_size)
-    page_obj = paginator.get_page(page)
-    
-    # Prepare the response
-    articles_data = []
-    for article in page_obj:
-        # Format the article data
-        # Get article topics
-        topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        
-        # Get publication details
-        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
-        publication_logo = article.publication.logo_url if article.publication else None
-        
-        articles_data.append({
-            'id': str(article.public_id),
-            'title': article.title,
-            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
-            'source': {
-                'name': publication_name,
-                'logoUrl': publication_logo
-            },
-            'publishedAt': article.published_at.isoformat(),
-            'imageUrl': article.image_url,
-            'url': article.url,
-            'isTopHeadline': article.is_top_headline,
-            'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
-            'topics': topics,
-        })
-    
+    articles_data, pagination = _build_relevance_diversified_page(queryset, page, page_size)
+
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
-        # Count how many articles in this result set are "new" (published after reference time)
         if reference_time:
-            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+            new_articles_count = len([
+                a for a in articles_data
+                if a.get('_published_at') and a['_published_at'] > reference_time
+            ])
         else:
-            new_articles_count = len(articles_data)  # All articles are considered new
+            new_articles_count = len(articles_data)
+
+    for article in articles_data:
+        article.pop('_published_at', None)
     
     # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
-        'pagination': {
-            'page': page,
-            'pageSize': page_size,
-            'totalPages': paginator.num_pages,
-            'totalItems': paginator.count,
-            'hasNext': page_obj.has_next(),
-            'hasPrevious': page_obj.has_previous(),
-        },
+        'pagination': pagination,
         'new_articles_count': new_articles_count,
         'has_newer_content': new_articles_count > 0,
         'reference_time': reference_time.isoformat() if reference_time else None
@@ -463,7 +678,7 @@ def public_world_feed(request):
             'id': str(article.public_id),
             'title': article.title,
             'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
+            'description': _strip_html(article.description or ''),
             'source': {
                 'name': publication_name,
                 'logoUrl': publication_logo
@@ -550,7 +765,7 @@ def article_detail(request, public_id):
         'id': str(article.public_id),
         'title': article.title,
         'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-        'description': article.description or '',
+        'description': _strip_html(article.description or ''),
         'content': get_best_content(article),
         'source': {
             'name': publication_name,

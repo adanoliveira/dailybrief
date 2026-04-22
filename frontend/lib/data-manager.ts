@@ -1019,11 +1019,14 @@ export class DataManager {
         : await getWorldFeed(params)
 
       if (response.articles.length === 0) {
-        console.log(`DataManager: No articles returned for page ${page} - marking as no more`)
+        const backendHasMore = response.pagination?.hasNext ?? false
+        console.log(`DataManager: No articles returned for page ${page} (backend hasNext: ${backendHasMore})`)
         await localDB.saveFeedSync({
           ...feedSync,
-          hasMore: false,
-          lastSyncAt: new Date()
+          hasMore: backendHasMore,
+          lastSyncAt: new Date(),
+          totalItems: Math.max(feedSync.totalItems || 0, response.pagination?.totalItems || 0),
+          lastPage: page
         })
         return
       }
@@ -1142,6 +1145,9 @@ export class DataManager {
       // Calculate what pages to fetch
       const startPage = currentPageCount + 1
       const endPage = Math.max(targetPage, startPage + 3) // Fetch at least 4 pages or up to targetPage
+      let hasMore = feedSync.hasMore
+      let lastFetchedPage = currentPageCount
+      let maxTotalItems = feedSync.totalItems || 0
       
       console.log(`DataManager: Need page ${targetPage}, have ${currentPageCount} pages - fetching pages ${startPage} to ${endPage}`)
 
@@ -1157,14 +1163,15 @@ export class DataManager {
           : await getWorldFeed(params)
 
         if (response.articles.length === 0) {
-          console.log(`DataManager: No more articles available (page ${fetchPage})`)
-          // Update hasMore flag
-          await localDB.saveFeedSync({
-            ...feedSync,
-            hasMore: false,
-            lastSyncAt: new Date()
-          })
-          break
+          const backendHasMore = response.pagination?.hasNext ?? false
+          console.log(`DataManager: Empty page ${fetchPage} (backend hasNext: ${backendHasMore})`)
+          hasMore = backendHasMore
+          lastFetchedPage = fetchPage
+          maxTotalItems = Math.max(maxTotalItems, response.pagination?.totalItems || 0)
+          if (!backendHasMore) {
+            break
+          }
+          continue
         }
 
         // Save new articles to local storage
@@ -1209,17 +1216,13 @@ export class DataManager {
 
         // Update our reference for next iteration
         currentArticleCount.totalCount += response.articles.length
+        lastFetchedPage = fetchPage
+        hasMore = response.pagination.hasNext
+        maxTotalItems = Math.max(maxTotalItems, response.pagination?.totalItems || 0)
 
-        // If this page didn't return a full page, we've reached the end
-        if (response.articles.length < pageSize || !response.pagination.hasNext) {
+        // Only stop when backend explicitly indicates no next page.
+        if (!response.pagination.hasNext) {
           console.log(`DataManager: Reached end of feed at page ${fetchPage}`)
-          await localDB.saveFeedSync({
-            ...feedSync,
-            lastSyncAt: new Date(),
-            hasMore: false,
-            totalItems: Math.max(feedSync.totalItems || 0, response.pagination.totalItems || 0),
-            lastPage: fetchPage
-          })
           break
         }
       }
@@ -1228,8 +1231,9 @@ export class DataManager {
       await localDB.saveFeedSync({
         ...feedSync,
         lastSyncAt: new Date(),
-        totalItems: Math.max(feedSync.totalItems || 0, currentArticleCount.totalCount),
-        lastPage: endPage
+        hasMore,
+        totalItems: Math.max(maxTotalItems, currentArticleCount.totalCount),
+        lastPage: lastFetchedPage
       })
 
       console.log(`DataManager: Batch complete - fetched pages ${startPage} to ${endPage}`)

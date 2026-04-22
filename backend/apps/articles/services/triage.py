@@ -275,6 +275,11 @@ class ArticleTriage:
                 max_tokens=100,
                 temperature=0.1,
             )
+            # Count attempted LLM calls in-process so the daily cap is enforced
+            # within a single batch run as well.
+            if self._llm_calls_today is None:
+                self._llm_calls_today = self._get_llm_calls_today()
+            self._llm_calls_today += 1
 
             if not response.success:
                 logger.warning("LLM triage failed for article %s: %s", article.id, response.error_message)
