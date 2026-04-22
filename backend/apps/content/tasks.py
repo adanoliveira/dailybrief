@@ -76,14 +76,17 @@ def _get_base_queryset():
         regions__code__in=TARGET_REGION_CODES,
     ).distinct()
 
-    # Exclude articles from publishers that already have MAX processed today
+    # Exclude ALL pending articles from publishers that already have MAX
+    # articles fully processed today. This blocks entry at every stage
+    # (fetch, process, summarize, analyze) to avoid wasting AI budget
+    # on articles that won't make it through.
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     from django.db.models import Subquery
-    over_cap_publishers = (
+    over_cap_pubs = (
         Article.objects.filter(
             publication_id=models.OuterRef('publication_id'),
             published_at__gte=today_start,
-            summarization_status='completed',
+            analyzer_status='completed',
             is_top_headline=True,
         )
         .values('publication_id')
@@ -93,8 +96,7 @@ def _get_base_queryset():
     )
 
     return base.exclude(
-        models.Q(publication_id__in=Subquery(over_cap_publishers)) &
-        models.Q(summarization_status='pending')
+        publication_id__in=Subquery(over_cap_pubs)
     )
 
 
