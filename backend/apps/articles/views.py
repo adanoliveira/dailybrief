@@ -2,8 +2,7 @@ from datetime import timedelta
 
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists, Value, FloatField, ExpressionWrapper
-from django.db.models.functions import Coalesce
+from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
@@ -28,8 +27,9 @@ logger = logging.getLogger(__name__)
 MAX_PER_PUBLICATION_PER_PAGE = 5
 # Hard cap for diversification scan per request to avoid heavy DB scans/timeouts.
 DIVERSIFICATION_SCAN_LIMIT = 200
-# Limit ranking to a recent candidate pool to avoid expensive full-set ranking.
-FEED_RANK_CANDIDATE_POOL = 500
+# Relevance ranking scans only a bounded recent pool to keep latency predictable.
+FEED_RELEVANCE_CANDIDATE_MULTIPLIER = 10
+FEED_RELEVANCE_MAX_CANDIDATES = 240
 FEED_ARTICLE_ONLY_FIELDS = (
     'id',
     'public_id',
@@ -41,11 +41,13 @@ FEED_ARTICLE_ONLY_FIELDS = (
     'url',
     'is_top_headline',
     'read_time_minutes',
+    'headline_score',
     'headline_cluster_id',
     'extracted_metadata',
     'publication_id',
     'publication__name',
     'publication__logo_url',
+    'publication__authority',
 )
 
 
@@ -95,68 +97,101 @@ def _diversify_articles(articles_data: list, max_per_source: int = MAX_PER_PUBLI
     return result
 
 
-def _annotate_feed_rank(queryset):
+def _time_decay_factor(published_at, now):
+    """Mirror PR #49 time-decay bands for relevance scoring."""
+    age = now - published_at
+    if age <= timedelta(hours=6):
+        return 1.0
+    if age <= timedelta(hours=12):
+        return 0.9
+    if age <= timedelta(hours=24):
+        return 0.75
+    if age <= timedelta(hours=48):
+        return 0.5
+    return 0.25
+
+
+def _effective_score(article):
     """
-    Annotate a queryset with ``feed_rank`` — a time-decayed quality score
-    used for relevance sorting.
-
-    Feed rank blends two signals:
-
-    1. **Quality score** — ``headline_score`` for scored articles (RSS),
-       or a fallback derived from publication authority for unscored
-       articles (NewsAPI, legacy).
-    2. **Time decay** — a multiplier that reduces the effective score as
-       the article ages, so fresh news surfaces above older stories of
-       similar quality.
-
-    Time decay bands:
-        < 6 h   →  1.00  (full weight)
-        6–12 h  →  0.90
-        12–24 h →  0.75
-        24–48 h →  0.50
-        > 48 h  →  0.25
-
-    The fallback for unscored articles is ``min(authority, 10) / 10 * 0.7``,
-    which maps a publication with authority 9.5 to ~0.665 — comparable to a
-    mid-tier scored article.
+    Score source used by PR #49:
+    - headline_score when available
+    - otherwise publication authority fallback for legacy/unscored rows
     """
+    if article.headline_score and article.headline_score > 0:
+        return float(article.headline_score)
+
+    authority = 1.0
+    if article.publication and article.publication.authority is not None:
+        authority = float(article.publication.authority)
+
+    authority = max(0.0, min(authority, 10.0))
+    return (authority / 10.0) * 0.7
+
+
+def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tuple[list, dict]:
+    """
+    Relevance ordering with bounded candidate ranking.
+
+    We intentionally rank only the most recent candidate pool in Python to
+    avoid expensive DB-wide expression sorts while preserving PR #49 behavior.
+    """
+    safe_page = max(int(page or 1), 1)
+    start_offset = (safe_page - 1) * page_size
+    candidate_limit = min(
+        max(page_size * FEED_RELEVANCE_CANDIDATE_MULTIPLIER, page_size),
+        FEED_RELEVANCE_MAX_CANDIDATES,
+    )
+    target_end = start_offset + page_size + 1
     now = timezone.now()
 
-    effective_score = Case(
-        When(headline_score__gt=0, then=F('headline_score')),
-        default=ExpressionWrapper(
-            Coalesce(F('publication__authority'), Value(1.0)) / 10.0 * 0.7,
-            output_field=FloatField(),
-        ),
-        output_field=FloatField(),
-    )
+    ranked_articles = []
+    has_more_source = False
 
-    time_decay = Case(
-        When(published_at__gte=now - timedelta(hours=6), then=Value(1.0)),
-        When(published_at__gte=now - timedelta(hours=12), then=Value(0.9)),
-        When(published_at__gte=now - timedelta(hours=24), then=Value(0.75)),
-        When(published_at__gte=now - timedelta(hours=48), then=Value(0.5)),
-        default=Value(0.25),
-        output_field=FloatField(),
-    )
+    while True:
+        raw_candidates = list(queryset.order_by('-published_at')[:candidate_limit + 1])
+        has_more_source = len(raw_candidates) > candidate_limit
+        raw_candidates = raw_candidates[:candidate_limit]
 
-    return queryset.annotate(
-        feed_rank=ExpressionWrapper(
-            effective_score * time_decay,
-            output_field=FloatField(),
+        serialized = []
+        for article in raw_candidates:
+            article_data = _serialize_feed_article(article)
+            article_data['_feed_rank'] = _effective_score(article) * _time_decay_factor(article.published_at, now)
+            serialized.append(article_data)
+
+        serialized.sort(
+            key=lambda item: (item.get('_feed_rank', 0.0), item.get('_published_at')),
+            reverse=True,
         )
-    )
+        ranked_articles = _diversify_articles(serialized)
 
+        if len(ranked_articles) >= target_end:
+            break
+        if not has_more_source:
+            break
+        if candidate_limit >= FEED_RELEVANCE_MAX_CANDIDATES:
+            break
 
-def _limit_feed_rank_candidates(queryset):
-    """
-    Restrict ranking work to the most recent candidate pool.
+        candidate_limit = min(
+            candidate_limit + max(page_size * FEED_RELEVANCE_CANDIDATE_MULTIPLIER, page_size),
+            FEED_RELEVANCE_MAX_CANDIDATES,
+        )
 
-    This keeps relevance behavior while preventing expensive ranking sorts
-    across the entire filtered result set.
-    """
-    recent_ids = queryset.order_by('-published_at').values('id')[:FEED_RANK_CANDIDATE_POOL]
-    return queryset.filter(id__in=Subquery(recent_ids))
+    for article in ranked_articles:
+        article.pop('_feed_rank', None)
+
+    page_articles = ranked_articles[start_offset:start_offset + page_size]
+    has_next = len(ranked_articles) > (start_offset + page_size) or has_more_source
+
+    lower_bound_total = start_offset + len(page_articles) + (1 if has_next else 0)
+    pagination = {
+        'page': safe_page,
+        'pageSize': page_size,
+        'totalPages': safe_page + 1 if has_next else safe_page,
+        'totalItems': lower_bound_total,
+        'hasNext': has_next,
+        'hasPrevious': safe_page > 1,
+    }
+    return page_articles, pagination
 
 
 def _feed_base_queryset():
@@ -406,14 +441,12 @@ def personalized_feed(request):
     # Apply sorting
     if sort == 'newest':
         queryset = queryset.order_by('-published_at')
+        articles_data, pagination = _build_diversified_page(queryset, page, page_size)
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
+        articles_data, pagination = _build_diversified_page(queryset, page, page_size)
     else:  # Default relevance sorting
-        # Emergency perf fallback: use indexed recency ordering on hot path.
-        # Relevance ranking can be reintroduced once query costs are stabilized.
-        queryset = queryset.order_by('-published_at')
-
-    articles_data, pagination = _build_diversified_page(queryset, page, page_size)
+        articles_data, pagination = _build_relevance_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
@@ -529,10 +562,7 @@ def world_feed(request):
             'reference_time': reference_time.isoformat() if reference_time else None
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
-    # Emergency perf fallback: recency ordering avoids expensive computed ranking.
-    queryset = queryset.order_by('-published_at')
-
-    articles_data, pagination = _build_diversified_page(queryset, page, page_size)
+    articles_data, pagination = _build_relevance_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
