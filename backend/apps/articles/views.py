@@ -18,7 +18,7 @@ from apps.core.api_utils import (
 )
 import re
 
-from apps.feeds.models import UserTopic, UserRegion, UserPublication, UserLanguage
+from apps.feeds.models import Publication, UserTopic, UserRegion, UserPublication, UserLanguage
 from .models import Article, UserArticleInteraction
 from apps.content.summariser.models import ArticleSummary
 
@@ -127,6 +127,38 @@ def _annotate_feed_rank(queryset):
             output_field=FloatField(),
         )
     )
+
+
+def _filter_articles_by_topic_ids(queryset, topic_ids):
+    """Filter articles by topic ids using EXISTS to avoid duplicate row joins."""
+    through = Article.topics.through
+    topic_exists = through.objects.filter(
+        article_id=OuterRef('pk'),
+        topic_id__in=topic_ids,
+    )
+    return queryset.filter(Exists(topic_exists))
+
+
+def _filter_articles_by_topic_slug(queryset, topic_slug: str):
+    """Filter articles by topic slug using EXISTS to avoid duplicate row joins."""
+    through = Article.topics.through
+    topic_exists = through.objects.filter(
+        article_id=OuterRef('pk'),
+        topic__slug=topic_slug,
+    )
+    return queryset.filter(Exists(topic_exists))
+
+
+def _filter_articles_by_region_codes(queryset, region_codes):
+    """
+    Filter articles by publication regions using EXISTS to avoid duplicate joins.
+    """
+    through = Publication.regions.through
+    region_exists = through.objects.filter(
+        publication_id=OuterRef('publication_id'),
+        region__code__in=region_codes,
+    )
+    return queryset.filter(Exists(region_exists))
 
 
 def _serialize_feed_article(article):
@@ -255,7 +287,7 @@ def personalized_feed(request):
     
     # Always filter by user's preferred topics
     if user_topic_ids:
-        queryset = queryset.filter(topics__in=user_topic_ids)
+        queryset = _filter_articles_by_topic_ids(queryset, user_topic_ids)
     else:
         # If user has no topic preferences, return empty queryset
         queryset = queryset.none()
@@ -268,11 +300,9 @@ def personalized_feed(request):
     if user_publication_ids:
         queryset = queryset.filter(publication__in=user_publication_ids)
     
-    queryset = queryset.distinct()
-    
     # Apply additional topic filter if specified (and not "for-you" which shows all user topics)
     if topic_slug and topic_slug != 'for-you':
-        queryset = queryset.filter(topics__slug=topic_slug)
+        queryset = _filter_articles_by_topic_slug(queryset, topic_slug)
     
     # Apply search filter if specified
     if search_query:
@@ -406,12 +436,11 @@ def world_feed(request):
     # Filter by user's preferred regions
     user_region_codes = UserRegion.objects.filter(user=user).values_list('region__code', flat=True)
     if user_region_codes:
-        # Filter articles from publications that serve the user's preferred regions
-        queryset = queryset.filter(publication__regions__code__in=user_region_codes).distinct()
+        queryset = _filter_articles_by_region_codes(queryset, user_region_codes)
     
     # Apply topic filter if specified
     if topic_slug and topic_slug != 'all':
-        queryset = queryset.filter(topics__slug=topic_slug)
+        queryset = _filter_articles_by_topic_slug(queryset, topic_slug)
     
     # Apply search filter if specified
     if search_query:
