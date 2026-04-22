@@ -16,6 +16,7 @@ from django.utils import timezone
 from apps.articles.models import Article
 from apps.articles.services.headline_scoring import HeadlineScorer
 from apps.articles.services.story_clustering import StoryClustering, rebuild_vectorizer
+from apps.rssfeeds.models import RSSFeed
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,12 @@ class Command(BaseCommand):
         cutoff = timezone.now() - timedelta(days=days)
         articles = Article.objects.filter(
             published_at__gte=cutoff
-        ).select_related('publication', 'headline_cluster').order_by('-published_at')
+        ).select_related(
+            'publication',
+            'headline_cluster',
+            'language',
+            'rss_data__feed',
+        ).order_by('-published_at')
 
         total = articles.count()
         self.stdout.write(f"Rescoring {total} articles from the last {days} days...")
@@ -61,6 +67,7 @@ class Command(BaseCommand):
         demoted = 0
         unchanged = 0
         predicted_headlines = 0
+        active_feeds_cache: dict[str, int] = {}
 
         for article in articles.iterator(chunk_size=200):
             # Compute authority
@@ -98,12 +105,22 @@ class Command(BaseCommand):
                         entry_data=rss.raw_data,
                     )
 
+            # Count active feeds for this language market
+            lang_short = (article.language.iso_code[:2] if article.language else 'en')
+            if lang_short not in active_feeds_cache:
+                active_feeds_cache[lang_short] = RSSFeed.objects.filter(
+                    status='active',
+                    language__iso_code__startswith=lang_short,
+                ).count() or 15
+            active_feeds = active_feeds_cache[lang_short]
+
             new_score = scorer.compute_combined_score(
                 authority=authority,
                 centrality=centrality,
                 feed_signals=feed_signals,
                 burst=burst,
                 cluster_size=cluster_size,
+                active_feeds_in_market=active_feeds,
             )
             new_is_headline = new_score >= scorer.threshold
             old_is_headline = article.is_top_headline

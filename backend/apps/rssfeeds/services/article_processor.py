@@ -120,6 +120,24 @@ class RSSArticleProcessor:
         self.headline_scorer = HeadlineScorer()
         self.story_clustering = StoryClustering()
         self._language_cache = {lang.iso_code.lower(): lang for lang in Language.objects.all()}
+        self._active_feed_count_cache: dict[str, int] = {}
+
+    def _get_active_feeds_in_market(self, lang_code: str | None) -> int:
+        """
+        Return active feed count for a market, cached by 2-letter language code.
+
+        Keeps ingestion fast by avoiding one query per new article.
+        """
+        lang_short = (lang_code or 'en')[:2].lower() or 'en'
+        if lang_short in self._active_feed_count_cache:
+            return self._active_feed_count_cache[lang_short]
+
+        active_count = RSSFeed.objects.filter(
+            status='active',
+            language__iso_code__startswith=lang_short,
+        ).count() or 15
+        self._active_feed_count_cache[lang_short] = active_count
+        return active_count
 
     def process_feed_entries(
         self,
@@ -261,12 +279,15 @@ class RSSArticleProcessor:
         # Compute combined headline score
         authority = self.headline_scorer.compute_authority(publication)
         cluster_size = cluster.article_count if cluster else 1
+        active_feeds_in_market = self._get_active_feeds_in_market(lang_code)
+
         headline_score = self.headline_scorer.compute_combined_score(
             authority=authority,
             centrality=centrality,
             feed_signals=feed_signals,
             burst=burst,
             cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
         )
         is_headline = headline_score >= self.headline_scorer.threshold
 

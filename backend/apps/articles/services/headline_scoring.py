@@ -91,22 +91,37 @@ class HeadlineScorer:
         feed_signals: float = 0.0,
         burst: float = 0.0,
         cluster_size: int = 1,
+        active_feeds_in_market: int = 15,
     ) -> float:
         """
         Compute the final headline score from all signals.
 
+        Args:
+            active_feeds_in_market: Number of active feeds for this language/market.
+                Smaller markets (fewer feeds) get a centrality boost so that a
+                cluster of 2 in a 7-feed market is weighted like a cluster of 4
+                in a 15-feed market.
+
         Returns:
             Float between 0.0 and 1.0
         """
+        # Adjust centrality for smaller markets
+        adjusted_centrality = centrality
+        if active_feeds_in_market < 12:
+            market_factor = 12.0 / max(active_feeds_in_market, 3)
+            adjusted_centrality = min(centrality * market_factor, 1.0)
+
         score = (
             0.25 * authority +
-            0.40 * centrality +
+            0.40 * adjusted_centrality +
             0.20 * feed_signals +
             0.15 * burst
         )
 
-        # Safety net: exclusive stories from the very top outlets should still pass
-        if authority > 0.90 and cluster_size == 1:
+        # Safety net: exclusive stories from elite outlets that are prominently
+        # placed in the feed. Requires strong editorial signal (feed_signals)
+        # to prevent prolific sources from flooding the feed.
+        if authority > 0.90 and cluster_size == 1 and feed_signals > 0.6:
             score = max(score, 0.60)
 
         return min(score, 1.0)
@@ -118,6 +133,7 @@ class HeadlineScorer:
         feed_signals: float = 0.0,
         burst: float = 0.0,
         cluster_size: int = 1,
+        active_feeds_in_market: int = 15,
     ) -> float:
         """
         Convenience method: compute full score from publication + signals.
@@ -129,6 +145,7 @@ class HeadlineScorer:
             feed_signals=feed_signals,
             burst=burst,
             cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
         )
 
     def should_process(self, publication: Publication | None) -> bool:
