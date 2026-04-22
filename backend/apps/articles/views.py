@@ -187,30 +187,41 @@ def _serialize_feed_article(article):
     }
 
 
-def _build_diversified_page(queryset, page: int, page_size: int) -> tuple[list, Paginator, object]:
+def _build_diversified_page(queryset, page: int, page_size: int) -> tuple[list, dict]:
     """
     Build a diversified page using a bounded scan window.
 
     We intentionally limit how many rows are scanned per request to avoid
     expensive full-range rescans that can trigger worker timeouts.
     """
-    paginator = Paginator(queryset, page_size)
-    page_obj = paginator.get_page(page)
-
-    if paginator.count == 0:
-        return [], paginator, page_obj
-
-    safe_page = max(page_obj.number, 1)
+    safe_page = max(int(page or 1), 1)
     start_offset = (safe_page - 1) * page_size
     scan_window = min(
         max(page_size * 6, page_size),
         DIVERSIFICATION_SCAN_LIMIT,
     )
 
-    candidates = list(queryset[start_offset:start_offset + scan_window])
+    # Fetch one extra row to infer hasNext without an expensive global COUNT(*).
+    candidates = list(queryset[start_offset:start_offset + scan_window + 1])
+    has_next_source = len(candidates) > scan_window
+    candidates = candidates[:scan_window]
+
     serialized = [_serialize_feed_article(article) for article in candidates]
     diversified = _diversify_articles(serialized)
-    return diversified[:page_size], paginator, page_obj
+    page_articles = diversified[:page_size]
+    has_next = has_next_source or len(diversified) > page_size
+
+    # Provide conservative totals (lower-bound) while keeping hasNext accurate.
+    lower_bound_total = start_offset + len(page_articles) + (1 if has_next else 0)
+    pagination = {
+        'page': safe_page,
+        'pageSize': page_size,
+        'totalPages': safe_page + 1 if has_next else safe_page,
+        'totalItems': lower_bound_total,
+        'hasNext': has_next,
+        'hasPrevious': safe_page > 1,
+    }
+    return page_articles, pagination
 
 
 def get_best_content(article):
@@ -362,7 +373,7 @@ def personalized_feed(request):
             '-published_at'
         )
 
-    articles_data, paginator, page_obj = _build_diversified_page(queryset, page, page_size)
+    articles_data, pagination = _build_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
@@ -381,14 +392,7 @@ def personalized_feed(request):
     # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
-        'pagination': {
-            'page': page,
-            'pageSize': page_size,
-            'totalPages': paginator.num_pages,
-            'totalItems': paginator.count,
-            'hasNext': page_obj.has_next(),
-            'hasPrevious': page_obj.has_previous(),
-        },
+        'pagination': pagination,
         'new_articles_count': new_articles_count,
         'has_newer_content': new_articles_count > 0,
         'reference_time': reference_time.isoformat() if reference_time else None
@@ -491,7 +495,7 @@ def world_feed(request):
     # Time-decayed headline score for world feed too
     queryset = _annotate_feed_rank(queryset).order_by('-feed_rank', '-published_at')
 
-    articles_data, paginator, page_obj = _build_diversified_page(queryset, page, page_size)
+    articles_data, pagination = _build_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
@@ -510,14 +514,7 @@ def world_feed(request):
     # Build response with pagination metadata and new article detection
     response_data = {
         'articles': articles_data,
-        'pagination': {
-            'page': page,
-            'pageSize': page_size,
-            'totalPages': paginator.num_pages,
-            'totalItems': paginator.count,
-            'hasNext': page_obj.has_next(),
-            'hasPrevious': page_obj.has_previous(),
-        },
+        'pagination': pagination,
         'new_articles_count': new_articles_count,
         'has_newer_content': new_articles_count > 0,
         'reference_time': reference_time.isoformat() if reference_time else None
