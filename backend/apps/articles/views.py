@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 MAX_PER_PUBLICATION_PER_PAGE = 5
 # Hard cap for diversification scan per request to avoid heavy DB scans/timeouts.
 DIVERSIFICATION_SCAN_LIMIT = 200
+# Limit ranking to a recent candidate pool to avoid expensive full-set ranking.
+FEED_RANK_CANDIDATE_POOL = 500
 
 
 def _strip_html(text: str) -> str:
@@ -127,6 +129,17 @@ def _annotate_feed_rank(queryset):
             output_field=FloatField(),
         )
     )
+
+
+def _limit_feed_rank_candidates(queryset):
+    """
+    Restrict ranking work to the most recent candidate pool.
+
+    This keeps relevance behavior while preventing expensive ranking sorts
+    across the entire filtered result set.
+    """
+    recent_ids = queryset.order_by('-published_at').values('id')[:FEED_RANK_CANDIDATE_POOL]
+    return queryset.filter(id__in=Subquery(recent_ids))
 
 
 def _filter_articles_by_topic_ids(queryset, topic_ids):
@@ -368,7 +381,7 @@ def personalized_feed(request):
         queryset = queryset.order_by('published_at')
     else:  # Default relevance sorting
         # Time-decayed headline score: fresh + important articles rank highest
-        queryset = _annotate_feed_rank(queryset).order_by(
+        queryset = _annotate_feed_rank(_limit_feed_rank_candidates(queryset)).order_by(
             '-feed_rank',
             '-published_at'
         )
@@ -493,7 +506,7 @@ def world_feed(request):
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
     # Time-decayed headline score for world feed too
-    queryset = _annotate_feed_rank(queryset).order_by('-feed_rank', '-published_at')
+    queryset = _annotate_feed_rank(_limit_feed_rank_candidates(queryset)).order_by('-feed_rank', '-published_at')
 
     articles_data, pagination = _build_diversified_page(queryset, page, page_size)
 
