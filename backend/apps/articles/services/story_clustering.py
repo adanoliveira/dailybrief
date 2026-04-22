@@ -79,6 +79,28 @@ class StoryClustering:
         self._vectorizer = None
         self._cluster_cache = None
         self._cache_loaded_at = None
+        self._active_feed_count_cache: dict[str, int] = {}
+
+    def _get_active_feeds_in_market(self, language_code: str | None) -> int:
+        """
+        Return active feed count for a market, cached by 2-letter language code.
+        """
+        lang_short = (language_code or 'en')[:2].lower() or 'en'
+        if lang_short in self._active_feed_count_cache:
+            return self._active_feed_count_cache[lang_short]
+
+        try:
+            from apps.rssfeeds.models import RSSFeed
+
+            active_count = RSSFeed.objects.filter(
+                status='active',
+                language__iso_code__startswith=lang_short,
+            ).count() or 15
+        except Exception:
+            active_count = 15
+
+        self._active_feed_count_cache[lang_short] = active_count
+        return active_count
 
     @property
     def vectorizer(self) -> TfidfVectorizer:
@@ -234,15 +256,7 @@ class StoryClustering:
         centrality = self._centrality_score(cluster.article_count)
         burst = cluster.burst_score
 
-        # Count active feeds for this language market
-        try:
-            from apps.rssfeeds.models import RSSFeed
-            active_feeds = RSSFeed.objects.filter(
-                status='active',
-                language__iso_code__startswith=cluster.language[:2],
-            ).count() or 15
-        except Exception:
-            active_feeds = 15
+        active_feeds = self._get_active_feeds_in_market(cluster.language)
 
         articles = Article.objects.filter(
             headline_cluster=cluster
