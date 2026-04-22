@@ -1,6 +1,8 @@
+from datetime import timedelta
+
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists
+from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists, Value, FloatField, ExpressionWrapper
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
@@ -69,6 +71,60 @@ def _diversify_articles(articles_data: list, max_per_source: int = MAX_PER_PUBLI
         result.append(article)
 
     return result
+
+
+def _annotate_feed_rank(queryset):
+    """
+    Annotate a queryset with ``feed_rank`` — a time-decayed quality score
+    used for relevance sorting.
+
+    Feed rank blends two signals:
+
+    1. **Quality score** — ``headline_score`` for scored articles (RSS),
+       or a fallback derived from publication authority for unscored
+       articles (NewsAPI, legacy).
+    2. **Time decay** — a multiplier that reduces the effective score as
+       the article ages, so fresh news surfaces above older stories of
+       similar quality.
+
+    Time decay bands:
+        < 6 h   →  1.00  (full weight)
+        6–12 h  →  0.90
+        12–24 h →  0.75
+        24–48 h →  0.50
+        > 48 h  →  0.25
+
+    The fallback for unscored articles is ``min(authority, 10) / 10 * 0.7``,
+    which maps a publication with authority 9.5 to ~0.665 — comparable to a
+    mid-tier scored article.
+    """
+    now = timezone.now()
+
+    effective_score = Case(
+        When(headline_score__gt=0, then=F('headline_score')),
+        default=ExpressionWrapper(
+            F('publication__authority') / 10.0 * 0.7,
+            output_field=FloatField(),
+        ),
+        output_field=FloatField(),
+    )
+
+    time_decay = Case(
+        When(published_at__gte=now - timedelta(hours=6), then=Value(1.0)),
+        When(published_at__gte=now - timedelta(hours=12), then=Value(0.9)),
+        When(published_at__gte=now - timedelta(hours=24), then=Value(0.75)),
+        When(published_at__gte=now - timedelta(hours=48), then=Value(0.5)),
+        default=Value(0.25),
+        output_field=FloatField(),
+    )
+
+    return queryset.annotate(
+        feed_rank=ExpressionWrapper(
+            effective_score * time_decay,
+            output_field=FloatField(),
+        )
+    )
+
 
 def get_best_content(article):
     """
@@ -215,9 +271,9 @@ def personalized_feed(request):
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
     else:  # Default relevance sorting
-        # Sort by headline score (multi-signal quality) then recency
-        queryset = queryset.order_by(
-            '-headline_score',
+        # Time-decayed headline score: fresh + important articles rank highest
+        queryset = _annotate_feed_rank(queryset).order_by(
+            '-feed_rank',
             '-published_at'
         )
 
@@ -373,8 +429,8 @@ def world_feed(request):
             'reference_time': reference_time.isoformat() if reference_time else None
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
-    # Sort by headline score then recency for world feed too
-    queryset = queryset.order_by('-headline_score', '-published_at')
+    # Time-decayed headline score for world feed too
+    queryset = _annotate_feed_rank(queryset).order_by('-feed_rank', '-published_at')
 
     # Oversample to allow for diversity filtering, then trim to page_size
     oversample_size = page_size * 3
