@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 PIPELINE_TIME_WINDOW_HOURS = 72
 MAX_RETRY_ATTEMPTS = 3
 TARGET_REGION_CODES = ['us', 'br']  # Only process US and Brazil articles
+MAX_ARTICLES_PER_PUBLISHER_PER_DAY = 20  # Cap per-publisher processing for cost control
 
 
 def _get_time_threshold() -> timezone.datetime:
@@ -59,15 +60,42 @@ def _get_time_threshold() -> timezone.datetime:
 def _get_base_queryset():
     """
     Get base queryset for top headlines within the time window and target regions.
-    
+
     Filters to only include articles from US and BR regions to optimize processing costs
     while still allowing global headline sync for broad coverage.
+
+    Applies a per-publisher daily cap to prevent high-volume sources from
+    consuming disproportionate AI processing budget.
     """
-    return Article.objects.filter(
+    from django.db.models import Window, F
+    from django.db.models.functions import RowNumber
+
+    base = Article.objects.filter(
         is_top_headline=True,
         published_at__gte=_get_time_threshold(),
-        regions__code__in=TARGET_REGION_CODES  # Only US and BR regions
-    ).distinct()  # distinct() needed because of many-to-many relationship
+        regions__code__in=TARGET_REGION_CODES,
+    ).distinct()
+
+    # Exclude articles from publishers that already have MAX processed today
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    from django.db.models import Subquery
+    over_cap_publishers = (
+        Article.objects.filter(
+            publication_id=models.OuterRef('publication_id'),
+            published_at__gte=today_start,
+            summarization_status='completed',
+            is_top_headline=True,
+        )
+        .values('publication_id')
+        .annotate(cnt=models.Count('id'))
+        .filter(cnt__gte=MAX_ARTICLES_PER_PUBLISHER_PER_DAY)
+        .values('publication_id')
+    )
+
+    return base.exclude(
+        models.Q(publication_id__in=Subquery(over_cap_publishers)) &
+        models.Q(summarization_status='pending')
+    )
 
 
 def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[int]:

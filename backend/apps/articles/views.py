@@ -13,11 +13,62 @@ from apps.core.api_utils import (
     api_view, create_response, create_error_response, 
     create_success_response, parse_request_body
 )
+import re
+
 from apps.feeds.models import UserTopic, UserRegion, UserPublication, UserLanguage
 from .models import Article, UserArticleInteraction
 from apps.content.summariser.models import ArticleSummary
 
 logger = logging.getLogger(__name__)
+
+# Maximum articles from a single publication per feed page
+MAX_PER_PUBLICATION_PER_PAGE = 5
+
+
+def _strip_html(text: str) -> str:
+    """Strip HTML tags and decode entities from text for plain-text display."""
+    if not text:
+        return ''
+    import html
+    cleaned = re.sub(r'<[^>]+>', ' ', text)
+    cleaned = html.unescape(cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
+
+def _diversify_articles(articles_data: list, max_per_source: int = MAX_PER_PUBLICATION_PER_PAGE) -> list:
+    """
+    Limit articles per publication and deduplicate by headline_cluster.
+
+    Ensures no single source dominates a feed page and that the same
+    story covered by multiple sources only appears once (highest-scored).
+    """
+    seen_sources = {}
+    seen_clusters = set()
+    result = []
+
+    for article in articles_data:
+        source_name = article.get('source', {}).get('name', 'Unknown')
+        cluster_id = article.get('_cluster_id')
+
+        # Skip if we've seen this story cluster already
+        if cluster_id and cluster_id in seen_clusters:
+            continue
+
+        # Skip if this source hit the per-page cap
+        source_count = seen_sources.get(source_name, 0)
+        if source_count >= max_per_source:
+            continue
+
+        seen_sources[source_name] = source_count + 1
+        if cluster_id:
+            seen_clusters.add(cluster_id)
+
+        # Remove internal field before sending to client
+        article.pop('_cluster_id', None)
+        result.append(article)
+
+    return result
 
 def get_best_content(article):
     """
@@ -164,33 +215,29 @@ def personalized_feed(request):
     elif sort == 'oldest':
         queryset = queryset.order_by('published_at')
     else:  # Default relevance sorting
-        # Simplified sorting: relevance score → headlines → recency
+        # Sort by headline score (multi-signal quality) then recency
         queryset = queryset.order_by(
-            '-relevance_score',
-            '-is_top_headline',
+            '-headline_score',
             '-published_at'
         )
-    
-    # Paginate the results
-    paginator = Paginator(queryset, page_size)
+
+    # Oversample to allow for diversity filtering, then trim to page_size
+    oversample_size = page_size * 3
+    paginator = Paginator(queryset, oversample_size)
     page_obj = paginator.get_page(page)
-    
+
     # Prepare the response
     articles_data = []
     for article in page_obj:
-        # Format the article data
-        # Get article topics
         topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        
-        # Get publication details
         publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
         publication_logo = article.publication.logo_url if article.publication else None
-        
+
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
             'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
+            'description': _strip_html(article.description or ''),
             'source': {
                 'name': publication_name,
                 'logoUrl': publication_logo
@@ -201,16 +248,19 @@ def personalized_feed(request):
             'isTopHeadline': article.is_top_headline,
             'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
             'topics': topics,
+            '_cluster_id': article.headline_cluster_id,
         })
-    
+
+    # Apply diversity: per-source cap + cluster dedup, then trim to requested page_size
+    articles_data = _diversify_articles(articles_data)[:page_size]
+
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
-        # Count how many articles in this result set are "new" (published after reference time)
         if reference_time:
-            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+            new_articles_count = len([a for a in articles_data if a['publishedAt'] > reference_time.isoformat()])
         else:
-            new_articles_count = len(articles_data)  # All articles are considered new
+            new_articles_count = len(articles_data)
     
     # Build response with pagination metadata and new article detection
     response_data = {
@@ -323,29 +373,26 @@ def world_feed(request):
             'reference_time': reference_time.isoformat() if reference_time else None
         }, message=f"Found {new_articles_count} new analyzed world headlines")
     
-    # Sort by published date (newest first)
-    queryset = queryset.order_by('-published_at')
-    
-    # Paginate the results
-    paginator = Paginator(queryset, page_size)
+    # Sort by headline score then recency for world feed too
+    queryset = queryset.order_by('-headline_score', '-published_at')
+
+    # Oversample to allow for diversity filtering, then trim to page_size
+    oversample_size = page_size * 3
+    paginator = Paginator(queryset, oversample_size)
     page_obj = paginator.get_page(page)
-    
+
     # Prepare the response
     articles_data = []
     for article in page_obj:
-        # Format the article data
-        # Get article topics
         topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        
-        # Get publication details
         publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
         publication_logo = article.publication.logo_url if article.publication else None
-        
+
         articles_data.append({
             'id': str(article.public_id),
             'title': article.title,
             'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
+            'description': _strip_html(article.description or ''),
             'source': {
                 'name': publication_name,
                 'logoUrl': publication_logo
@@ -356,16 +403,19 @@ def world_feed(request):
             'isTopHeadline': article.is_top_headline,
             'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
             'topics': topics,
+            '_cluster_id': article.headline_cluster_id,
         })
-    
+
+    # Apply diversity: per-source cap + cluster dedup, then trim to requested page_size
+    articles_data = _diversify_articles(articles_data)[:page_size]
+
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
-        # Count how many articles in this result set are "new" (published after reference time)
         if reference_time:
-            new_articles_count = len([a for a in page_obj if a.published_at > reference_time])
+            new_articles_count = len([a for a in articles_data if a['publishedAt'] > reference_time.isoformat()])
         else:
-            new_articles_count = len(articles_data)  # All articles are considered new
+            new_articles_count = len(articles_data)
     
     # Build response with pagination metadata and new article detection
     response_data = {
@@ -463,7 +513,7 @@ def public_world_feed(request):
             'id': str(article.public_id),
             'title': article.title,
             'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': article.description or '',
+            'description': _strip_html(article.description or ''),
             'source': {
                 'name': publication_name,
                 'logoUrl': publication_logo
@@ -550,7 +600,7 @@ def article_detail(request, public_id):
         'id': str(article.public_id),
         'title': article.title,
         'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-        'description': article.description or '',
+        'description': _strip_html(article.description or ''),
         'content': get_best_content(article),
         'source': {
             'name': publication_name,
