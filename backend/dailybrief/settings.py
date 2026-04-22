@@ -527,6 +527,13 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'articles.expire_headline_clusters',
         'schedule': crontab(minute=15, hour='*/4'),
     },
+
+    # Triage — process pending_llm articles through Tier 2 LLM classification
+    'triage-pending-articles': {
+        'task': 'articles.triage_pending_articles',
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes
+        'kwargs': {'limit': 200},
+    },
 }
 
 # News API

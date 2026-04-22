@@ -278,6 +278,13 @@ class StoryClustering:
                 article.is_top_headline = new_score >= scorer.threshold
                 article.save(update_fields=['headline_score', 'is_top_headline'])
 
+        # Tier 3 triage: check if cluster growth should rescue rejected articles
+        try:
+            from apps.articles.services.triage import ArticleTriage
+            ArticleTriage.tier3_check_promotion(cluster)
+        except Exception as e:
+            logger.warning(f"Tier 3 cluster promotion check failed: {e}")
+
     # --- Vectorizer management ---
 
     def _load_or_create_vectorizer(self) -> TfidfVectorizer:

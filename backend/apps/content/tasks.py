@@ -58,16 +58,30 @@ def _get_time_threshold() -> timezone.datetime:
 
 def _get_base_queryset():
     """
-    Get base queryset for top headlines within the time window and target regions.
-    
-    Filters to only include articles from US and BR regions to optimize processing costs
-    while still allowing global headline sync for broad coverage.
+    Get base queryset for articles eligible for the content enrichment pipeline.
+
+    Uses the triage system if articles have been triaged (triage_status in
+    'accepted' or 'promoted'). Falls back to the legacy is_top_headline
+    filter if triage hasn't run yet.
     """
+    time_threshold = _get_time_threshold()
+
+    # Check if triage system is active (any articles have been triaged)
+    triaged = Article.objects.filter(
+        triage_status__in=['accepted', 'promoted'],
+        published_at__gte=time_threshold,
+        regions__code__in=TARGET_REGION_CODES,
+    ).distinct()
+
+    if triaged.exists():
+        return triaged
+
+    # Fallback: legacy filter for pre-triage articles
     return Article.objects.filter(
         is_top_headline=True,
-        published_at__gte=_get_time_threshold(),
-        regions__code__in=TARGET_REGION_CODES  # Only US and BR regions
-    ).distinct()  # distinct() needed because of many-to-many relationship
+        published_at__gte=time_threshold,
+        regions__code__in=TARGET_REGION_CODES,
+    ).distinct()
 
 
 def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[int]:

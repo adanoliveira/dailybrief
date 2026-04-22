@@ -118,3 +118,75 @@ def expire_headline_clusters() -> Dict[str, Any]:
     logger.info("Expiring old headline clusters")
     expired = expire_old_clusters()
     return {"success": True, "expired_count": expired}
+
+
+@shared_task(name='articles.triage_pending_articles')
+def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
+    """Process articles in triage_status='pending_llm' through Tier 2 LLM.
+
+    Runs every 15 minutes via Celery Beat. Also auto-accepts any
+    pending_llm articles older than 1 hour (better to process than miss).
+
+    Args:
+        limit: Maximum articles to triage in this batch.
+
+    Returns:
+        Summary dict with accepted/rejected/error counts.
+    """
+    from apps.articles.services.triage import ArticleTriage, LLM_TIMEOUT_HOURS
+
+    triage = ArticleTriage()
+    now = timezone.now()
+    timeout_cutoff = now - timedelta(hours=LLM_TIMEOUT_HOURS)
+
+    # Auto-accept timed-out articles first
+    timed_out = Article.objects.filter(
+        triage_status='pending_llm',
+        triaged_at__lt=timeout_cutoff,
+    )
+    auto_accepted = timed_out.update(
+        triage_status='accepted',
+        triage_reason='timeout: pending_llm exceeded 1h, auto-accepted',
+        triage_method='algorithmic',
+        triaged_at=now,
+    )
+    if auto_accepted:
+        logger.info("Auto-accepted %d timed-out pending_llm articles", auto_accepted)
+
+    # Process pending_llm articles through Tier 2
+    pending = Article.objects.filter(
+        triage_status='pending_llm',
+    ).select_related(
+        'publication', 'headline_cluster',
+    ).prefetch_related('topics').order_by(
+        '-headline_score'  # Highest-scored ambiguous articles first
+    )[:limit]
+
+    accepted = 0
+    rejected = 0
+    errors = 0
+
+    for article in pending:
+        result = triage.tier2_llm_classify(article)
+        triage.apply_result(article, result)
+
+        if result.status == 'accepted':
+            accepted += 1
+        elif result.status == 'rejected':
+            rejected += 1
+        else:
+            errors += 1
+
+    logger.info(
+        "Triage batch: %d accepted, %d rejected, %d errors, %d auto-accepted (timeout)",
+        accepted, rejected, errors, auto_accepted,
+    )
+
+    return {
+        "success": True,
+        "accepted": accepted,
+        "rejected": rejected,
+        "errors": errors,
+        "auto_accepted_timeout": auto_accepted,
+        "total_processed": accepted + rejected + errors,
+    }
