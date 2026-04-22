@@ -366,6 +366,17 @@ class RSSArticleProcessor:
         elif publication:
             article.regions.set(publication.regions.all())
 
+        # Tier 1 triage: instant algorithmic decision
+        # Must run AFTER topics/regions are assigned (triage uses topic counts)
+        try:
+            from apps.articles.services.triage import ArticleTriage
+            triage = ArticleTriage()
+            result = triage.tier1_algorithmic(article)
+            triage.apply_result(article, result)
+        except Exception as e:
+            logger.warning(f"Tier 1 triage failed for article {article.id}: {e}")
+            # Article stays at triage_status='pending' — Celery task will pick it up
+
         # Create RSSArticle satellite
         domain = extract_domain(url) or ''
         rss_article = RSSArticle(

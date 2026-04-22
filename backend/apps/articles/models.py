@@ -164,6 +164,31 @@ class Article(models.Model):
         HeadlineCluster, on_delete=models.SET_NULL, null=True, blank=True, related_name='articles'
     )
 
+    # ===== TRIAGE (Stage 0) =====
+    # Determines whether an article enters the expensive AI pipeline.
+    # Separate from is_top_headline which controls feed visibility.
+    TRIAGE_STATUS_CHOICES = [
+        ('pending', 'Pending'),             # Not yet triaged
+        ('pending_llm', 'Pending LLM'),     # Tier 1 ambiguous, awaiting LLM classification
+        ('accepted', 'Accepted'),           # Will enter the processing pipeline
+        ('rejected', 'Rejected'),           # Will NOT be processed (archived)
+        ('promoted', 'Promoted'),           # Initially rejected, rescued by cluster growth
+    ]
+    TRIAGE_METHOD_CHOICES = [
+        ('algorithmic', 'Algorithmic'),     # Tier 1: rule-based pre-filter
+        ('llm', 'LLM'),                    # Tier 2: gpt-4.1-nano classification
+        ('cluster_promotion', 'Cluster Promotion'),  # Tier 3: rescued by cluster growth
+        ('legacy', 'Legacy'),              # Backfilled from pre-triage system
+    ]
+    triage_status = models.CharField(
+        max_length=20, choices=TRIAGE_STATUS_CHOICES, default='pending', db_index=True
+    )
+    triage_score = models.FloatField(null=True, blank=True, help_text="Composite triage score (0-1)")
+    triage_reason = models.CharField(max_length=255, blank=True)
+    triage_method = models.CharField(max_length=20, choices=TRIAGE_METHOD_CHOICES, blank=True)
+    triage_cost_usd = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    triaged_at = models.DateTimeField(null=True, blank=True)
+
     # Status flags
     summary_ready = models.BooleanField(default=False)
     
