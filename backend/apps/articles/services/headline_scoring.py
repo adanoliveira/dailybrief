@@ -9,7 +9,9 @@ using four signals:
   4. Burst/velocity (how fast multiple sources converge)
 
 Combined: headline_score = 0.25*authority + 0.40*centrality + 0.20*feed_signals + 0.15*burst
-Threshold: 0.45 (targets ~30-40% pass rate, down from 95%)
+
+Per-publisher diminishing returns apply after PUBLISHER_DAILY_SOFT_CAP
+articles from the same publisher pass the threshold in a day.
 """
 
 import logging
@@ -18,9 +20,18 @@ from apps.feeds.models import Publication
 
 logger = logging.getLogger(__name__)
 
-# Articles with a score at or above this threshold enter the pipeline
-# Calibrated on 776 articles: 0.60 yields ~30% pass rate
+# Ingestion threshold — articles at or above this are tagged is_top_headline=True
+# and are visible in the feed. The higher pipeline processing threshold is
+# defined in pipeline_eligibility.py (0.70) with topic-aware adjustments.
 HEADLINE_THRESHOLD = 0.60
+
+# After this many articles from a single publisher pass the threshold
+# in a calendar day, a diminishing score penalty is applied.
+# This naturally reduces prolific sources without a hard cutoff.
+PUBLISHER_DAILY_SOFT_CAP = 15
+
+# Score penalty per article beyond the soft cap: 5% per extra article
+PUBLISHER_DIMINISHING_RATE = 0.05
 
 # High-importance RSS category terms (case-insensitive matching)
 HIGH_IMPORTANCE_TAGS = {
@@ -147,6 +158,32 @@ class HeadlineScorer:
             cluster_size=cluster_size,
             active_feeds_in_market=active_feeds_in_market,
         )
+
+    def apply_publisher_diminishing_returns(
+        self,
+        score: float,
+        publisher_daily_count: int,
+    ) -> float:
+        """
+        Apply a diminishing score penalty when a publisher exceeds its
+        daily soft cap.
+
+        After PUBLISHER_DAILY_SOFT_CAP articles from the same publisher
+        pass the threshold in a day, each additional article is penalised
+        by PUBLISHER_DIMINISHING_RATE per extra article.  This naturally
+        pushes lower-value articles from prolific sources below the
+        threshold without a hard cutoff.
+
+        Example with cap=15, rate=0.05:
+            Article 16: score * 0.95
+            Article 20: score * 0.75
+            Article 30: score * 0.25
+        """
+        excess = max(0, publisher_daily_count - PUBLISHER_DAILY_SOFT_CAP)
+        if excess == 0:
+            return score
+        penalty = 1.0 - (excess * PUBLISHER_DIMINISHING_RATE)
+        return score * max(penalty, 0.10)  # floor at 10% to avoid negative
 
     def should_process(self, publication: Publication | None) -> bool:
         """

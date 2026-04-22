@@ -58,16 +58,34 @@ def _get_time_threshold() -> timezone.datetime:
 
 def _get_base_queryset():
     """
-    Get base queryset for top headlines within the time window and target regions.
-    
-    Filters to only include articles from US and BR regions to optimize processing costs
-    while still allowing global headline sync for broad coverage.
+    Get base queryset for articles eligible for the content enrichment pipeline.
+
+    Uses the topic-aware eligibility system which applies:
+    1. Global headline_score threshold (0.70)
+    2. Topic diversity floors (min 8 articles/topic, down to score 0.45)
+    3. Topic caps (max 35 articles/topic)
+    4. Per-publisher diminishing returns (soft cap 15/day)
+    5. Cluster dedup (skip stories already processed via another source)
+
+    Falls back to the legacy is_top_headline filter if eligibility check
+    fails for any reason.
     """
+    time_threshold = _get_time_threshold()
+
+    try:
+        from apps.articles.services.pipeline_eligibility import get_eligible_article_ids
+        eligible_ids = get_eligible_article_ids(time_threshold)
+        if eligible_ids:
+            return Article.objects.filter(id__in=eligible_ids)
+    except Exception as e:
+        logger.warning(f"Pipeline eligibility check failed, using legacy filter: {e}")
+
+    # Fallback: legacy filter
     return Article.objects.filter(
         is_top_headline=True,
-        published_at__gte=_get_time_threshold(),
-        regions__code__in=TARGET_REGION_CODES  # Only US and BR regions
-    ).distinct()  # distinct() needed because of many-to-many relationship
+        published_at__gte=time_threshold,
+        regions__code__in=TARGET_REGION_CODES,
+    ).distinct()
 
 
 def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[int]:
