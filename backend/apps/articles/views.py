@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 MAX_PER_PUBLICATION_PER_PAGE = 5
 # Hard cap for diversification scan per request to avoid heavy DB scans/timeouts.
 DIVERSIFICATION_SCAN_LIMIT = 200
-# Relevance ranking scans only a bounded recent pool to keep latency predictable.
-FEED_RELEVANCE_CANDIDATE_MULTIPLIER = 10
-FEED_RELEVANCE_MAX_CANDIDATES = 240
+# Relevance ranking scans a bounded recent pool to keep latency predictable.
+FEED_RELEVANCE_CANDIDATE_MULTIPLIER = 18
+FEED_RELEVANCE_MIN_PAGE_MULTIPLIER = 12
+FEED_RELEVANCE_GROWTH_MULTIPLIER = 12
+FEED_RELEVANCE_MAX_CANDIDATES = 5000
 FEED_ARTICLE_ONLY_FIELDS = (
     'id',
     'public_id',
@@ -137,15 +139,20 @@ def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tu
     """
     safe_page = max(int(page or 1), 1)
     start_offset = (safe_page - 1) * page_size
+    target_end = start_offset + page_size + 1
     candidate_limit = min(
-        max(page_size * FEED_RELEVANCE_CANDIDATE_MULTIPLIER, page_size),
+        max(
+            target_end * FEED_RELEVANCE_CANDIDATE_MULTIPLIER,
+            page_size * FEED_RELEVANCE_MIN_PAGE_MULTIPLIER,
+        ),
         FEED_RELEVANCE_MAX_CANDIDATES,
     )
-    target_end = start_offset + page_size + 1
     now = timezone.now()
 
     ranked_articles = []
     has_more_source = False
+    page_articles = []
+    has_next_ranked = False
 
     while True:
         raw_candidates = list(queryset.order_by('-published_at')[:candidate_limit + 1])
@@ -163,8 +170,10 @@ def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tu
             reverse=True,
         )
         ranked_articles = _diversify_articles(serialized)
+        page_articles = ranked_articles[start_offset:start_offset + page_size]
+        has_next_ranked = len(ranked_articles) > (start_offset + page_size)
 
-        if len(ranked_articles) >= target_end:
+        if has_next_ranked:
             break
         if not has_more_source:
             break
@@ -172,15 +181,17 @@ def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tu
             break
 
         candidate_limit = min(
-            candidate_limit + max(page_size * FEED_RELEVANCE_CANDIDATE_MULTIPLIER, page_size),
+            candidate_limit + max(page_size * FEED_RELEVANCE_GROWTH_MULTIPLIER, page_size),
             FEED_RELEVANCE_MAX_CANDIDATES,
         )
 
     for article in ranked_articles:
         article.pop('_feed_rank', None)
 
-    page_articles = ranked_articles[start_offset:start_offset + page_size]
-    has_next = len(ranked_articles) > (start_offset + page_size) or has_more_source
+    # Conservative hasNext when source data wasn't fully scanned yet.
+    has_next = has_next_ranked or (
+        has_more_source and candidate_limit < FEED_RELEVANCE_MAX_CANDIDATES
+    )
 
     lower_bound_total = start_offset + len(page_articles) + (1 if has_next else 0)
     pagination = {
