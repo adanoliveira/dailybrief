@@ -30,6 +30,23 @@ MAX_PER_PUBLICATION_PER_PAGE = 5
 DIVERSIFICATION_SCAN_LIMIT = 200
 # Limit ranking to a recent candidate pool to avoid expensive full-set ranking.
 FEED_RANK_CANDIDATE_POOL = 500
+FEED_ARTICLE_ONLY_FIELDS = (
+    'id',
+    'public_id',
+    'title',
+    'description',
+    'source_name',
+    'published_at',
+    'image_url',
+    'url',
+    'is_top_headline',
+    'read_time_minutes',
+    'headline_cluster_id',
+    'extracted_metadata',
+    'publication_id',
+    'publication__name',
+    'publication__logo_url',
+)
 
 
 def _strip_html(text: str) -> str:
@@ -140,6 +157,21 @@ def _limit_feed_rank_candidates(queryset):
     """
     recent_ids = queryset.order_by('-published_at').values('id')[:FEED_RANK_CANDIDATE_POOL]
     return queryset.filter(id__in=Subquery(recent_ids))
+
+
+def _feed_base_queryset():
+    """
+    Base queryset for feed endpoints that avoids loading large content fields.
+    """
+    return (
+        Article.objects.filter(
+            is_top_headline=True,
+            analyzer_status='completed',
+        )
+        .select_related('publication')
+        .prefetch_related('topics')
+        .only(*FEED_ARTICLE_ONLY_FIELDS)
+    )
 
 
 def _filter_articles_by_topic_ids(queryset, topic_ids):
@@ -298,11 +330,8 @@ def personalized_feed(request):
     count_only = request.GET.get('count_only', '').lower() == 'true'
     latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get top headlines only with completed analysis (temporary filter for initial version)
-    queryset = Article.objects.filter(
-        is_top_headline=True,
-        analyzer_status='completed'
-    ).select_related('language', 'publication').prefetch_related('topics')
+    # Base query - load only feed-needed fields to keep hot-path queries lightweight.
+    queryset = _feed_base_queryset()
     
     # Filter by user preferences (topics, languages, AND publications)
     user_topic_ids = UserTopic.objects.filter(user=user).values_list('topic_id', flat=True)
@@ -442,11 +471,8 @@ def world_feed(request):
     count_only = request.GET.get('count_only', '').lower() == 'true'
     latest_article_id = request.GET.get('latest_article_id')
     
-    # Base query - get top headlines with completed analysis (temporary filter for initial version)
-    queryset = Article.objects.filter(
-        is_top_headline=True,
-        analyzer_status='completed'
-    ).select_related('language', 'publication').prefetch_related('topics')
+    # Base query - load only feed-needed fields to keep hot-path queries lightweight.
+    queryset = _feed_base_queryset()
     
     # Filter by user's preferred regions
     user_region_codes = UserRegion.objects.filter(user=user).values_list('region__code', flat=True)
