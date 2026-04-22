@@ -477,6 +477,15 @@ export class LocalDatabase extends Dexie {
   // ===============================================
 
   /**
+   * Mark all feed syncs as stale so they refetch on next load.
+   * Called when user preferences change (regions, languages, publications).
+   */
+  async markAllFeedSyncsStale(): Promise<void> {
+    await this.feedSyncs.toCollection().modify({ isStale: true })
+    console.log('LocalDatabase: Marked all feed syncs as stale')
+  }
+
+  /**
    * Check if data is stale based on age
    */
   isStale(lastSyncAt: Date, maxAgeMs: number): boolean {

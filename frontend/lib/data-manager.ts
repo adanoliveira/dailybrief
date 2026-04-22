@@ -295,6 +295,7 @@ export class DataManager {
       (options.forceRefresh === true) ||
       feedSync.isStale ||
       localDB.isStale(feedSync.lastSyncAt, maxAge)
+    const isExplicitlyInvalidated = Boolean(feedSync?.isStale)
 
         // STEP 3: Simple page-by-page logic
     if (feedSync?.id) {
@@ -302,10 +303,16 @@ export class DataManager {
       
       console.log(`DataManager: Page ${page} check - localArticles: ${localResult.articles.length}, hasMore: ${feedSync.hasMore}, forceRefresh: ${options.forceRefresh}, isStale: ${isStale}`)
       
-      // If we have the requested page locally AND not forcing refresh, return it immediately
-      if (localResult.articles.length > 0 && !options.forceRefresh) {
+      // If we have the requested page locally AND not forcing refresh, return it immediately.
+      // Exception: when a feed was explicitly invalidated (e.g. preference change),
+      // we must refetch before serving cached rows to avoid stale personalization.
+      if (localResult.articles.length > 0 && !options.forceRefresh && !isExplicitlyInvalidated) {
         console.log(`DataManager: ⚡ INSTANT - Returning cached page ${page}`)
         return localResult
+      }
+
+      if (localResult.articles.length > 0 && isExplicitlyInvalidated) {
+        console.log(`DataManager: 🔄 Feed explicitly invalidated, syncing before returning page ${page}`)
       }
       
       // If forceRefresh is true, skip cache and sync immediately

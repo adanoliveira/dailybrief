@@ -1193,6 +1193,27 @@ export function clearAllCaches() {
   hookStateCache.clearAll()
 }
 
+/**
+ * Invalidate all feed caches after user preferences change.
+ * Clears both the in-memory hook cache and marks IndexedDB feed syncs as stale
+ * so the next feed load fetches fresh data filtered by the new preferences.
+ */
+export async function invalidateFeedCachesForPreferenceChange() {
+  // Clear in-memory cache (instant)
+  hookStateCache.clearFeedCache()
+  hookStateCache.clearUserPreferencesCache()
+
+  // Mark IndexedDB feed syncs as stale so DataManager refetches
+  try {
+    const { localDB } = await import('./local-database')
+    await localDB.markAllFeedSyncsStale()
+  } catch (e) {
+    console.warn('Failed to mark feed syncs as stale:', e)
+  }
+
+  console.log('Feed caches invalidated after preference change')
+}
+
 // ===============================================
 // DEVELOPMENT HELPERS
 // ===============================================
