@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.db.models import Q, F, Count, Case, When, OuterRef, Subquery, Exists, Value, FloatField, ExpressionWrapper
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
@@ -103,7 +104,7 @@ def _annotate_feed_rank(queryset):
     effective_score = Case(
         When(headline_score__gt=0, then=F('headline_score')),
         default=ExpressionWrapper(
-            F('publication__authority') / 10.0 * 0.7,
+            Coalesce(F('publication__authority'), Value(1.0)) / 10.0 * 0.7,
             output_field=FloatField(),
         ),
         output_field=FloatField(),
@@ -124,6 +125,63 @@ def _annotate_feed_rank(queryset):
             output_field=FloatField(),
         )
     )
+
+
+def _serialize_feed_article(article):
+    """Serialize article for feed endpoints with internal fields for filtering/counting."""
+    topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
+    publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
+    publication_logo = article.publication.logo_url if article.publication else None
+
+    return {
+        'id': str(article.public_id),
+        'title': article.title,
+        'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
+        'description': _strip_html(article.description or ''),
+        'source': {
+            'name': publication_name,
+            'logoUrl': publication_logo
+        },
+        'publishedAt': article.published_at.isoformat(),
+        'imageUrl': article.image_url,
+        'url': article.url,
+        'isTopHeadline': article.is_top_headline,
+        'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
+        'topics': topics,
+        '_cluster_id': article.headline_cluster_id,
+        '_published_at': article.published_at,
+    }
+
+
+def _build_diversified_page(queryset, page: int, page_size: int) -> tuple[list, Paginator, object]:
+    """
+    Build a stable page while applying diversity rules.
+
+    To avoid skipping records between pages, diversify from the beginning of the
+    ordered queryset up to the requested window and then slice the requested
+    page from that diversified sequence.
+    """
+    paginator = Paginator(queryset, page_size)
+    page_obj = paginator.get_page(page)
+
+    safe_page = max(page_obj.number, 1)
+    target_end = safe_page * page_size
+    fetch_step = max(page_size * 3, page_size)
+    fetch_limit = min(paginator.count, max(target_end * 3, fetch_step))
+
+    diversified_articles = []
+    while fetch_limit > 0:
+        candidates = list(queryset[:fetch_limit])
+        serialized = [_serialize_feed_article(article) for article in candidates]
+        diversified_articles = _diversify_articles(serialized)
+
+        if len(diversified_articles) >= target_end or fetch_limit >= paginator.count:
+            break
+        fetch_limit = min(fetch_limit + fetch_step, paginator.count)
+
+    start = (safe_page - 1) * page_size
+    end = start + page_size
+    return diversified_articles[start:end], paginator, page_obj
 
 
 def get_best_content(article):
@@ -277,46 +335,21 @@ def personalized_feed(request):
             '-published_at'
         )
 
-    # Oversample to allow for diversity filtering, then trim to page_size
-    oversample_size = page_size * 3
-    paginator = Paginator(queryset, oversample_size)
-    page_obj = paginator.get_page(page)
-
-    # Prepare the response
-    articles_data = []
-    for article in page_obj:
-        topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
-        publication_logo = article.publication.logo_url if article.publication else None
-
-        articles_data.append({
-            'id': str(article.public_id),
-            'title': article.title,
-            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': _strip_html(article.description or ''),
-            'source': {
-                'name': publication_name,
-                'logoUrl': publication_logo
-            },
-            'publishedAt': article.published_at.isoformat(),
-            'imageUrl': article.image_url,
-            'url': article.url,
-            'isTopHeadline': article.is_top_headline,
-            'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
-            'topics': topics,
-            '_cluster_id': article.headline_cluster_id,
-        })
-
-    # Apply diversity: per-source cap + cluster dedup, then trim to requested page_size
-    articles_data = _diversify_articles(articles_data)[:page_size]
+    articles_data, paginator, page_obj = _build_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
         if reference_time:
-            new_articles_count = len([a for a in articles_data if a['publishedAt'] > reference_time.isoformat()])
+            new_articles_count = len([
+                a for a in articles_data
+                if a.get('_published_at') and a['_published_at'] > reference_time
+            ])
         else:
             new_articles_count = len(articles_data)
+
+    for article in articles_data:
+        article.pop('_published_at', None)
     
     # Build response with pagination metadata and new article detection
     response_data = {
@@ -432,46 +465,21 @@ def world_feed(request):
     # Time-decayed headline score for world feed too
     queryset = _annotate_feed_rank(queryset).order_by('-feed_rank', '-published_at')
 
-    # Oversample to allow for diversity filtering, then trim to page_size
-    oversample_size = page_size * 3
-    paginator = Paginator(queryset, oversample_size)
-    page_obj = paginator.get_page(page)
-
-    # Prepare the response
-    articles_data = []
-    for article in page_obj:
-        topics = [{'id': topic.id, 'name': topic.name, 'slug': topic.slug} for topic in article.topics.all()]
-        publication_name = article.source_name or (article.publication.name if article.publication else 'Unknown')
-        publication_logo = article.publication.logo_url if article.publication else None
-
-        articles_data.append({
-            'id': str(article.public_id),
-            'title': article.title,
-            'visualTitle': article.extracted_metadata.get('visual_title') if article.extracted_metadata else None,
-            'description': _strip_html(article.description or ''),
-            'source': {
-                'name': publication_name,
-                'logoUrl': publication_logo
-            },
-            'publishedAt': article.published_at.isoformat(),
-            'imageUrl': article.image_url,
-            'url': article.url,
-            'isTopHeadline': article.is_top_headline,
-            'readTime': round(article.read_time_minutes) if article.read_time_minutes else None,
-            'topics': topics,
-            '_cluster_id': article.headline_cluster_id,
-        })
-
-    # Apply diversity: per-source cap + cluster dedup, then trim to requested page_size
-    articles_data = _diversify_articles(articles_data)[:page_size]
+    articles_data, paginator, page_obj = _build_diversified_page(queryset, page, page_size)
 
     # Calculate new articles count for enhanced response
     new_articles_count = 0
     if reference_time or since or latest_article_id:
         if reference_time:
-            new_articles_count = len([a for a in articles_data if a['publishedAt'] > reference_time.isoformat()])
+            new_articles_count = len([
+                a for a in articles_data
+                if a.get('_published_at') and a['_published_at'] > reference_time
+            ])
         else:
             new_articles_count = len(articles_data)
+
+    for article in articles_data:
+        article.pop('_published_at', None)
     
     # Build response with pagination metadata and new article detection
     response_data = {

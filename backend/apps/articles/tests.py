@@ -1,8 +1,12 @@
+from datetime import timedelta
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.contrib.auth.models import User
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
+from apps.core.api_utils import create_jwt_token
+from apps.feeds.models import Topic, UserTopic
 from apps.articles.models import (
     AnalyzerStatus,
     Article,
@@ -183,3 +187,76 @@ class ArticleAnalysisPropertyTests(SimpleTestCase):
 
         article.description = "tiny"
         self.assertIsNone(article.best_content_for_analysis)
+
+
+class FeedViewRankingAndPaginationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="feed-user",
+            email="feed-user@example.com",
+            password="password123",
+        )
+        self.token = create_jwt_token(self.user)
+        self.topic = Topic.objects.create(name="Business", slug="business")
+        UserTopic.objects.create(user=self.user, topic=self.topic, weight=1.0)
+
+        now = timezone.now()
+        for i in range(45):
+            article = Article.objects.create(
+                title=f"Article {i}",
+                description=f"Description {i}",
+                url=f"https://example.com/article-{i}",
+                source_name=f"Source {i}",
+                published_at=now - timedelta(minutes=i),
+                is_top_headline=True,
+                analyzer_status=AnalyzerStatus.COMPLETED,
+            )
+            article.topics.add(self.topic)
+
+    def _auth_header(self):
+        return {"HTTP_AUTHORIZATION": f"Bearer {self.token}"}
+
+    def test_personalized_feed_page_two_keeps_correct_offset_with_diversification(self):
+        response = self.client.get(
+            "/api/articles/feed?page=2&page_size=10&sort=newest",
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["data"]
+        titles = [a["title"] for a in payload["articles"]]
+        self.assertEqual(len(titles), 10)
+        self.assertEqual(titles[0], "Article 10")
+        self.assertEqual(titles[-1], "Article 19")
+
+    def test_world_feed_page_two_keeps_correct_offset_with_diversification(self):
+        response = self.client.get(
+            "/api/articles/world?page=2&page_size=10",
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["data"]
+        titles = [a["title"] for a in payload["articles"]]
+        self.assertEqual(len(titles), 10)
+        self.assertEqual(titles[0], "Article 10")
+        self.assertEqual(titles[-1], "Article 19")
+
+
+class FeedHtmlRenderingTests(TestCase):
+    def test_article_detail_strips_html_from_description(self):
+        article = Article.objects.create(
+            title="HTML Description Article",
+            description="<p>Hello&nbsp;<strong>world</strong></p>",
+            url="https://example.com/html-article",
+            source_name="Source HTML",
+            published_at=timezone.now(),
+            is_top_headline=True,
+            analyzer_status=AnalyzerStatus.COMPLETED,
+        )
+
+        response = self.client.get(f"/api/articles/{article.public_id}")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["data"]
+        self.assertEqual(payload["description"], "Hello world")
