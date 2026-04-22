@@ -14,7 +14,7 @@ Usage:
         user = request.user  # Automatically authenticated
         return create_response({'data': 'success'})
 """
-from django.http import JsonResponse, HttpRequest
+from django.http import JsonResponse, HttpRequest, HttpResponseBase
 from django.conf import settings
 from django.contrib.auth.models import User
 import json
@@ -24,6 +24,7 @@ import jwt
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 import time
 from typing import Dict, Any, Optional, Union, List
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,19 @@ def authenticate_request(request):
 def _get_allowed_origins() -> List[str]:
     """Return normalized CORS origins from settings."""
     origins = getattr(settings, "CORS_ALLOWED_ORIGINS", [])
-    return [origin for origin in origins if origin]
+    valid_origins: list[str] = []
+
+    for origin in origins:
+        if not origin:
+            continue
+
+        parsed = urlparse(origin)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            valid_origins.append(origin)
+        else:
+            logger.warning("Ignoring malformed CORS origin in settings: %s", origin)
+
+    return valid_origins
 
 
 def _resolve_cors_origin(request: Optional[HttpRequest] = None) -> str:
@@ -401,7 +414,12 @@ def api_view(
             
             # Execute the view with comprehensive error handling
             try:
-                return view_func(request, *args, **kwargs)
+                response = view_func(request, *args, **kwargs)
+                if isinstance(response, HttpResponseBase):
+                    # Enforce request-aware CORS headers even when callers
+                    # build responses without passing request=request.
+                    _add_cors_headers(response, request=request)
+                return response
             except Exception as e:
                 # Log the full exception for debugging
                 logger.error(f"Error in {view_func.__name__}: {e}")

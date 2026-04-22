@@ -92,6 +92,15 @@ class CorsAndResponseTests(SimpleTestCase):
 
         self.assertEqual(origin, "https://fallback.example")
 
+    @override_settings(CORS_ALLOWED_ORIGINS=["ttps://broken.example", "https://fallback.example"])
+    def test_resolve_cors_origin_ignores_malformed_entries(self):
+        request = HttpRequest()
+        request.META = {"HTTP_ORIGIN": "https://not-allowed.example"}
+
+        origin = api_utils._resolve_cors_origin(request)
+
+        self.assertEqual(origin, "https://fallback.example")
+
     @override_settings(CORS_ALLOWED_ORIGINS=["https://frontend.example"])
     def test_create_response_adds_cors_headers(self):
         request = HttpRequest()
@@ -247,3 +256,15 @@ class ApiViewDecoratorTests(SimpleTestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(payload["error_code"], "INTERNAL_ERROR")
         self.assertEqual(payload["error"], "An internal error occurred. Please try again.")
+
+    @override_settings(CORS_ALLOWED_ORIGINS=["ttps://dailybrief.press", "https://www.dailybrief.press"])
+    def test_api_view_applies_request_aware_cors_to_success_response(self):
+        @api_utils.api_view(["GET"], authenticate=False)
+        def sample_view(request):
+            # Intentionally omit request=request to simulate existing call sites.
+            return api_utils.create_success_response({"ok": True})
+
+        response = sample_view(self.factory.get("/", HTTP_ORIGIN="https://www.dailybrief.press"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Access-Control-Allow-Origin"], "https://www.dailybrief.press")
