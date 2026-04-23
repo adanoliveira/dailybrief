@@ -208,10 +208,13 @@ def _build_relevance_diversified_page(queryset, page: int, page_size: int) -> tu
 def _feed_base_queryset():
     """
     Base queryset for feed endpoints that avoids loading large content fields.
+
+    Uses triage_status (from the triage pipeline) as the primary gate.
+    Falls back to is_top_headline for articles that predate the triage system.
     """
     return (
         Article.objects.filter(
-            is_top_headline=True,
+            Q(triage_status__in=['accepted', 'promoted']) | Q(is_top_headline=True),
             analyzer_status='completed',
         )
         .select_related('publication')
@@ -625,7 +628,7 @@ def public_world_feed(request):
     # Base query - get top headlines from US publications only with completed analysis (temporary filter for initial version)
     # Only include articles with images for better visual showcase
     queryset = Article.objects.filter(
-        is_top_headline=True,
+        Q(triage_status__in=['accepted', 'promoted']) | Q(is_top_headline=True),
         analyzer_status='completed',
         publication__regions__code='us',  # Only US publications
         image_url__isnull=False,  # Only articles with images
