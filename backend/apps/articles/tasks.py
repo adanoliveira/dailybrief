@@ -133,25 +133,60 @@ def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
     Returns:
         Summary dict with accepted/rejected/error counts.
     """
-    from apps.articles.services.triage import ArticleTriage, LLM_TIMEOUT_HOURS
+    from apps.articles.services.triage import (
+        ArticleTriage,
+        LLM_TIMEOUT_HOURS,
+        PUBLISHER_VOLUME_HARD_CAP,
+        TriageResult,
+    )
 
     triage = ArticleTriage()
     now = timezone.now()
     timeout_cutoff = now - timedelta(hours=LLM_TIMEOUT_HOURS)
 
-    # Auto-accept timed-out articles first
+    # Resolve timed-out articles first. Keep publisher hard cap enforcement
+    # consistent (do not auto-accept above cap).
     timed_out = Article.objects.filter(
         triage_status='pending_llm',
         triaged_at__lt=timeout_cutoff,
-    )
-    auto_accepted = timed_out.update(
-        triage_status='accepted',
-        triage_reason='timeout: pending_llm exceeded 1h, auto-accepted',
-        triage_method='algorithmic',
-        triaged_at=now,
-    )
+    ).select_related('publication')
+
+    auto_accepted = 0
+    auto_rejected_publisher_cap = 0
+    for article in timed_out.iterator(chunk_size=200):
+        if triage._publisher_hard_cap_reached(article):
+            triage.apply_result(
+                article,
+                TriageResult(
+                    status='rejected',
+                    score=article.triage_score or article.headline_score,
+                    reason=(
+                        f'timeout_publisher_cap: pending_llm exceeded 1h and '
+                        f'publisher hit {PUBLISHER_VOLUME_HARD_CAP} accepted/24h'
+                    ),
+                    method='algorithmic',
+                ),
+            )
+            auto_rejected_publisher_cap += 1
+        else:
+            triage.apply_result(
+                article,
+                TriageResult(
+                    status='accepted',
+                    score=article.triage_score or article.headline_score,
+                    reason='timeout: pending_llm exceeded 1h, auto-accepted',
+                    method='algorithmic',
+                ),
+            )
+            auto_accepted += 1
+
     if auto_accepted:
         logger.info("Auto-accepted %d timed-out pending_llm articles", auto_accepted)
+    if auto_rejected_publisher_cap:
+        logger.info(
+            "Auto-rejected %d timed-out pending_llm articles due to publisher cap",
+            auto_rejected_publisher_cap,
+        )
 
     # Process pending articles through the next required tier:
     # - pending: Tier 1 (algorithmic)
@@ -195,8 +230,8 @@ def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
             errors += 1
 
     logger.info(
-        "Triage batch: %d accepted, %d rejected, %d errors, %d auto-accepted (timeout)",
-        accepted, rejected, errors, auto_accepted,
+        "Triage batch: %d accepted, %d rejected, %d errors, %d auto-accepted timeout, %d timeout-cap-rejected",
+        accepted, rejected, errors, auto_accepted, auto_rejected_publisher_cap,
     )
 
     return {
@@ -205,5 +240,6 @@ def triage_pending_articles(limit: int = 200) -> Dict[str, Any]:
         "rejected": rejected,
         "errors": errors,
         "auto_accepted_timeout": auto_accepted,
-        "total_processed": accepted + rejected + errors,
+        "auto_rejected_timeout_publisher_cap": auto_rejected_publisher_cap,
+        "total_processed": accepted + rejected + errors + auto_accepted + auto_rejected_publisher_cap,
     }

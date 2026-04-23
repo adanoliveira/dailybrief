@@ -32,7 +32,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from celery import shared_task, chain, group
 from django.conf import settings
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.utils import timezone
 from datetime import timedelta
 
@@ -51,6 +51,7 @@ PIPELINE_TIME_WINDOW_HOURS = 72
 MAX_RETRY_ATTEMPTS = 3
 TARGET_REGION_CODES = ['us', 'br']  # Only process US and Brazil articles
 DAILY_PIPELINE_BUDGET = int(getattr(settings, 'DAILY_PIPELINE_BUDGET', 200))
+PIPELINE_ADVISORY_LOCK_ID = 84202412
 
 
 def _get_time_threshold() -> timezone.datetime:
@@ -61,6 +62,38 @@ def _get_time_threshold() -> timezone.datetime:
 def _order_pipeline_candidates(queryset):
     """Order candidates by quality first so budget always favors best articles."""
     return queryset.order_by('-headline_score', '-published_at', 'id')
+
+
+def _try_acquire_pipeline_lock() -> bool:
+    """
+    Acquire a DB advisory lock to prevent overlapping pipeline runs.
+
+    Returns False when another worker already holds the lock.
+    """
+    if connection.vendor != 'postgresql':
+        return True
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", [PIPELINE_ADVISORY_LOCK_ID])
+            row = cursor.fetchone()
+            return bool(row and row[0])
+    except Exception:
+        # Fail open to avoid blocking pipeline entirely if lock check errors.
+        logger.exception("Failed to acquire pipeline advisory lock; continuing without lock")
+        return True
+
+
+def _release_pipeline_lock() -> None:
+    """Release the DB advisory lock used for pipeline serialization."""
+    if connection.vendor != 'postgresql':
+        return
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_unlock(%s)", [PIPELINE_ADVISORY_LOCK_ID])
+    except Exception:
+        logger.exception("Failed to release pipeline advisory lock")
 
 
 def _get_base_queryset():
@@ -188,6 +221,19 @@ def process_top_headlines_pipeline(limit: int = 50) -> Dict[str, Any]:
     Returns:
         Dict with detailed results from each pipeline stage
     """
+    if not _try_acquire_pipeline_lock():
+        logger.info("Skipping top headlines pipeline: another run is already in progress")
+        return {
+            'pipeline_start': timezone.now().isoformat(),
+            'skipped': True,
+            'skip_reason': 'pipeline_lock_held',
+            'pipeline_summary': {
+                'total_articles_processed': 0,
+                'successful_completions': 0,
+                'pipeline_duration_ms': 0
+            }
+        }
+
     logger.info(f"Starting top headlines content enrichment pipeline (limit: {limit})")
     
     pipeline_start = timezone.now()
@@ -252,6 +298,8 @@ def process_top_headlines_pipeline(limit: int = 50) -> Dict[str, Any]:
         logger.exception(f"Top headlines pipeline failed: {str(e)}")
         results['pipeline_error'] = str(e)
         return results
+    finally:
+        _release_pipeline_lock()
 
 
 def _process_stage1_fetch_top_headlines(limit: int) -> Dict[str, Any]:
@@ -566,6 +614,19 @@ def process_top_headlines_pipeline_continuous(
     Returns:
         Dict with comprehensive processing results
     """
+    if not _try_acquire_pipeline_lock():
+        logger.info("Skipping continuous pipeline: another run is already in progress")
+        return {
+            'pipeline_start': timezone.now().isoformat(),
+            'continuous_mode': True,
+            'skipped': True,
+            'skip_reason': 'pipeline_lock_held',
+            'cycles_completed': 0,
+            'total_articles_processed': 0,
+            'articles_remaining': _count_articles_needing_processing(),
+            'stage_results': []
+        }
+
     logger.info(f"Starting continuous pipeline (limit_per_stage: {limit_per_stage}, max_total: {max_total_limit})")
     
     pipeline_start = timezone.now()
@@ -651,6 +712,8 @@ def process_top_headlines_pipeline_continuous(
         logger.exception(f"Continuous pipeline failed: {str(e)}")
         results['pipeline_error'] = str(e)
         return results
+    finally:
+        _release_pipeline_lock()
 
 
 @shared_task

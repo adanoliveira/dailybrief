@@ -116,6 +116,20 @@ class ArticleTriage:
         self._rolling_publisher_cache_key = None
         self._llm_calls_today = None
 
+    def _invalidate_count_caches(self) -> None:
+        """Invalidate cached topic/publisher counts used in triage decisions."""
+        self._daily_counts_cache = None
+        self._daily_counts_date = None
+        self._rolling_publisher_cache = None
+        self._rolling_publisher_cache_key = None
+
+    def _publisher_hard_cap_reached(self, article) -> bool:
+        """Return True when this article's publisher is already at hard cap in rolling 24h."""
+        if not article.publication_id:
+            return False
+        counts = self._get_daily_publisher_counts()
+        return counts.get(article.publication_id, 0) >= PUBLISHER_VOLUME_HARD_CAP
+
     # ------------------------------------------------------------------
     # Tier 1: Algorithmic pre-filter
     # ------------------------------------------------------------------
@@ -187,12 +201,11 @@ class ArticleTriage:
         if not article.publication_id:
             return 0.0
 
-        counts = self._get_daily_publisher_counts()
-        publisher_count = counts.get(article.publication_id, 0)
-
-        if publisher_count >= PUBLISHER_VOLUME_HARD_CAP:
+        if self._publisher_hard_cap_reached(article):
             return -1.0
 
+        counts = self._get_daily_publisher_counts()
+        publisher_count = counts.get(article.publication_id, 0)
         if publisher_count > PUBLISHER_VOLUME_SOFT_CAP:
             over = publisher_count - PUBLISHER_VOLUME_SOFT_CAP
             return -(over * PUBLISHER_VOLUME_PENALTY_RATE)
@@ -321,6 +334,15 @@ class ArticleTriage:
         Uses gpt-4.1-nano (~$0.00005/article) to score on journalistic
         criteria: impact, novelty, significance.
         """
+        # Enforce publisher hard cap consistently across tiers.
+        if self._publisher_hard_cap_reached(article):
+            return TriageResult(
+                status='rejected',
+                score=article.headline_score,
+                reason=f'publisher_cap: {PUBLISHER_VOLUME_HARD_CAP} accepted/24h exceeded',
+                method='algorithmic',
+            )
+
         # Check daily LLM cap
         if self._get_llm_calls_today() >= LLM_DAILY_CAP:
             logger.warning("LLM triage daily cap reached, auto-accepting article %s", article.id)
@@ -535,8 +557,7 @@ class ArticleTriage:
     # Convenience: apply triage result to an article
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def apply_result(article, result: TriageResult):
+    def apply_result(self, article, result: TriageResult):
         """Apply a TriageResult to an article and save."""
         article.triage_status = result.status
         article.triage_score = result.score
@@ -548,3 +569,5 @@ class ArticleTriage:
             'triage_status', 'triage_score', 'triage_reason',
             'triage_method', 'triage_cost_usd', 'triaged_at',
         ])
+        # Keep rolling counters fresh for subsequent decisions in the same batch.
+        self._invalidate_count_caches()

@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta
+from unittest.mock import patch
 
 from apps.articles.models import Article
 from apps.articles.services.triage import (
@@ -86,3 +87,22 @@ class ArticleTriagePublisherVolumeTests(TestCase):
         result = self.triage.tier1_algorithmic(candidate)
 
         self.assertNotEqual(result.status, 'rejected')
+
+    @patch("apps.articles.services.triage.AIProviderService")
+    def test_tier2_rejects_without_llm_call_when_hard_cap_reached(self, mock_ai_provider):
+        self._create_accepted_for_publication(PUBLISHER_VOLUME_HARD_CAP)
+
+        candidate = Article.objects.create(
+            title="Pending LLM article should be rejected before LLM if hard cap reached",
+            url="https://source.example.com/candidate-tier2-cap",
+            publication=self.publication,
+            published_at=timezone.now(),
+            headline_score=0.7,
+            triage_status='pending_llm',
+        )
+
+        result = self.triage.tier2_llm_classify(candidate)
+
+        self.assertEqual(result.status, 'rejected')
+        self.assertIn('publisher_cap', result.reason)
+        mock_ai_provider.assert_not_called()
