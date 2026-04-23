@@ -98,6 +98,54 @@ class AIProviderService:
         self._openai_client: Optional[OpenAI] = None
         self._anthropic_client: Optional[Anthropic] = None
         self._initialize_clients()
+
+    @staticmethod
+    def _estimate_openai_chat_cost(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal:
+        """
+        Estimate OpenAI chat completion cost using current model pricing (USD/token).
+        """
+        model_lower = (model or '').lower()
+
+        if 'gpt-4.1' in model_lower:
+            if 'nano' in model_lower:
+                # $0.10 / 1M input, $0.40 / 1M output
+                return (Decimal(str(prompt_tokens)) * Decimal('0.0000001')) + (
+                    Decimal(str(completion_tokens)) * Decimal('0.0000004')
+                )
+            if 'mini' in model_lower:
+                # $0.40 / 1M input, $1.60 / 1M output
+                return (Decimal(str(prompt_tokens)) * Decimal('0.0000004')) + (
+                    Decimal(str(completion_tokens)) * Decimal('0.0000016')
+                )
+            # gpt-4.1 full: $2.00 / 1M input, $8.00 / 1M output
+            return (Decimal(str(prompt_tokens)) * Decimal('0.000002')) + (
+                Decimal(str(completion_tokens)) * Decimal('0.000008')
+            )
+
+        if 'gpt-4o-mini' in model_lower:
+            # $0.15 / 1M input, $0.60 / 1M output
+            return (Decimal(str(prompt_tokens)) * Decimal('0.00000015')) + (
+                Decimal(str(completion_tokens)) * Decimal('0.0000006')
+            )
+
+        return Decimal('0.0')
+
+    @staticmethod
+    def _estimate_openai_embedding_cost(model: str, input_tokens: int) -> Decimal:
+        """Estimate OpenAI embedding cost using current model pricing (USD/token)."""
+        model_lower = (model or '').lower()
+
+        if 'text-embedding-3-small' in model_lower:
+            # $0.020 / 1M tokens
+            return Decimal(str(input_tokens)) * Decimal('0.00000002')
+        if 'text-embedding-3-large' in model_lower:
+            # $0.130 / 1M tokens
+            return Decimal(str(input_tokens)) * Decimal('0.00000013')
+        if 'text-embedding-ada-002' in model_lower:
+            # $0.100 / 1M tokens
+            return Decimal(str(input_tokens)) * Decimal('0.0000001')
+
+        return Decimal('0.0')
     
     def _initialize_clients(self) -> None:
         """Initialize AI provider clients based on available API keys."""
@@ -267,35 +315,11 @@ class AIProviderService:
                 'completion_tokens': response.usage.completion_tokens if response.usage else 0,
                 'total_tokens': response.usage.total_tokens if response.usage else 0,
             }
-            
-            # Calculate cost estimate using official OpenAI pricing (as of April 2025)
-            cost_estimate = Decimal('0.0')
-            model_lower = model.lower()
-            
             prompt_tokens = usage.get('prompt_tokens', 0)
             completion_tokens = usage.get('completion_tokens', 0)
-            
-            if 'gpt-4.1' in model_lower:
-                if 'nano' in model_lower:
-                    # GPT-4.1 Nano: $0.10/1M input, $0.40/1M output
-                    input_cost = Decimal(str(prompt_tokens)) * Decimal('0.0000001')  # $0.10/1M
-                    output_cost = Decimal(str(completion_tokens)) * Decimal('0.0000004')  # $0.40/1M
-                    cost_estimate = input_cost + output_cost
-                elif 'mini' in model_lower:
-                    # GPT-4.1 Mini: $0.40/1M input, $1.60/1M output
-                    input_cost = Decimal(str(prompt_tokens)) * Decimal('0.0000004')  # $0.40/1M
-                    output_cost = Decimal(str(completion_tokens)) * Decimal('0.0000016')  # $1.60/1M
-                    cost_estimate = input_cost + output_cost
-                else:
-                    # GPT-4.1 (full): $2.00/1M input, $8.00/1M output
-                    input_cost = Decimal(str(prompt_tokens)) * Decimal('0.000002')  # $2.00/1M
-                    output_cost = Decimal(str(completion_tokens)) * Decimal('0.000008')  # $8.00/1M
-                    cost_estimate = input_cost + output_cost
-            elif 'gpt-4o-mini' in model_lower:
-                # GPT-4o-mini: $0.15/1M input, $0.075/1M output (older pricing)
-                input_cost = Decimal(str(prompt_tokens)) * Decimal('0.00000015')  # $0.15/1M
-                output_cost = Decimal(str(completion_tokens)) * Decimal('0.000000075')  # $0.075/1M
-                cost_estimate = input_cost + output_cost
+            cost_estimate = self._estimate_openai_chat_cost(model, prompt_tokens, completion_tokens)
+            usage['estimated_cost'] = float(cost_estimate)
+            usage['total_cost'] = float(cost_estimate)
             
             # Log usage to database
             self._log_usage(
@@ -388,34 +412,21 @@ class AIProviderService:
         Log AI provider usage to database for cost tracking and monitoring.
         """
         try:
-            # Calculate estimated cost using official OpenAI pricing (as of April 2025)
             estimated_cost = Decimal('0.0')
             if provider == 'openai' and success:
-                model_lower = model.lower()
-                prompt_tokens = usage.get('prompt_tokens', 0)
-                completion_tokens = usage.get('completion_tokens', 0)
-                
-                if 'gpt-4.1' in model_lower:
-                    if 'nano' in model_lower:
-                        # GPT-4.1 Nano: $0.10/1M input, $0.40/1M output
-                        input_cost = Decimal(str(prompt_tokens)) * Decimal('0.0000001')  # $0.10/1M
-                        output_cost = Decimal(str(completion_tokens)) * Decimal('0.0000004')  # $0.40/1M
-                        estimated_cost = input_cost + output_cost
-                    elif 'mini' in model_lower:
-                        # GPT-4.1 Mini: $0.40/1M input, $1.60/1M output
-                        input_cost = Decimal(str(prompt_tokens)) * Decimal('0.0000004')  # $0.40/1M
-                        output_cost = Decimal(str(completion_tokens)) * Decimal('0.0000016')  # $1.60/1M
-                        estimated_cost = input_cost + output_cost
-                    else:
-                        # GPT-4.1 (full): $2.00/1M input, $8.00/1M output
-                        input_cost = Decimal(str(prompt_tokens)) * Decimal('0.000002')  # $2.00/1M
-                        output_cost = Decimal(str(completion_tokens)) * Decimal('0.000008')  # $8.00/1M
-                        estimated_cost = input_cost + output_cost
-                elif 'gpt-4o-mini' in model_lower:
-                    # GPT-4o-mini: $0.15/1M input, $0.075/1M output (older pricing)
-                    input_cost = Decimal(str(prompt_tokens)) * Decimal('0.00000015')  # $0.15/1M
-                    output_cost = Decimal(str(completion_tokens)) * Decimal('0.000000075')  # $0.075/1M
-                    estimated_cost = input_cost + output_cost
+                usage_estimate = usage.get('estimated_cost', usage.get('total_cost'))
+                if usage_estimate is not None:
+                    estimated_cost = Decimal(str(usage_estimate))
+                elif 'text-embedding' in (model or '').lower():
+                    estimated_cost = self._estimate_openai_embedding_cost(
+                        model, usage.get('prompt_tokens', 0)
+                    )
+                else:
+                    estimated_cost = self._estimate_openai_chat_cost(
+                        model,
+                        usage.get('prompt_tokens', 0),
+                        usage.get('completion_tokens', 0),
+                    )
             
             AIProviderUsage.objects.create(
                 provider=provider,
@@ -565,21 +576,11 @@ class AIProviderService:
                 'total_tokens': response.usage.total_tokens if response.usage else 0,
                 'completion_tokens': 0  # Embeddings don't have completion tokens
             }
-            
-            # Calculate cost estimate using official OpenAI embedding pricing
-            cost_estimate = Decimal('0.0')
-            model_lower = model.lower()
-            input_tokens = usage.get('prompt_tokens', 0)
-            
-            if 'text-embedding-3-small' in model_lower:
-                # text-embedding-3-small: $0.020/1M tokens
-                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.00000002')  # $0.020/1M
-            elif 'text-embedding-3-large' in model_lower:
-                # text-embedding-3-large: $0.130/1M tokens  
-                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.00000013')  # $0.130/1M
-            elif 'text-embedding-ada-002' in model_lower:
-                # text-embedding-ada-002: $0.100/1M tokens
-                cost_estimate = Decimal(str(input_tokens)) * Decimal('0.0000001')  # $0.100/1M
+            cost_estimate = self._estimate_openai_embedding_cost(
+                model, usage.get('prompt_tokens', 0)
+            )
+            usage['estimated_cost'] = float(cost_estimate)
+            usage['total_cost'] = float(cost_estimate)
             
             # Log usage to database
             self._log_usage(

@@ -138,6 +138,27 @@ class OpenAIInvocationTests(SimpleTestCase):
         mock_log.assert_called_once()
 
     @patch.object(AIProviderService, "_log_usage")
+    def test_call_openai_includes_estimated_cost_in_usage(self, mock_log):
+        self.service._openai_client.chat.completions.create.return_value = build_chat_response(
+            prompt_tokens=1000,
+            completion_tokens=1000,
+        )
+
+        response = self.service._call_openai(
+            prompt="prompt",
+            model="gpt-4o-mini",
+            max_tokens=200,
+            temperature=0.2,
+            operation="summarization",
+            start_time=0.0,
+        )
+
+        self.assertTrue(response.success)
+        self.assertIn("estimated_cost", response.usage)
+        self.assertIn("total_cost", response.usage)
+        self.assertAlmostEqual(response.usage["estimated_cost"], 0.00075, places=8)
+
+    @patch.object(AIProviderService, "_log_usage")
     def test_call_openai_returns_failure_when_client_errors(self, mock_log):
         self.service._openai_client.chat.completions.create.side_effect = RuntimeError("provider down")
 
@@ -191,3 +212,23 @@ class UsageLoggingTests(SimpleTestCase):
         self.assertTrue(mock_create.called)
         estimated_cost = mock_create.call_args.kwargs["estimated_cost"]
         self.assertEqual(estimated_cost, Decimal("0.0012"))
+
+    @patch("apps.aiproviders.services.AIProviderUsage.objects.create")
+    def test_log_usage_uses_usage_estimated_cost_when_provided(self, mock_create):
+        self.service._log_usage(
+            provider="openai",
+            model="gpt-4o-mini",
+            operation="summarization",
+            usage={
+                "prompt_tokens": 1000,
+                "completion_tokens": 1000,
+                "total_tokens": 2000,
+                "estimated_cost": 0.00075,
+            },
+            response_time=1.0,
+            success=True,
+        )
+
+        self.assertTrue(mock_create.called)
+        estimated_cost = mock_create.call_args.kwargs["estimated_cost"]
+        self.assertEqual(estimated_cost, Decimal("0.00075"))

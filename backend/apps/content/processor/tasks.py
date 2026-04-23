@@ -5,6 +5,7 @@ Handles Safari mode, LLM enhancement, and hybrid processing with cost optimizati
 
 import logging
 from typing import List, Dict, Any, Optional
+from decimal import Decimal
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
@@ -16,6 +17,25 @@ from .services import ContentProcessor, ProcessingManager, _truncate_route_name
 from .models import serialize_content_blocks
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_processing_cost(processing_result) -> Decimal:
+    """
+    Extract per-article processing cost from processor metadata.
+
+    Falls back to zero when the route is algorithmic/non-LLM or metadata is absent.
+    """
+    metadata = getattr(processing_result, 'extracted_metadata', {}) or {}
+    raw_cost = (
+        metadata.get('estimated_cost_usd')
+        or metadata.get('estimated_cost')
+        or metadata.get('cost_estimate')
+        or 0
+    )
+    try:
+        return Decimal(str(raw_cost))
+    except Exception:
+        return Decimal('0.0')
 
 
 @shared_task(bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
@@ -54,6 +74,8 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
         result = processor.process_article_content(article, route)
         
         if result.success:
+            process_cost = _extract_processing_cost(result)
+
             # Store results in database
             with transaction.atomic():
                 article.clean_content = result.clean_content
@@ -61,11 +83,13 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
                 article.extracted_metadata = result.extracted_metadata
                 article.content_quality_metrics = {
                     'overall_score': result.quality_score,
-                    'processing_time_ms': result.processing_time_ms
+                    'processing_time_ms': result.processing_time_ms,
+                    'estimated_cost_usd': float(process_cost),
                 }
                 article.process_status = ProcessingStatus.COMPLETED
                 article.process_route = _truncate_route_name(getattr(result, 'route_used', 'llm_enhanced'))  # Dynamic route tracking
                 article.process_duration_ms = result.processing_time_ms
+                article.process_cost_usd = process_cost
                 article.last_process_attempt = timezone.now()
                 article.save()
             
@@ -77,7 +101,8 @@ def process_article_content(self, article_id: int, route: str = None) -> Dict[st
                 'quality_score': result.quality_score,
                 'processing_time_ms': result.processing_time_ms,
                 'content_blocks_count': len(result.content_blocks),
-                'route_used': route or 'auto'
+                'route_used': route or 'auto',
+                'cost_usd': float(process_cost),
             }
         
         else:
@@ -181,6 +206,7 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
         for article in articles:
             # Process and store the article, getting cost and route info
             processing_result = processor.process_article_content(article)
+            process_cost = _extract_processing_cost(processing_result)
             
             # Store results in database if successful
             if processing_result.success:
@@ -190,12 +216,13 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
                     article.extracted_metadata = processing_result.extracted_metadata
                     article.content_quality_metrics = {
                         'overall_score': processing_result.quality_score,
-                        'processing_time_ms': processing_result.processing_time_ms
+                        'processing_time_ms': processing_result.processing_time_ms,
+                        'estimated_cost_usd': float(process_cost),
                     }
                     article.process_status = ProcessingStatus.COMPLETED
                     article.process_route = _truncate_route_name(getattr(processing_result, 'route_used', 'llm_enhanced'))
                     article.process_duration_ms = processing_result.processing_time_ms
-                    article.process_cost_usd = 0.0001  # Estimated cost
+                    article.process_cost_usd = process_cost
                     article.process_attempts = (article.process_attempts or 0) + 1
                     article.last_process_attempt = timezone.now()
                     article.save()
@@ -214,7 +241,7 @@ def process_batch_articles(article_ids: List[int]) -> Dict[str, Any]:
                 'processing_result': processing_result,
                 'route_used': getattr(processing_result, 'route_used', 'llm_enhanced'),  # Dynamic route tracking
                 'duration_ms': processing_result.processing_time_ms,
-                'cost_usd': 0.0001 if processing_result.success else 0.0,  # Estimated cost
+                'cost_usd': float(process_cost) if processing_result.success else 0.0,
                 'error_message': processing_result.error_message
             }
             results.append(result)
