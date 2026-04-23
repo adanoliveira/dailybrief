@@ -339,7 +339,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     
     # CONTENT ENRICHMENT PIPELINE - BUDGET-AWARE CONTINUOUS PROCESSING
-    # Single run every 15 minutes. Daily budget/publisher caps are enforced
+    # Single run every 15 minutes. Daily budget is enforced
     # in apps.content.tasks._get_base_queryset().
     'content-enrichment-continuous': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous',
@@ -529,7 +529,6 @@ AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '50
 
 # Pipeline cost controls
 DAILY_PIPELINE_BUDGET = int(os.getenv('DAILY_PIPELINE_BUDGET', '200'))
-PUBLISHER_PIPELINE_CAP = int(os.getenv('PUBLISHER_PIPELINE_CAP', '12'))
 
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch

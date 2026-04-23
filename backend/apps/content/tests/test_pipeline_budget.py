@@ -75,37 +75,3 @@ class PipelineBudgetSelectorTests(TestCase):
 
         self.assertIn(in_flight.id, ids)
         self.assertNotIn(new_candidate.id, ids)
-
-    def test_over_cap_publishers_are_excluded_for_new_entries(self):
-        self._make_article(
-            publication=self.pub_a,
-            process_attempts=1,
-            process_status=ProcessingStatus.COMPLETED,
-            last_process_attempt=self.now,
-        )
-        capped_candidate = self._make_article(
-            title='Capped Candidate',
-            url='https://example.com/capped-candidate',
-            publication=self.pub_a,
-            process_attempts=0,
-            fetch_attempts=0,
-            summarization_attempts=0,
-            analyzer_attempts=0,
-        )
-        allowed_candidate = self._make_article(
-            title='Allowed Candidate',
-            url='https://example.com/allowed-candidate',
-            publication=self.pub_b,
-            process_attempts=0,
-            fetch_attempts=0,
-            summarization_attempts=0,
-            analyzer_attempts=0,
-        )
-
-        with patch('apps.content.tasks.DAILY_PIPELINE_BUDGET', 10), patch(
-            'apps.content.tasks.PUBLISHER_PIPELINE_CAP', 1
-        ):
-            ids = set(_get_base_queryset().values_list('id', flat=True))
-
-        self.assertNotIn(capped_candidate.id, ids)
-        self.assertIn(allowed_candidate.id, ids)

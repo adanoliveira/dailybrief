@@ -44,9 +44,9 @@ REJECT_THRESHOLD = 0.35     # Auto-reject without LLM
 TOPIC_SCARCITY_BONUS = 0.10 # Boost for topics with < 5 accepted articles today
 TOPIC_SATURATION_PENALTY = 0.05  # Penalty for topics with > 30 accepted articles today
 
-# --- Publisher volume controls ---
-PUBLISHER_VOLUME_SOFT_CAP = 10       # Start penalizing after this many accepted/day
-PUBLISHER_VOLUME_HARD_CAP = 25       # Auto-reject after this many accepted/day
+# --- Publisher volume controls (rolling 24h window) ---
+PUBLISHER_VOLUME_SOFT_CAP = 10       # Start penalizing after this many accepted/24h
+PUBLISHER_VOLUME_HARD_CAP = 25       # Auto-reject after this many accepted/24h
 PUBLISHER_VOLUME_PENALTY_RATE = 0.02 # Score penalty per article above soft cap
 
 # --- Tier 2 thresholds ---
@@ -112,8 +112,8 @@ class ArticleTriage:
     def __init__(self):
         self._daily_counts_cache = None
         self._daily_counts_date = None
-        self._daily_publisher_cache = None
-        self._daily_publisher_date = None
+        self._rolling_publisher_cache = None
+        self._rolling_publisher_cache_key = None
         self._llm_calls_today = None
 
     # ------------------------------------------------------------------
@@ -144,7 +144,7 @@ class ArticleTriage:
             return TriageResult(
                 status='rejected',
                 score=adjusted_score,
-                reason=f'publisher_cap: {PUBLISHER_VOLUME_HARD_CAP} accepted/day exceeded',
+                reason=f'publisher_cap: {PUBLISHER_VOLUME_HARD_CAP} accepted/24h exceeded',
                 method='algorithmic',
             )
         adjusted_score += pub_adj
@@ -177,23 +177,24 @@ class ArticleTriage:
 
     def _publisher_volume_adjustment(self, article) -> float:
         """
-        Penalize articles from publishers with high accepted volume today.
+        Penalize/reject articles from high-volume publishers.
 
         Returns:
-            0.0 for normal volume
-            negative penalty above soft cap
-            -1.0 to force rejection above hard cap
+            0.0 for normal volume (rolling 24h)
+            negative penalty above soft cap (rolling 24h)
+            -1.0 to force rejection above hard cap (rolling 24h)
         """
         if not article.publication_id:
             return 0.0
 
         counts = self._get_daily_publisher_counts()
-        pub_count = counts.get(article.publication_id, 0)
+        publisher_count = counts.get(article.publication_id, 0)
 
-        if pub_count >= PUBLISHER_VOLUME_HARD_CAP:
+        if publisher_count >= PUBLISHER_VOLUME_HARD_CAP:
             return -1.0
-        if pub_count > PUBLISHER_VOLUME_SOFT_CAP:
-            over = pub_count - PUBLISHER_VOLUME_SOFT_CAP
+
+        if publisher_count > PUBLISHER_VOLUME_SOFT_CAP:
+            over = publisher_count - PUBLISHER_VOLUME_SOFT_CAP
             return -(over * PUBLISHER_VOLUME_PENALTY_RATE)
         return 0.0
 
@@ -287,27 +288,27 @@ class ArticleTriage:
         return self._daily_counts_cache
 
     def _get_daily_publisher_counts(self) -> dict[int, int]:
-        """Return cached count of accepted articles per publisher today."""
+        """Return cached count of accepted articles per publisher in the rolling last 24h."""
         from apps.articles.models import Article
 
-        today = timezone.now().date()
-        if self._daily_publisher_cache and self._daily_publisher_date == today:
-            return self._daily_publisher_cache
+        cache_key = timezone.now().replace(second=0, microsecond=0)
+        if self._rolling_publisher_cache is not None and self._rolling_publisher_cache_key == cache_key:
+            return self._rolling_publisher_cache
 
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        window_start = timezone.now() - timedelta(hours=24)
         counts: dict[int, int] = {}
         for row in Article.objects.filter(
             triage_status='accepted',
-            triaged_at__gte=today_start,
+            triaged_at__gte=window_start,
         ).values('publication_id').annotate(
             cnt=models.Count('id'),
         ):
             if row['publication_id']:
                 counts[row['publication_id']] = row['cnt']
 
-        self._daily_publisher_cache = counts
-        self._daily_publisher_date = today
-        return self._daily_publisher_cache
+        self._rolling_publisher_cache = counts
+        self._rolling_publisher_cache_key = cache_key
+        return self._rolling_publisher_cache
 
     # ------------------------------------------------------------------
     # Tier 2: LLM micro-classification

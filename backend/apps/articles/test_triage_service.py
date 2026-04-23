@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.utils import timezone
+from datetime import timedelta
 
 from apps.articles.models import Article
 from apps.articles.services.triage import (
@@ -61,3 +62,27 @@ class ArticleTriagePublisherVolumeTests(TestCase):
 
         self.assertEqual(result.status, 'pending_llm')
         self.assertAlmostEqual(result.score, 0.69, places=2)
+
+    def test_hard_cap_ignores_accepts_older_than_24_hours(self):
+        old_timestamp = timezone.now() - timedelta(hours=25)
+        for idx in range(PUBLISHER_VOLUME_HARD_CAP):
+            Article.objects.create(
+                title=f"Old accepted {idx}",
+                url=f"https://source.example.com/old-{idx}",
+                publication=self.publication,
+                published_at=old_timestamp,
+                triage_status='accepted',
+                triaged_at=old_timestamp,
+            )
+
+        candidate = Article.objects.create(
+            title="Long neutral headline where old accepts should not trigger hard cap",
+            url="https://source.example.com/candidate-old-window",
+            publication=self.publication,
+            published_at=timezone.now(),
+            headline_score=0.92,
+        )
+
+        result = self.triage.tier1_algorithmic(candidate)
+
+        self.assertNotEqual(result.status, 'rejected')

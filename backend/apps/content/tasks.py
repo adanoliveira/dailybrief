@@ -24,7 +24,7 @@ Cost Optimization Strategy:
 Continuous Processing Strategy:
 - Runs every 15 minutes to ensure complete processing
 - Processes all stages synchronously (no fire-and-forget async tasks)
-- Enforces a daily pipeline budget and per-publisher cap for new entrants
+- Enforces a daily pipeline budget for new entrants
 - Continues already-started articles even when daily budget is exhausted
 """
 
@@ -51,33 +51,11 @@ PIPELINE_TIME_WINDOW_HOURS = 72
 MAX_RETRY_ATTEMPTS = 3
 TARGET_REGION_CODES = ['us', 'br']  # Only process US and Brazil articles
 DAILY_PIPELINE_BUDGET = int(getattr(settings, 'DAILY_PIPELINE_BUDGET', 200))
-PUBLISHER_PIPELINE_CAP = int(getattr(settings, 'PUBLISHER_PIPELINE_CAP', 12))
 
 
 def _get_time_threshold() -> timezone.datetime:
     """Get the time threshold for pipeline processing (72 hours ago)."""
     return timezone.now() - timedelta(hours=PIPELINE_TIME_WINDOW_HOURS)
-
-
-def _get_over_cap_publisher_ids(today_start, time_threshold) -> list[int]:
-    """Return publisher IDs that have already hit their daily pipeline cap."""
-    publisher_counts = Article.objects.filter(
-        triage_status__in=['accepted', 'promoted'],
-        published_at__gte=time_threshold,
-        process_status__in=[
-            ProcessingStatus.COMPLETED,
-            ProcessingStatus.PROCESSING,
-            ProcessingStatus.FAILED,
-        ],
-        last_process_attempt__gte=today_start,
-        regions__code__in=TARGET_REGION_CODES,
-        publication_id__isnull=False,
-    ).values('publication_id').annotate(
-        cnt=models.Count('id')
-    ).filter(
-        cnt__gte=PUBLISHER_PIPELINE_CAP
-    )
-    return [row['publication_id'] for row in publisher_counts]
 
 
 def _order_pipeline_candidates(queryset):
@@ -89,8 +67,8 @@ def _get_base_queryset():
     """
     Budget-aware pipeline selector.
 
-    Selects the best triaged articles while enforcing daily and per-publisher
-    limits for *new* pipeline entrants. Articles that already started any
+    Selects the best triaged articles while enforcing a daily
+    limit for *new* pipeline entrants. Articles that already started any
     pipeline stage remain eligible so they can finish.
     """
     time_threshold = _get_time_threshold()
@@ -142,10 +120,6 @@ def _get_base_queryset():
         summarization_attempts=0,
         analyzer_attempts=0,
     )
-
-    over_cap_publishers = _get_over_cap_publisher_ids(today_start, time_threshold)
-    if over_cap_publishers:
-        new_candidates = new_candidates.exclude(publication_id__in=over_cap_publishers)
 
     budgeted_new_ids = list(
         _order_pipeline_candidates(new_candidates).values_list('id', flat=True)[:remaining_budget]
