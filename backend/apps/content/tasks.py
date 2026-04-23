@@ -22,15 +22,16 @@ Cost Optimization Strategy:
 - Reduces processing costs while maintaining comprehensive news gathering
 
 Continuous Processing Strategy:
-- Runs every 15-30 minutes to ensure complete processing
+- Runs every 15 minutes to ensure complete processing
 - Processes all stages synchronously (no fire-and-forget async tasks)
-- Continues until all articles are either completed or failed
-- Smart throttling during peak hours (every 10 minutes)
+- Enforces a daily pipeline budget and per-publisher cap for new entrants
+- Continues already-started articles even when daily budget is exhausted
 """
 
 import logging
 from typing import List, Dict, Any, Optional
 from celery import shared_task, chain, group
+from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 from datetime import timedelta
@@ -49,6 +50,8 @@ logger = logging.getLogger(__name__)
 PIPELINE_TIME_WINDOW_HOURS = 72
 MAX_RETRY_ATTEMPTS = 3
 TARGET_REGION_CODES = ['us', 'br']  # Only process US and Brazil articles
+DAILY_PIPELINE_BUDGET = int(getattr(settings, 'DAILY_PIPELINE_BUDGET', 200))
+PUBLISHER_PIPELINE_CAP = int(getattr(settings, 'PUBLISHER_PIPELINE_CAP', 12))
 
 
 def _get_time_threshold() -> timezone.datetime:
@@ -56,31 +59,106 @@ def _get_time_threshold() -> timezone.datetime:
     return timezone.now() - timedelta(hours=PIPELINE_TIME_WINDOW_HOURS)
 
 
+def _get_over_cap_publisher_ids(today_start, time_threshold) -> list[int]:
+    """Return publisher IDs that have already hit their daily pipeline cap."""
+    publisher_counts = Article.objects.filter(
+        triage_status__in=['accepted', 'promoted'],
+        published_at__gte=time_threshold,
+        process_status__in=[
+            ProcessingStatus.COMPLETED,
+            ProcessingStatus.PROCESSING,
+            ProcessingStatus.FAILED,
+        ],
+        last_process_attempt__gte=today_start,
+        regions__code__in=TARGET_REGION_CODES,
+        publication_id__isnull=False,
+    ).values('publication_id').annotate(
+        cnt=models.Count('id')
+    ).filter(
+        cnt__gte=PUBLISHER_PIPELINE_CAP
+    )
+    return [row['publication_id'] for row in publisher_counts]
+
+
+def _order_pipeline_candidates(queryset):
+    """Order candidates by quality first so budget always favors best articles."""
+    return queryset.order_by('-headline_score', '-published_at', 'id')
+
+
 def _get_base_queryset():
     """
-    Get base queryset for articles eligible for the content enrichment pipeline.
+    Budget-aware pipeline selector.
 
-    Uses the triage system if articles have been triaged (triage_status in
-    'accepted' or 'promoted'). Falls back to the legacy is_top_headline
-    filter if triage hasn't run yet.
+    Selects the best triaged articles while enforcing daily and per-publisher
+    limits for *new* pipeline entrants. Articles that already started any
+    pipeline stage remain eligible so they can finish.
     """
     time_threshold = _get_time_threshold()
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Check if triage system is active (any articles have been triaged)
-    triaged = Article.objects.filter(
+    eligible = Article.objects.filter(
         triage_status__in=['accepted', 'promoted'],
         published_at__gte=time_threshold,
         regions__code__in=TARGET_REGION_CODES,
     ).distinct()
 
-    if triaged.exists():
-        return triaged
+    # Keep all articles that already entered any stage to avoid starvation.
+    in_flight = eligible.filter(
+        models.Q(fetch_attempts__gt=0) |
+        models.Q(process_attempts__gt=0) |
+        models.Q(summarization_attempts__gt=0) |
+        models.Q(analyzer_attempts__gt=0)
+    )
 
-    # Fallback: legacy filter for pre-triage articles
-    return Article.objects.filter(
-        is_top_headline=True,
+    # Daily budget enforcement for *new* entrants into the expensive pipeline.
+    already_processing = Article.objects.filter(
+        triage_status__in=['accepted', 'promoted'],
         published_at__gte=time_threshold,
+        process_status__in=[
+            ProcessingStatus.COMPLETED,
+            ProcessingStatus.PROCESSING,
+            ProcessingStatus.FAILED,
+        ],
+        last_process_attempt__gte=today_start,
         regions__code__in=TARGET_REGION_CODES,
+    ).distinct().count()
+    remaining_budget = max(0, DAILY_PIPELINE_BUDGET - already_processing)
+
+    if remaining_budget == 0:
+        logger.info(
+            "Daily pipeline budget exhausted (%d/%d). Processing only in-flight articles.",
+            already_processing,
+            DAILY_PIPELINE_BUDGET,
+        )
+        return _order_pipeline_candidates(in_flight).distinct()
+
+    new_candidates = eligible.filter(
+        fetch_status=FetchStatus.PENDING,
+        process_status=ProcessingStatus.PENDING,
+        summarization_status=SummarizationStatus.PENDING,
+        analyzer_status=AnalyzerStatus.PENDING,
+        fetch_attempts=0,
+        process_attempts=0,
+        summarization_attempts=0,
+        analyzer_attempts=0,
+    )
+
+    over_cap_publishers = _get_over_cap_publisher_ids(today_start, time_threshold)
+    if over_cap_publishers:
+        new_candidates = new_candidates.exclude(publication_id__in=over_cap_publishers)
+
+    budgeted_new_ids = list(
+        _order_pipeline_candidates(new_candidates).values_list('id', flat=True)[:remaining_budget]
+    )
+
+    if not budgeted_new_ids:
+        return _order_pipeline_candidates(in_flight).distinct()
+
+    return _order_pipeline_candidates(
+        eligible.filter(
+            models.Q(id__in=budgeted_new_ids) |
+            models.Q(id__in=in_flight.values('id'))
+        )
     ).distinct()
 
 
@@ -95,7 +173,7 @@ def _get_articles_for_stage(stage_filters: Dict[str, Any], limit: int) -> List[i
     Returns:
         List of article IDs
     """
-    queryset = _get_base_queryset().filter(**stage_filters).order_by('published_at')[:limit]
+    queryset = _order_pipeline_candidates(_get_base_queryset().filter(**stage_filters))[:limit]
     return list(queryset.values_list('id', flat=True))
 
 
@@ -235,7 +313,8 @@ def _process_stage2_process_top_headlines(limit: int) -> Dict[str, Any]:
         # Must have content from Stage 1
         models.Q(raw_html__isnull=False, raw_html__regex=r'.{100,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{50,}')
-    ).order_by('published_at')[:limit]
+    )
+    ready_for_processing = _order_pipeline_candidates(ready_for_processing)[:limit]
     
     article_ids = list(ready_for_processing.values_list('id', flat=True))
     
@@ -262,7 +341,8 @@ def _process_stage3_summarize_top_headlines(limit: int) -> Dict[str, Any]:
         # Must have processed content from Stage 2
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
-    ).order_by('published_at')[:limit]
+    )
+    ready_for_summarization = _order_pipeline_candidates(ready_for_summarization)[:limit]
     
     article_ids = list(ready_for_summarization.values_list('id', flat=True))
     
@@ -288,7 +368,8 @@ def _process_stage4_analyze_top_headlines(limit: int) -> Dict[str, Any]:
         # Must have summarized content from Stage 3
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
-    ).order_by('published_at')[:limit]
+    )
+    ready_for_analysis = _order_pipeline_candidates(ready_for_analysis)[:limit]
     
     article_ids = list(ready_for_analysis.values_list('id', flat=True))
     
@@ -680,7 +761,8 @@ def _process_stage3_summarize_continuous(limit: int) -> Dict[str, Any]:
         # Must have processed content from Stage 2
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
-    ).order_by('published_at')[:limit]
+    )
+    ready_for_summarization = _order_pipeline_candidates(ready_for_summarization)[:limit]
     
     article_ids = list(ready_for_summarization.values_list('id', flat=True))
     
@@ -710,7 +792,8 @@ def _process_stage4_analyze_continuous(limit: int) -> Dict[str, Any]:
         # Must have summarized content from Stage 3
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
-    ).order_by('published_at')[:limit]
+    )
+    ready_for_analysis = _order_pipeline_candidates(ready_for_analysis)[:limit]
     
     article_ids = list(ready_for_analysis.values_list('id', flat=True))
     

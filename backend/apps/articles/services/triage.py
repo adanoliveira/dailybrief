@@ -44,6 +44,11 @@ REJECT_THRESHOLD = 0.35     # Auto-reject without LLM
 TOPIC_SCARCITY_BONUS = 0.10 # Boost for topics with < 5 accepted articles today
 TOPIC_SATURATION_PENALTY = 0.05  # Penalty for topics with > 30 accepted articles today
 
+# --- Publisher volume controls ---
+PUBLISHER_VOLUME_SOFT_CAP = 10       # Start penalizing after this many accepted/day
+PUBLISHER_VOLUME_HARD_CAP = 25       # Auto-reject after this many accepted/day
+PUBLISHER_VOLUME_PENALTY_RATE = 0.02 # Score penalty per article above soft cap
+
 # --- Tier 2 thresholds ---
 LLM_ACCEPT_THRESHOLD = 0.55  # Composite (impact+novelty+significance)/30
 LLM_DAILY_CAP = 1000         # Max LLM triage calls per day (cost guard)
@@ -107,6 +112,8 @@ class ArticleTriage:
     def __init__(self):
         self._daily_counts_cache = None
         self._daily_counts_date = None
+        self._daily_publisher_cache = None
+        self._daily_publisher_date = None
         self._llm_calls_today = None
 
     # ------------------------------------------------------------------
@@ -131,12 +138,26 @@ class ArticleTriage:
         topic_adj = self._topic_scarcity_adjustment(topic_ids)
         adjusted_score += topic_adj
 
+        # Apply publisher volume penalty so high-volume sources face stricter gates.
+        pub_adj = self._publisher_volume_adjustment(article)
+        if pub_adj <= -1.0:
+            return TriageResult(
+                status='rejected',
+                score=adjusted_score,
+                reason=f'publisher_cap: {PUBLISHER_VOLUME_HARD_CAP} accepted/day exceeded',
+                method='algorithmic',
+            )
+        adjusted_score += pub_adj
+
         # Decision
         if adjusted_score >= ACCEPT_THRESHOLD:
             return TriageResult(
                 status='accepted',
                 score=adjusted_score,
-                reason=f'algorithmic_accept: score={adjusted_score:.3f} (headline={score:.3f}, title_adj={title_adj:+.3f}, topic_adj={topic_adj:+.3f})',
+                reason=(
+                    f'algorithmic_accept: score={adjusted_score:.3f} '
+                    f'(headline={score:.3f}, title={title_adj:+.3f}, topic={topic_adj:+.3f}, pub={pub_adj:+.3f})'
+                ),
                 method='algorithmic',
             )
         elif adjusted_score < REJECT_THRESHOLD:
@@ -153,6 +174,28 @@ class ArticleTriage:
                 reason=f'ambiguous: score={adjusted_score:.3f} in [{REJECT_THRESHOLD}, {ACCEPT_THRESHOLD})',
                 method='algorithmic',
             )
+
+    def _publisher_volume_adjustment(self, article) -> float:
+        """
+        Penalize articles from publishers with high accepted volume today.
+
+        Returns:
+            0.0 for normal volume
+            negative penalty above soft cap
+            -1.0 to force rejection above hard cap
+        """
+        if not article.publication_id:
+            return 0.0
+
+        counts = self._get_daily_publisher_counts()
+        pub_count = counts.get(article.publication_id, 0)
+
+        if pub_count >= PUBLISHER_VOLUME_HARD_CAP:
+            return -1.0
+        if pub_count > PUBLISHER_VOLUME_SOFT_CAP:
+            over = pub_count - PUBLISHER_VOLUME_SOFT_CAP
+            return -(over * PUBLISHER_VOLUME_PENALTY_RATE)
+        return 0.0
 
     def _title_quality_signals(self, title: str) -> float:
         """
@@ -242,6 +285,29 @@ class ArticleTriage:
         self._daily_counts_cache = dict(counts)
         self._daily_counts_date = today
         return self._daily_counts_cache
+
+    def _get_daily_publisher_counts(self) -> dict[int, int]:
+        """Return cached count of accepted articles per publisher today."""
+        from apps.articles.models import Article
+
+        today = timezone.now().date()
+        if self._daily_publisher_cache and self._daily_publisher_date == today:
+            return self._daily_publisher_cache
+
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        counts: dict[int, int] = {}
+        for row in Article.objects.filter(
+            triage_status='accepted',
+            triaged_at__gte=today_start,
+        ).values('publication_id').annotate(
+            cnt=models.Count('id'),
+        ):
+            if row['publication_id']:
+                counts[row['publication_id']] = row['cnt']
+
+        self._daily_publisher_cache = counts
+        self._daily_publisher_date = today
+        return self._daily_publisher_cache
 
     # ------------------------------------------------------------------
     # Tier 2: LLM micro-classification

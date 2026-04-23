@@ -502,6 +502,7 @@ class AIContentProcessor:
                     "extraction_feedback": extraction_feedback,
                     "processing_time_ms": int(processing_time * 1000),
                     "token_usage": llm_response.usage.get("total_tokens", 0),
+                    "estimated_cost_usd": llm_response.usage.get("estimated_cost", llm_response.usage.get("total_cost", 0.0)),
                     "provider": llm_response.provider,
                     "model": llm_response.model,
                     **extraction_metadata

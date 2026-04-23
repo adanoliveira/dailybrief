@@ -338,35 +338,13 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'digest_age_days': 30},
     },
     
-    # CONTENT ENRICHMENT PIPELINE - CONTINUOUS PROCESSING SCHEDULE
-    # Runs continuously every 15-30 minutes to ensure all articles are processed
-    # Only stops when all articles (within 72h top-headline filter) are either completed or failed
-
-    # PRIMARY CONTINUOUS PIPELINE - Every 15 minutes during active hours
+    # CONTENT ENRICHMENT PIPELINE - BUDGET-AWARE CONTINUOUS PROCESSING
+    # Single run every 15 minutes. Daily budget/publisher caps are enforced
+    # in apps.content.tasks._get_base_queryset().
     'content-enrichment-continuous': {
         'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous',
-        'schedule': crontab(minute='*/15'),  # Every 15 minutes (96 times/day)
-        'kwargs': {'limit_per_stage': 50, 'max_total_limit': 200},
-    },
-
-    # INTENSIVE PIPELINE - Every 10 minutes during peak hours (4-8 AM & 2-6 PM UTC)
-    'content-enrichment-intensive-morning': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous',
-        'schedule': crontab(minute='*/10', hour='4-8'),  # Every 10 minutes, 4-8 AM UTC
-        'kwargs': {'limit_per_stage': 80, 'max_total_limit': 300},
-    },
-
-    'content-enrichment-intensive-afternoon': {
-        'task': 'apps.content.tasks.process_top_headlines_pipeline_continuous', 
-        'schedule': crontab(minute='*/10', hour='14-18'),  # Every 10 minutes, 2-6 PM UTC
-        'kwargs': {'limit_per_stage': 80, 'max_total_limit': 300},
-    },
-
-    # COMPLETION SWEEP - Every 30 minutes for final cleanup
-    'content-enrichment-completion-sweep': {
-        'task': 'apps.content.tasks.complete_remaining_articles_pipeline',
-        'schedule': crontab(minute='*/30'),  # Every 30 minutes
-        'kwargs': {'aggressive_mode': True, 'limit_per_stage': 100},
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes
+        'kwargs': {'limit_per_stage': 30, 'max_total_limit': 100},
     },
 
     # LEGACY TASKS (DISABLED) - Replaced by continuous processing
@@ -548,6 +526,10 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 # With content extraction averaging ~20k tokens per call
 AI_RATE_LIMIT_CALLS_PER_MINUTE = int(os.getenv('AI_RATE_LIMIT_CALLS_PER_MINUTE', '150'))  # Increased from 80 to 150 (~2.7M tokens/min, 90% of limit)
 AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '50'))  # Increased burst capacity for parallel processing
+
+# Pipeline cost controls
+DAILY_PIPELINE_BUDGET = int(os.getenv('DAILY_PIPELINE_BUDGET', '200'))
+PUBLISHER_PIPELINE_CAP = int(os.getenv('PUBLISHER_PIPELINE_CAP', '12'))
 
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch
