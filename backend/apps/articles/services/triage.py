@@ -39,8 +39,10 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 # --- Tier 1 thresholds ---
-ACCEPT_THRESHOLD = 0.75     # Auto-accept without LLM
-REJECT_THRESHOLD = 0.35     # Auto-reject without LLM
+# Calibrated against actual headline_score distribution:
+#   0.75+ = top 15%, 0.50+ = top 55%, 0.40+ = top 63%
+ACCEPT_THRESHOLD = 0.50     # Auto-accept without LLM
+REJECT_THRESHOLD = 0.25     # Auto-reject without LLM
 TOPIC_SCARCITY_BONUS = 0.10 # Boost for topics with < 5 accepted articles today
 TOPIC_SATURATION_PENALTY = 0.05  # Penalty for topics with > 30 accepted articles today
 
@@ -313,6 +315,8 @@ class ArticleTriage:
         for row in Article.objects.filter(
             triage_status='accepted',
             triaged_at__gte=window_start,
+        ).exclude(
+            triage_method='legacy',  # Don't count backfilled articles toward caps
         ).values('publication_id').annotate(
             cnt=models.Count('id'),
         ):
