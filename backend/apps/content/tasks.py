@@ -577,9 +577,18 @@ def retry_failed_pipeline_stages(stage: str = 'all', limit: int = 20) -> Dict[st
                 f'{attempts_field}__lt': MAX_RETRY_ATTEMPTS
             }
             update_kwargs = {status_field: pending_status}
-            
+
+            # Build error message field name for this stage
+            error_field = status_field.replace('_status', '_error_message')
+
             # Get IDs first, then update without slicing
-            failed_article_ids = list(_get_base_queryset().filter(**filter_kwargs)[:limit].values_list('id', flat=True))
+            # Exclude intentionally skipped articles from retry
+            failed_article_ids = list(
+                _get_base_queryset()
+                .filter(**filter_kwargs)
+                .exclude(**{f'{error_field}__startswith': 'Skipped'})
+                [:limit].values_list('id', flat=True)
+            )
             
             if failed_article_ids:
                 count = _get_base_queryset().filter(id__in=failed_article_ids).update(**update_kwargs)

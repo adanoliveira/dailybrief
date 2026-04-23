@@ -56,18 +56,19 @@ def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = Fal
                 'stages_completed': result.get('stages_completed', [])
             }
         else:
-            logger.error(f"Analysis pipeline failed for article {article_id}: {result.get('error', 'Unknown error')}")
-            
+            error_msg = result.get('error', result.get('reason', 'Unknown error'))
+            logger.error(f"Analysis pipeline failed for article {article_id}: {error_msg}")
+
             # Retry on certain failures
             failed_stage = result.get('failed_stage', '')
             if failed_stage in ['linguistic_processing', 'entity_processing'] and self.request.retries < self.max_retries:
                 logger.info(f"Retrying analysis for article {article_id} (attempt {self.request.retries + 1})")
                 raise self.retry(countdown=300)  # Retry after 5 minutes
-            
+
             return {
                 'success': False,
                 'article_id': article_id,
-                'error': result.get('error', 'Unknown error'),
+                'error': error_msg,
                 'failed_stage': failed_stage
             }
     

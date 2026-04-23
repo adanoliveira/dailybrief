@@ -211,11 +211,13 @@ def _feed_base_queryset():
 
     Uses triage_status (from the triage pipeline) as the primary gate.
     Falls back to is_top_headline for articles that predate the triage system.
+    Requires summarization completed (Stage 3). Analyzer (Stage 4) is not
+    required — it adds entities/events but the feed doesn't need them.
     """
     return (
         Article.objects.filter(
             Q(triage_status__in=['accepted', 'promoted']) | Q(is_top_headline=True),
-            analyzer_status='completed',
+            summarization_status='completed',
         )
         .select_related('publication')
         .prefetch_related('topics')
@@ -629,7 +631,7 @@ def public_world_feed(request):
     # Only include articles with images for better visual showcase
     queryset = Article.objects.filter(
         Q(triage_status__in=['accepted', 'promoted']) | Q(is_top_headline=True),
-        analyzer_status='completed',
+        summarization_status='completed',
         publication__regions__code='us',  # Only US publications
         image_url__isnull=False,  # Only articles with images
         image_url__gt=''  # Exclude empty image URLs
