@@ -17,8 +17,49 @@ from .models import AnalyzerRequest
 
 logger = logging.getLogger(__name__)
 
+# Analyzer is triage-gated: only accepted/promoted articles are eligible.
+# is_top_headline alone is NOT sufficient — an article must also be triage-accepted
+# to enter the expensive analysis pipeline.
+TRIAGE_ACCEPTED_STATUSES = ('accepted', 'promoted')
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=300, soft_time_limit=600, time_limit=900)
+
+_RATE_LIMIT_MARKERS = ('rate limit', 'rate_limit', 'retry in', '429', 'too many requests')
+
+
+def _is_rate_limit_error(message: str) -> bool:
+    if not message:
+        return False
+    lowered = message.lower()
+    return any(marker in lowered for marker in _RATE_LIMIT_MARKERS)
+
+
+def _parse_retry_after(message: str, default: int = 600) -> int:
+    """Extract 'Retry in Ns' / 'Retry in N ms' hints from OpenAI error strings."""
+    import re
+    if not message:
+        return default
+    # e.g. "Retry in 300s" / "retry in 12.5s" / "Retry in 300ms"
+    m = re.search(r'retry in\s+([\d.]+)\s*(ms|s)?', message, re.IGNORECASE)
+    if m:
+        value = float(m.group(1))
+        unit = (m.group(2) or 's').lower()
+        seconds = int(value / 1000) if unit == 'ms' else int(value)
+        # Clamp to [30, 900] — at least 30s backoff, at most 15 min
+        return max(30, min(seconds, 900))
+    return default
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=300,
+    soft_time_limit=600,
+    time_limit=900,
+    # Throttle per worker to avoid OpenAI rate-limit storms. Each analyze call
+    # fans out to ~4 LLM calls (style tone, events, regions, topics) + embeddings,
+    # so 10/min ≈ 40-50 OpenAI calls/min per worker.
+    rate_limit='10/m',
+)
 def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = False):
     """
     Main analysis pipeline task.
@@ -58,6 +99,16 @@ def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = Fal
         else:
             error_msg = result.get('error', result.get('reason', 'Unknown error'))
             logger.error(f"Analysis pipeline failed for article {article_id}: {error_msg}")
+
+            # On OpenAI rate-limit errors, back off aggressively so we don't burn an attempt
+            # on a transient condition. These are the storm signature — "Retry in 300s/600s".
+            if _is_rate_limit_error(error_msg) and self.request.retries < self.max_retries:
+                countdown = _parse_retry_after(error_msg, default=600)
+                logger.warning(
+                    f"Rate limit hit on article {article_id}; retrying in {countdown}s "
+                    f"(attempt {self.request.retries + 1}/{self.max_retries})"
+                )
+                raise self.retry(countdown=countdown)
 
             # Retry on certain failures
             failed_stage = result.get('failed_stage', '')
@@ -152,7 +203,9 @@ def process_pending_analysis(limit: int = 20):
     
     # Find articles that need analysis
     # They should be summarized first (requirement for analyzer)
+    # and must be triage-accepted (no analyzer work on rejected articles)
     pending_articles = Article.objects.filter(
+        triage_status__in=TRIAGE_ACCEPTED_STATUSES,
         analyzer_status=AnalyzerStatus.PENDING,
         summarization_status=SummarizationStatus.COMPLETED  # Must be summarized first
     ).filter(
@@ -204,10 +257,14 @@ def retry_failed_analysis(max_retries: int = 3):
     """
     logger.info(f"Retrying failed analysis (max_retries: {max_retries})")
     
-    # Find failed articles that can be retried
+    # Find failed articles that can be retried — only accepted/promoted
     failed_articles = Article.objects.filter(
+        triage_status__in=TRIAGE_ACCEPTED_STATUSES,
         analyzer_status=AnalyzerStatus.FAILED,
         analyzer_attempts__lt=max_retries
+    ).exclude(
+        # Respect intentional skips (stale article, no content) set elsewhere
+        analyzer_error_message__startswith='Skipped'
     ).order_by('last_analyzer_attempt')[:20]  # Limit to 20 retries
     
     if not failed_articles:
@@ -362,7 +419,8 @@ def analyze_articles_by_content_stage(content_stage: str, limit: int = 50):
     logger.info(f"Queuing analysis for articles from {content_stage} (limit: {limit})")
     
     base_query = Article.objects.filter(
-        analyzer_status=AnalyzerStatus.PENDING
+        triage_status__in=TRIAGE_ACCEPTED_STATUSES,
+        analyzer_status=AnalyzerStatus.PENDING,
     ).filter(
         # Has suitable content for analysis
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
@@ -589,8 +647,9 @@ def cleanup_stuck_analyzer_articles() -> Dict[str, Any]:
             # Don't reset these, just log for monitoring
             logger.info(f"Found {old_count} articles with old failed analyzer attempts")
         
-        # Calculate analyzer queue health
+        # Calculate analyzer queue health (triage-gated)
         pending_count = Article.objects.filter(
+            triage_status__in=TRIAGE_ACCEPTED_STATUSES,
             analyzer_status=AnalyzerStatus.PENDING,
             summarization_status=SummarizationStatus.COMPLETED  # Must have completed summarization first
         ).count()

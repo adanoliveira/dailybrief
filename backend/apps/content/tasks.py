@@ -827,34 +827,91 @@ def _process_stage3_summarize_continuous(limit: int) -> Dict[str, Any]:
 
 
 def _process_stage4_analyze_continuous(limit: int) -> Dict[str, Any]:
-    """Stage 4 for continuous processing - SYNCHRONOUS version that waits for completion."""
-    
-    # Find top headlines ready for analysis
+    """Stage 4 for continuous processing - SEQUENTIAL execution, one article at a time.
+
+    We deliberately do NOT fan out to Celery here: the analyzer makes ~4 LLM calls
+    per article, and past attempts to parallelize caused OpenAI rate-limit storms.
+    Running sequentially under the pipeline advisory lock bounds OpenAI load to a
+    single analyze_article call at a time. The hard per-run cap is `limit`.
+    """
+    from apps.content.analyzer.services import AnalyzerService
+
+    # Stage 4 is further capped below the overall per-stage limit — each analyze call
+    # touches multiple LLM endpoints, so we use a smaller slice to keep each 15-min
+    # cycle bounded (avoids blocking the advisory lock for the full window).
+    STAGE4_MAX_PER_CYCLE = 15
+    effective_limit = min(limit, STAGE4_MAX_PER_CYCLE)
+
     ready_for_analysis = _get_base_queryset().filter(
         summarization_status=SummarizationStatus.COMPLETED,
         analyzer_status=AnalyzerStatus.PENDING,
-        analyzer_attempts__lt=MAX_RETRY_ATTEMPTS
+        analyzer_attempts__lt=MAX_RETRY_ATTEMPTS,
     ).filter(
-        # Must have summarized content from Stage 3
         models.Q(clean_content__isnull=False, clean_content__regex=r'.{200,}') |
         models.Q(basic_content__isnull=False, basic_content__regex=r'.{200,}')
     )
-    ready_for_analysis = _order_pipeline_candidates(ready_for_analysis)[:limit]
-    
+    ready_for_analysis = _order_pipeline_candidates(ready_for_analysis)[:effective_limit]
+
     article_ids = list(ready_for_analysis.values_list('id', flat=True))
-    
+
     if not article_ids:
         logger.info("Continuous Stage 4: No articles ready for analysis")
         return {'processed': 0, 'successful': 0, 'failed': 0, 'message': 'No articles ready for analysis'}
-    
-    logger.info(f"Continuous Stage 4: Processing {len(article_ids)} articles for analysis")
-    
-    # SYNCHRONOUS processing - wait for completion
-    from apps.content.analyzer.tasks import batch_analyze_articles as analyze_func
-    result = analyze_func(article_ids, force_regenerate=False)
-    
-    logger.info(f"Continuous Stage 4 completed: {result}")
-    return result
+
+    logger.info(f"Continuous Stage 4: Analyzing {len(article_ids)} articles sequentially")
+
+    service = AnalyzerService()
+    successful = 0
+    failed = 0
+    rate_limited = False
+
+    for article_id in article_ids:
+        try:
+            article = Article.objects.get(id=article_id)
+        except Article.DoesNotExist:
+            logger.warning(f"Stage 4: Article {article_id} vanished before analysis")
+            continue
+
+        try:
+            result = service.analyze_article(article, force=False)
+        except Exception as exc:  # noqa: BLE001 — bound-sequential safety, log and continue
+            logger.exception(f"Stage 4: Unexpected error analyzing article {article_id}: {exc}")
+            failed += 1
+            # Detect rate-limit signature in the exception message and break the cycle
+            # early — no point thrashing the remaining articles against a locked quota.
+            if _is_rate_limit_signature(str(exc)):
+                rate_limited = True
+                logger.warning("Stage 4: Rate limit detected, ending this cycle early")
+                break
+            continue
+
+        if result.get('success'):
+            successful += 1
+        else:
+            failed += 1
+            reason = result.get('error') or result.get('reason') or ''
+            if _is_rate_limit_signature(reason):
+                rate_limited = True
+                logger.warning(
+                    f"Stage 4: Rate limit on article {article_id} ({reason!r}); ending cycle early"
+                )
+                break
+
+    processed = successful + failed
+    return {
+        'processed': processed,
+        'successful': successful,
+        'failed': failed,
+        'rate_limited': rate_limited,
+        'requested': len(article_ids),
+    }
+
+
+def _is_rate_limit_signature(message: str) -> bool:
+    if not message:
+        return False
+    lowered = message.lower()
+    return any(m in lowered for m in ('rate limit', 'rate_limit', 'retry in', '429', 'too many requests'))
 
 
 def _count_articles_needing_processing() -> int:
