@@ -479,6 +479,7 @@ class Article(models.Model):
     def needs_analysis(self):
         """Check if article needs Step 5 analysis."""
         return (
+            self.triage_status in ('accepted', 'promoted') and  # Only triage-accepted articles enter analyzer
             self.summarization_status == SummarizationStatus.COMPLETED and  # Must complete summarization first
             self.has_analyzable_content and
             self.analyzer_status == AnalyzerStatus.PENDING and
