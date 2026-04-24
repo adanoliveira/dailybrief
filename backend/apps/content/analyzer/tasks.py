@@ -7,6 +7,7 @@ established patterns from content/summariser/tasks.py
 import logging
 from typing import List, Dict, Any
 from celery import shared_task, chain, group
+from celery.exceptions import Retry
 from django.db import transaction
 from django.utils import timezone
 from decimal import Decimal
@@ -109,7 +110,6 @@ def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = Fal
                     f"(attempt {self.request.retries + 1}/{self.max_retries})"
                 )
                 raise self.retry(countdown=countdown)
-
             # Retry on certain failures
             failed_stage = result.get('failed_stage', '')
             if failed_stage in ['linguistic_processing', 'entity_processing'] and self.request.retries < self.max_retries:
@@ -123,6 +123,9 @@ def analyze_article_pipeline(self, article_id: int, force_regenerate: bool = Fal
                 'failed_stage': failed_stage
             }
     
+    except Retry:
+        # Preserve Celery retry semantics and do not mark article as failed.
+        raise
     except Exception as e:
         logger.error(f"Unexpected error in analysis pipeline for article {article_id}: {str(e)}")
         

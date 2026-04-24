@@ -881,6 +881,7 @@ def _process_stage4_analyze_continuous(limit: int) -> Dict[str, Any]:
             # early — no point thrashing the remaining articles against a locked quota.
             if _is_rate_limit_signature(str(exc)):
                 rate_limited = True
+                _requeue_rate_limited_analysis(article, str(exc))
                 logger.warning("Stage 4: Rate limit detected, ending this cycle early")
                 break
             continue
@@ -892,6 +893,7 @@ def _process_stage4_analyze_continuous(limit: int) -> Dict[str, Any]:
             reason = result.get('error') or result.get('reason') or ''
             if _is_rate_limit_signature(reason):
                 rate_limited = True
+                _requeue_rate_limited_analysis(article, reason)
                 logger.warning(
                     f"Stage 4: Rate limit on article {article_id} ({reason!r}); ending cycle early"
                 )
@@ -912,6 +914,26 @@ def _is_rate_limit_signature(message: str) -> bool:
         return False
     lowered = message.lower()
     return any(m in lowered for m in ('rate limit', 'rate_limit', 'retry in', '429', 'too many requests'))
+
+
+def _requeue_rate_limited_analysis(article: Article, reason: str) -> None:
+    """
+    Put a rate-limited analyzer failure back into PENDING so a later cycle can retry.
+
+    AnalyzerService marks failures as FAILED immediately. For transient provider limits,
+    we keep progress by re-queueing while respecting the global max-attempt guard.
+    """
+    if article.analyzer_attempts >= MAX_RETRY_ATTEMPTS:
+        logger.warning(
+            "Stage 4: Article %s hit rate limit but already reached max analyzer attempts (%s)",
+            article.id,
+            article.analyzer_attempts,
+        )
+        return
+
+    article.analyzer_status = AnalyzerStatus.PENDING
+    article.analyzer_error_message = f"Rate limited: {reason}"[:500]
+    article.save(update_fields=['analyzer_status', 'analyzer_error_message'])
 
 
 def _count_articles_needing_processing() -> int:

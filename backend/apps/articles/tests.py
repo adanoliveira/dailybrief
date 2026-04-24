@@ -165,6 +165,7 @@ class ArticleSummarizationSelectionTests(SimpleTestCase):
 class ArticleAnalysisPropertyTests(SimpleTestCase):
     def test_needs_analysis_requires_completed_summarization_and_content(self):
         article = build_article(
+            triage_status="accepted",
             summarization_status=SummarizationStatus.COMPLETED,
             clean_content="x" * 150,
             analyzer_status=AnalyzerStatus.PENDING,
@@ -172,6 +173,10 @@ class ArticleAnalysisPropertyTests(SimpleTestCase):
         )
         self.assertTrue(article.needs_analysis)
 
+        article.triage_status = "pending"
+        self.assertFalse(article.needs_analysis)
+
+        article.triage_status = "accepted"
         article.analyzer_attempts = 3
         self.assertFalse(article.needs_analysis)
 
