@@ -393,12 +393,14 @@ CELERY_BEAT_SCHEDULE = {
         'kwargs': {'max_attempts': 3},
     },
     
-    # Retry previously failed articles - Every hour (increased frequency for continuous processing)
-    'retry-failed-pipeline-stages': {
-        'task': 'apps.content.tasks.retry_failed_pipeline_stages',  # Fixed: was 'content.retry_failed_pipeline_stages'
-        'schedule': crontab(minute=0, hour='*'),  # Every hour (was 3 hours)
-        'kwargs': {'stage': 'all', 'limit': 50},  # Increased from 20
-    },
+    # DISABLED: retry task was resetting failed articles back to pending in a loop,
+    # causing rate-limit storms. Each pipeline stage already has built-in retries
+    # (MAX_RETRY_ATTEMPTS=3). Articles that fail 3 times stay failed.
+    # 'retry-failed-pipeline-stages': {
+    #     'task': 'apps.content.tasks.retry_failed_pipeline_stages',
+    #     'schedule': crontab(minute=0, hour='*'),
+    #     'kwargs': {'stage': 'all', 'limit': 50},
+    # },
     
     # Pipeline status monitoring - Every 2 hours for debugging
     'pipeline-status-check': {
