@@ -43,6 +43,22 @@ from .prompt_templates import AnalyzerPrompts
 
 logger = logging.getLogger(__name__)
 
+
+def _to_decimal_cost(value) -> Decimal:
+    """Defensive coercion for stage cost returns.
+
+    Pipeline-stage helpers historically returned a mix of `Decimal` and `float`
+    for the 'cost' field, which broke `total_cost += ...` with a TypeError
+    during accumulation. This helper normalizes to Decimal at the boundary
+    so a future stage that forgets to wrap doesn't take down the whole article.
+    """
+    if value is None:
+        return Decimal('0')
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value))
+
+
 # Load spaCy model (use en_core_web_lg as per plan)
 try:
     nlp = spacy.load("en_core_web_lg")
@@ -165,7 +181,7 @@ class AnalyzerService:
             # Use enhanced content for style tone analysis (LLM task)
             linguistic_result = self._stage_2_linguistic_analysis(article, enhanced_content, analysis_record)
             results['linguistic'] = linguistic_result
-            total_cost += linguistic_result.get('cost', Decimal('0.00'))
+            total_cost += _to_decimal_cost(linguistic_result.get('cost'))
             analyzer_request.mark_stage_completed('linguistic_processing')
             
             # STAGE 3: Named Entity Recognition (CPU-only - spaCy)
@@ -190,7 +206,7 @@ class AnalyzerService:
             # Use enhanced content for event extraction (LLM task)
             event_result = self._stage_5_event_extraction(article, enhanced_content)
             results['events'] = event_result
-            total_cost += event_result.get('cost', Decimal('0.00'))
+            total_cost += _to_decimal_cost(event_result.get('cost'))
             analyzer_request.mark_stage_completed('event_processing')
             
             # STAGE 6: Region Classification (LLM - GPT-4o-mini)
@@ -201,7 +217,7 @@ class AnalyzerService:
             # Use enhanced content for region classification (LLM task)
             region_result = self._stage_6_region_classification(article, enhanced_content, analysis_record)
             results['regions'] = region_result
-            total_cost += region_result.get('cost', Decimal('0.00'))
+            total_cost += _to_decimal_cost(region_result.get('cost'))
             analyzer_request.mark_stage_completed('region_processing')
             
             # STAGE 7: Topic Classification (LLM - GPT-4o-mini)
@@ -212,7 +228,7 @@ class AnalyzerService:
             # Use enhanced content for topic classification (LLM task)
             topic_result = self._stage_7_topic_classification(article, enhanced_content, analysis_record)
             results['topics'] = topic_result
-            total_cost += topic_result.get('cost', Decimal('0.00'))
+            total_cost += _to_decimal_cost(topic_result.get('cost'))
             analyzer_request.mark_stage_completed('topic_processing')
             
             # STAGE 8: Event Resolution (CPU-only)
@@ -630,7 +646,7 @@ class AnalyzerService:
                 'read_time_minutes': read_time,
                 'sentiment_score': sentiment_score,
                 'style_tone': style_tone,
-                'cost': response.usage.get('total_cost', 0) if 'response' in locals() else Decimal('0.0')
+                'cost': Decimal(str(response.usage.get('total_cost', 0))) if 'response' in locals() else Decimal('0.0')
             }
             
         except Exception as e:
@@ -956,7 +972,7 @@ class AnalyzerService:
                 'primary_confidence': primary_confidence,
                 'secondary_regions': secondary_region_codes,
                 'region_relevance': region_relevance,
-                'cost': response.usage.get('total_cost', 0)
+                'cost': Decimal(str(response.usage.get('total_cost', 0)))
             }
             
         except Exception as e:
@@ -1047,7 +1063,7 @@ class AnalyzerService:
                 'primary_confidence': primary_confidence,
                 'secondary_topics': secondary_topic_slugs,
                 'topic_relevance': topic_relevance,
-                'cost': response.usage.get('total_cost', 0)
+                'cost': Decimal(str(response.usage.get('total_cost', 0)))
             }
             
         except Exception as e:
