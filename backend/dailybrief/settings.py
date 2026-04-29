@@ -532,6 +532,21 @@ AI_RATE_LIMIT_BURST_CAPACITY = int(os.getenv('AI_RATE_LIMIT_BURST_CAPACITY', '50
 # Pipeline cost controls
 DAILY_PIPELINE_BUDGET = int(os.getenv('DAILY_PIPELINE_BUDGET', '200'))
 
+# Hybrid content-extraction route (Stage 2).
+# When enabled, articles with raw_html go through HybridProcessor: a subtractive
+# HTML preprocessor (strips scripts/nav/ads/related/comments) feeds into the
+# existing AI extractor. Measured size reduction is 96-99% vs raw HTML, which
+# directly cuts LLM input tokens (the dominant Stage-2 cost driver).
+# Default OFF; flip on per-publisher first via PROCESSOR_HYBRID_PUBLISHERS, or
+# globally by setting PROCESSOR_USE_HYBRID=1.
+PROCESSOR_USE_HYBRID = os.getenv('PROCESSOR_USE_HYBRID', '0').lower() in ('1', 'true', 'yes')
+# Comma-separated substring list. If non-empty, hybrid is used ONLY for articles
+# whose source_name OR url contains one of these tokens (case-insensitive).
+# Example: PROCESSOR_HYBRID_PUBLISHERS=cbssports.com,bbc.com  → hybrid for those, AI for rest.
+PROCESSOR_HYBRID_PUBLISHERS = [
+    s.strip().lower() for s in os.getenv('PROCESSOR_HYBRID_PUBLISHERS', '').split(',') if s.strip()
+]
+
 # Digest Generation Configuration
 DIGEST_BATCH_SIZE = int(os.getenv('DIGEST_BATCH_SIZE', '50'))  # Users processed per batch
 DIGEST_DEFAULT_TIMEZONE = os.getenv('DIGEST_DEFAULT_TIMEZONE', 'UTC')  # Default user timezone
