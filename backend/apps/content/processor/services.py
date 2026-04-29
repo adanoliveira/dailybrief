@@ -346,14 +346,18 @@ class ContentProcessor:
 
         proc = HybridProcessor()
         article_metadata = {
-            'title': getattr(article, 'title', None),
-            'url': getattr(article, 'url', None),
-            'source': getattr(article, 'source_name', None),
+            'title': article.title,
+            'author': article.author,
+            'source_name': article.source_name,
+            'published_at': _ensure_timezone_aware(article.published_at).isoformat() if article.published_at else None,
+            'paywall_detected': article.paywall_detected,
+            'paywall_indicators': article.paywall_indicators,
+            'url': article.url,
         }
         result = proc.process_content(
             raw_html=article.raw_html,
             article_metadata=article_metadata,
-            base_url=getattr(article, 'url', None),
+            base_url=article.url,
         )
 
         if result.success:

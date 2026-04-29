@@ -58,7 +58,7 @@ REMOVE_TAGS = {
     "iframe", "object", "embed", "form", "input", "button", "select",
     "textarea", "label", "fieldset",
     "nav", "header", "footer", "aside",
-    "svg", "picture",  # keep <img>; drop <picture> wrappers (img survives)
+    "svg",
 }
 
 # Tags KEPT regardless of what NEGATIVE_PATTERNS says about their class/id.
@@ -282,12 +282,16 @@ class HybridPreprocessor:
 
     def _remove_empty_wrappers(self, scope, counts: dict) -> None:
         """
-        Drop now-empty divs/spans/sections left over after other passes. We do
-        two passes because removing inner wrappers can make outer ones empty too.
+        Drop now-empty wrappers left over after other passes. We do two passes
+        because removing inner wrappers can make outer ones empty too.
+
+        Important: do NOT drop <p> tags here. Very short paragraphs are common
+        in real article bodies ("Lead", "Updated", "Q&A", etc.) and removing
+        them is a content regression.
         """
         for _ in range(2):
             removed_this_pass = 0
-            for el in scope.find_all(["div", "span", "section", "figure", "p"]):
+            for el in scope.find_all(["div", "span", "section", "figure"]):
                 if not el.parent:
                     continue
                 if el.name and el.name.lower() in PROTECTED_TAGS:
