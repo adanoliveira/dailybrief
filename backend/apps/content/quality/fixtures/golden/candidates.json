@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "generated_at": "2026-04-29",
+    "selection_strategy": "stratified sample from articles_article (last 4 days, raw_html >5kb, valid url, process_status=completed)",
+    "strata": {
+      "br": "Brazilian-language sources (Folha/Estadão/Valor/Globo/UOL/G1/Veja/Carta Capital)",
+      "long": "word_count > 1500",
+      "paywalled": "paywall_detected = true",
+      "short": "word_count < 400",
+      "us_mainstream": "Reuters/NYT/WaPo/CNN/BBC/AP/Bloomberg/WSJ/etc."
+    },
+    "expected_use": "Seed for automated ground-truth capture via readability-lxml + newspaper3k + (optional) Playwright screenshot. Each article will be fetched fresh from its publisher URL.",
+    "known_limitations": [
+      "Heavy on Globo Esporte and CBS Sports — reflects last-4-days ingestion bias",
+      "No 'short' US-mainstream beyond NYT — NYT and CBS dominate",
+      "BR stratum is all Globo properties (no Folha/Estadão/Valor in non-paywalled BR)"
+    ]
+  },
+  "candidates": [
+    {"id": 113306, "stratum": "br",            "source": "Globo Esporte",       "word_count": 456,  "paywall": false, "url": "https://ge.globo.com/pe/caruaru-regiao/futebol/brasileirao-serie-d/noticia/2026/04/26/maguary-x-central-onde-assistir-horario-e-provaveis-escalacoes.ghtml"},
+    {"id": 122629, "stratum": "br",            "source": "Globo Esporte",       "word_count": 459,  "paywall": false, "url": "https://ge.globo.com/atletismo/noticia/2026/04/29/campeao-da-maratona-de-londres-fatura-mais-de-r-1-milhao-com-premiacao-e-bonus-por-recorde.ghtml"},
+    {"id": 113263, "stratum": "br",            "source": "Globo Esporte",       "word_count": 1449, "paywall": false, "url": "https://ge.globo.com/combate/noticia/2026/04/26/jungle-fight-define-semifinalistas-do-fight-do-milhao-com-nocautes-em-serie-e-confusao.ghtml"},
+    {"id": 117354, "stratum": "long",          "source": "CBS Sports",          "word_count": 1867, "paywall": false, "url": "https://cbssports.com/nfl/news/steelers-2026-nfl-draft-winners-and-losers"},
+    {"id": 116872, "stratum": "long",          "source": "CBS Sports",          "word_count": 2740, "paywall": false, "url": "https://cbssports.com/college-football/news/texas-tech-brendan-sorsby-gambling-addiction-program"},
+    {"id": 114368, "stratum": "long",          "source": "CBS Sports",          "word_count": 3356, "paywall": false, "url": "https://cbssports.com/nfl/draft/news/prisco-nfl-draft-grades-2026-best-worst-picks"},
+    {"id": 112451, "stratum": "long",          "source": "CBS Sports",          "word_count": 3722, "paywall": false, "url": "https://cbssports.com/nfl/news/2026-nfl-draft-winners-and-losers"},
+    {"id": 114367, "stratum": "long",          "source": "CBS Sports",          "word_count": 5715, "paywall": false, "url": "https://cbssports.com/fantasy/baseball/news/week-6-fantasy-baseball-waiver-wire"},
+    {"id": 122610, "stratum": "paywalled",     "source": "Globo Esporte",       "word_count": 383,  "paywall": true,  "url": "https://ge.globo.com/sp/santos-e-regiao/surfe/noticia/2026/04/29/luiz-diniz-conquista-titulo-pan-americano-no-sup-surf.ghtml"},
+    {"id": 122421, "stratum": "paywalled",     "source": "Valor Econômico",     "word_count": 464,  "paywall": true,  "url": "https://valor.globo.com/empresas/noticia/2026/04/29/demanda-global-por-voos-subiu-em-marco-mas-com-forte-disparidade-regional-sobretudo-no-oriente-medio.ghtml"},
+    {"id": 122467, "stratum": "paywalled",     "source": "G1",                  "word_count": 778,  "paywall": true,  "url": "https://g1.globo.com/tecnologia/noticia/2026/04/29/familias-de-vitimas-processam-dona-do-chatgpt-por-massacre-que-deixou-8-mortos-no-canada.ghtml"},
+    {"id": 122459, "stratum": "paywalled",     "source": "BBC News",            "word_count": 796,  "paywall": true,  "url": "https://bbc.com/news/articles/cx21y204zz4o"},
+    {"id": 122422, "stratum": "paywalled",     "source": "Valor Econômico",     "word_count": 974,  "paywall": true,  "url": "https://valor.globo.com/financas/noticia/2026/04/29/bolsas-de-ny-recuam-com-petroleo-balancos-e-decisao-do-fed-no-radar.ghtml"},
+    {"id": 121981, "stratum": "short",         "source": "Globo Esporte",       "word_count": 233,  "paywall": false, "url": "https://ge.globo.com/sp/mogi-das-cruzes-suzano/noticia/2026/04/29/lutadores-de-sumo-de-suzano-conquistam-sete-medalhas-no-sul-americano-na-argentina.ghtml"},
+    {"id": 120445, "stratum": "short",         "source": "The New York Times",  "word_count": 246,  "paywall": false, "url": "https://nytimes.com/2026/04/28/us/politics/democrats-affordability-midterms.html"},
+    {"id": 122609, "stratum": "short",         "source": "Globo Esporte",       "word_count": 273,  "paywall": false, "url": "https://ge.globo.com/pe/caruaru-regiao/copa-tv-asa-branca-de-futsal/noticia/2026/04/29/semifinais-da-copa-tv-asa-branca-estao-definidas-veja-detalhes.ghtml"},
+    {"id": 122240, "stratum": "short",         "source": "Globo Esporte",       "word_count": 290,  "paywall": false, "url": "https://ge.globo.com/ma/futebol/times/sampaio-correa/noticia/2026/04/29/junior-amorim-chega-a-sao-luis-para-assumir-o-sampaio-ainda-nesta-quarta-feira.ghtml"},
+    {"id": 120653, "stratum": "short",         "source": "The New York Times",  "word_count": 331,  "paywall": false, "url": "https://nytimes.com/2026/04/28/us/politics/treasury-iran-oil-sanctions.html"},
+    {"id": 121952, "stratum": "us_mainstream", "source": "The New York Times",  "word_count": 406,  "paywall": false, "url": "https://nytimes.com/2026/04/29/podcasts/the-headlines/musk-altman-trial-immigration-supreme-court.html"},
+    {"id": 121875, "stratum": "us_mainstream", "source": "The Washington Post", "word_count": 412,  "paywall": false, "url": "https://washingtonpost.com/education/2026/04/29/hbcu-research-group"},
+    {"id": 121622, "stratum": "us_mainstream", "source": "The New York Times",  "word_count": 781,  "paywall": false, "url": "https://nytimes.com/2026/04/29/opinion/international-world/putin-russia-nato-attack.html"},
+    {"id": 121876, "stratum": "us_mainstream", "source": "The Washington Post", "word_count": 790,  "paywall": false, "url": "https://washingtonpost.com/investigations/2026/04/29/white-house-correspondents-dinner-video-new"},
+    {"id": 121953, "stratum": "us_mainstream", "source": "The New York Times",  "word_count": 1021, "paywall": false, "url": "https://nytimes.com/2026/04/29/us/politics/supreme-court-trump-deportations.html"}
+  ]
+}

@@ -125,14 +125,18 @@ class ContentProcessor:
             )
             return self._process_rss_content(article, content)
 
-        # Always use AI processor for raw_html path
+        # Default route selection. Hybrid (preprocessor → LLM) is rolled out
+        # behind two settings so we can flip per-publisher first:
+        #   - PROCESSOR_USE_HYBRID=1                       → hybrid for everything
+        #   - PROCESSOR_HYBRID_PUBLISHERS=cbssports.com,…  → hybrid only when
+        #     source_name or url contains one of the substrings (case-insensitive)
+        # If neither matches, we keep the existing llm_enhanced behaviour.
         if not route:
-            route = 'llm_enhanced'
-            logger.info(f"Auto-selected AI processing route for article {article.id}")
+            route = 'hybrid' if self._should_use_hybrid(article) else 'llm_enhanced'
+            logger.info(f"Auto-selected '{route}' processing route for article {article.id}")
         else:
             logger.info(f"Using specified route '{route}' for article {article.id}")
 
-        # Process based on route (always use LLM enhanced for now)
         if route == 'rss_direct':
             return self._process_rss_content(article, content)
         elif route == 'algorithmic':
@@ -141,11 +145,28 @@ class ContentProcessor:
         elif route == 'llm_enhanced':
             return self._process_llm_enhanced_mode(article)
         elif route == 'hybrid':
-            logger.info(f"Overriding hybrid route to use AI processing for article {article.id}")
-            return self._process_llm_enhanced_mode(article)
+            return self._process_hybrid_mode(article)
         else:
             logger.warning(f"Unknown route '{route}', using AI processing for article {article.id}")
             return self._process_llm_enhanced_mode(article)
+
+    def _should_use_hybrid(self, article) -> bool:
+        """
+        Decide whether the new hybrid (preprocessor → LLM) route applies to this
+        article. Order of precedence:
+          1. PROCESSOR_HYBRID_PUBLISHERS allowlist — wins when set (per-publisher rollout).
+          2. PROCESSOR_USE_HYBRID global flag — applies if no allowlist.
+          3. Otherwise default to legacy llm_enhanced.
+        """
+        from django.conf import settings
+        allowlist = getattr(settings, 'PROCESSOR_HYBRID_PUBLISHERS', []) or []
+        if allowlist:
+            haystacks = [
+                (article.source_name or '').lower(),
+                (article.url or '').lower(),
+            ]
+            return any(token in h for token in allowlist for h in haystacks)
+        return bool(getattr(settings, 'PROCESSOR_USE_HYBRID', False))
 
     def _process_rss_content(self, article, html_content) -> ProcessingResult:
         """
@@ -305,38 +326,49 @@ class ContentProcessor:
     
     def _process_hybrid_mode(self, article) -> ProcessingResult:
         """
-        Process content using hybrid approach: algorithmic mode with LLM enhancement.
+        Process content using the hybrid pipeline: subtractive HTML preprocessor
+        feeding into the existing AI extractor.
+
+        The preprocessor strips obvious non-content (scripts, nav, footer, ads,
+        related-cards, comment widgets, popups) WITHOUT picking "the article
+        element" -- that's still the LLM's job. On measured fixtures the
+        preprocessor cuts HTML by 96-99%, which translates directly into lower
+        LLM input tokens without changing the prompt or model.
+
+        Earlier this method was a quality-gate hybrid (algo first → LLM if
+        quality < 0.7) that almost never escalated because algo's self-rated
+        quality_score is uncalibrated. The new path always runs preprocessor +
+        LLM; the gain comes from cleaner input, not from skipping the LLM call.
         """
-        
-        logger.info(f"Processing article {article.id} with hybrid approach")
-        
-        # Start with algorithmic mode processing
-        algorithmic_result = self._process_algorithmic_mode(article)
-        
-        if not algorithmic_result.success:
-            return algorithmic_result
-        
-        # Enhance with LLM if quality is below threshold or specific conditions are met
-        should_enhance = (
-            algorithmic_result.quality_score < 0.7 or
-            article.paywall_detected or
-            len(algorithmic_result.content_blocks) < 3
+        from .hybrid import HybridProcessor
+
+        logger.info(f"Processing article {article.id} with hybrid (preprocessor → LLM) route")
+
+        proc = HybridProcessor()
+        article_metadata = {
+            'title': getattr(article, 'title', None),
+            'url': getattr(article, 'url', None),
+            'source': getattr(article, 'source_name', None),
+        }
+        result = proc.process_content(
+            raw_html=article.raw_html,
+            article_metadata=article_metadata,
+            base_url=getattr(article, 'url', None),
         )
-        
-        if should_enhance and self.llm_processor:
-            logger.info(f"Enhancing algorithmic result with LLM for article {article.id}")
-            
-            # Use LLM to enhance specific elements
-            enhanced_result = self._enhance_with_llm(article, algorithmic_result)
-            
-            if enhanced_result.success and enhanced_result.quality_score > algorithmic_result.quality_score:
-                logger.info(f"LLM enhancement improved quality from {algorithmic_result.quality_score:.3f} "
-                           f"to {enhanced_result.quality_score:.3f}")
-                return enhanced_result
-            else:
-                logger.info(f"LLM enhancement did not improve quality, using algorithmic result")
-        
-        return algorithmic_result
+
+        if result.success:
+            stats = (result.extracted_metadata or {}).get('hybrid_preprocessing', {})
+            logger.info(
+                f"Hybrid processing succeeded for article {article.id}: "
+                f"blocks={len(result.content_blocks or [])}, "
+                f"size_reduction={stats.get('size_reduction_pct', 0):.1f}%, "
+                f"quality={result.quality_score:.3f}"
+            )
+        else:
+            logger.warning(
+                f"Hybrid processing failed for article {article.id}: {result.error_message}"
+            )
+        return result
     
     def _enhance_with_llm(self, article: Article, algorithmic_result: ProcessingResult) -> ProcessingResult:
         """

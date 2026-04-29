@@ -112,3 +112,11 @@ docker-compose.override.yml
 *.bak
 .cursorrules
 docs/
+
+# Golden-dataset captures (regenerable via `manage.py build_golden_dataset`).
+# Per-article fixtures contain large publisher.html/screenshot.png files that
+# would bloat the repo. The seed list (candidates.json) is committed; the
+# captures themselves are not.
+backend/apps/content/quality/fixtures/golden/*/
+backend/apps/content/quality/fixtures/golden/summary.json
+backend/apps/content/quality/fixtures/golden/scoring_report.json
