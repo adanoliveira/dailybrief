@@ -156,9 +156,14 @@ class ArticleProcessor:
                 existing_newsapi_article.is_top_headline = True
                 existing_newsapi_article.save(update_fields=['is_top_headline'])
 
-            if is_top_headline and not existing_article.is_top_headline:
-                existing_article.is_top_headline = True
-                existing_article.save(update_fields=['is_top_headline'])
+            # If an existing article later appears in /top-headlines, refresh
+            # score + triage so stale low-scored rows can be promoted.
+            if is_top_headline:
+                self._refresh_existing_article_for_top_headline(
+                    existing_article,
+                    position=position,
+                    total_in_batch=total_in_batch,
+                )
 
             logger.info(f"Found existing article: {title[:50]}...")
             return existing_article, existing_newsapi_article, False
@@ -173,6 +178,57 @@ class ArticleProcessor:
             position=position, total_in_batch=total_in_batch,
         )
         return article, newsapi_article, True
+
+    def _refresh_existing_article_for_top_headline(self, article, position=0, total_in_batch=1):
+        """
+        Refresh score + triage when an existing article is later seen as a top headline.
+
+        Without this, older rows can remain with stale low scores/triage decisions
+        from a weaker ingestion context (or pre-scoring bug) and never enter the
+        enrichment pipeline despite receiving a stronger editorial signal.
+        """
+        update_fields = []
+        if not article.is_top_headline:
+            article.is_top_headline = True
+            update_fields.append('is_top_headline')
+
+        cluster = article.headline_cluster
+        cluster_size = cluster.article_count if cluster else 1
+        burst = cluster.burst_score if cluster else 0.0
+
+        lang_code = article.language.iso_code if getattr(article, 'language', None) else 'en'
+        active_feeds_in_market = self._get_active_feeds_in_market(lang_code)
+        updated_score = self.headline_scorer.score_newsapi_article(
+            publication=article.publication,
+            is_top_headline=True,
+            position=position,
+            total_in_batch=total_in_batch,
+            centrality=0.33,
+            burst=burst,
+            cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
+        )
+
+        current_score = article.headline_score or 0.0
+        if updated_score > current_score:
+            article.headline_score = updated_score
+            update_fields.append('headline_score')
+
+        if update_fields:
+            article.save(update_fields=update_fields)
+
+        # Re-run Tier 1 only for non-accepted articles, so new editorial signal
+        # can rescue previously rejected/pending rows.
+        if article.triage_status in ('pending', 'pending_llm', 'rejected'):
+            try:
+                from apps.articles.services.triage import ArticleTriage
+                triage = ArticleTriage()
+                result = triage.tier1_algorithmic(article)
+                triage.apply_result(article, result)
+            except Exception as e:
+                logger.warning(
+                    f"Tier 1 re-triage failed for existing top-headline article {article.id}: {e}"
+                )
 
     def _calculate_content_metrics(self, content, title, description):
         """Calculate various metrics about the article content."""
