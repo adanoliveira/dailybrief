@@ -10,7 +10,9 @@ from apps.articles.services.deduplication import (
     compute_content_hash,
     normalize_url,
 )
+from apps.articles.services.headline_scoring import HeadlineScorer
 from apps.articles.services.publication_matcher import PublicationMatcher
+from apps.articles.services.story_clustering import StoryClustering
 from apps.feeds.models import Language, Topic
 from apps.newsapi.models import NewsAPIArticle
 from apps.newsapi.utils import extract_domain
@@ -29,8 +31,29 @@ class ArticleProcessor:
     def __init__(self):
         self.publication_matcher = PublicationMatcher()
         self.deduplicator = ArticleDeduplicator()
+        self.headline_scorer = HeadlineScorer()
+        self.story_clustering = StoryClustering()
         self.language_mapping = self._get_language_mapping()
         self.topic_mapping = self._get_topic_mapping()
+        self._active_feed_count_cache: dict[str, int] = {}
+
+    def _get_active_feeds_in_market(self, lang_code: str | None) -> int:
+        """
+        Return active RSS feed count for a market, cached by 2-letter
+        language code. Used as the centrality denominator so NewsAPI
+        articles get the same small-market boost as RSS.
+        """
+        lang_short = (lang_code or 'en')[:2].lower() or 'en'
+        if lang_short in self._active_feed_count_cache:
+            return self._active_feed_count_cache[lang_short]
+
+        from apps.rssfeeds.models import RSSFeed
+        active_count = RSSFeed.objects.filter(
+            status='active',
+            language__iso_code__startswith=lang_short,
+        ).count() or 15
+        self._active_feed_count_cache[lang_short] = active_count
+        return active_count
 
     def _get_language_mapping(self):
         """Create a mapping of language codes to our Language objects."""
@@ -65,7 +88,7 @@ class ArticleProcessor:
             article_url=article_url,
         )
 
-    def _get_or_create_article(self, article_data, is_top_headline=False, sync_log=None, category=None):
+    def _get_or_create_article(self, article_data, is_top_headline=False, sync_log=None, category=None, position=0, total_in_batch=1):
         """
         Get an existing article or create a new one based on content hash first, then URL.
 
@@ -74,6 +97,8 @@ class ArticleProcessor:
             is_top_headline (bool, optional): Whether this is a top headline
             sync_log (NewsAPISyncLog, optional): The sync log this article is part of
             category (str, optional): Category from NewsAPI (for topic mapping)
+            position (int): Index of this article within the API response.
+            total_in_batch (int): Total articles in the same batch.
 
         Returns:
             tuple: (Article, NewsAPIArticle, bool) where bool indicates if created
@@ -144,7 +169,8 @@ class ArticleProcessor:
 
         logger.info(f"Creating new article: {title[:50]}...")
         article, newsapi_article = self._create_article_pair(
-            article_data, is_top_headline, sync_log, category, publication, published_at
+            article_data, is_top_headline, sync_log, category, publication, published_at,
+            position=position, total_in_batch=total_in_batch,
         )
         return article, newsapi_article, True
 
@@ -168,7 +194,7 @@ class ArticleProcessor:
 
         return word_count, read_time, content_hash, keywords
 
-    def _create_article_pair(self, article_data, is_top_headline=False, sync_log=None, category=None, publication=None, published_at=None):
+    def _create_article_pair(self, article_data, is_top_headline=False, sync_log=None, category=None, publication=None, published_at=None, position=0, total_in_batch=1):
         """
         Create a new Article and associated NewsAPIArticle.
 
@@ -179,6 +205,10 @@ class ArticleProcessor:
             category (str, optional): Category from NewsAPI
             publication (Publication, optional): Pre-resolved publication
             published_at (datetime, optional): Pre-parsed publish date
+            position (int): Index within the API response batch (0-based).
+                NewsAPI returns top headlines in priority order, so
+                position is a usable tie-break signal.
+            total_in_batch (int): Total articles in the same batch.
         """
         # Extract source info
         source_info = article_data.get('source', {})
@@ -221,6 +251,36 @@ class ArticleProcessor:
         normalized_url = (normalized_url or '')[:1024]
         image_url = (article_data.get('urlToImage') or '')[:1024] or None
 
+        # Cluster + score before save so headline_score is set on creation.
+        # Mirrors the RSS path so NewsAPI articles compete on the same
+        # 0-1 scale inside the budget queue.
+        lang_code = language.iso_code if language else 'en'
+        cluster = None
+        centrality = 0.33
+        burst = 0.0
+        try:
+            cluster, centrality, burst = self.story_clustering.assign_to_cluster(
+                title=title,
+                description=description,
+                published_at=published_at,
+                language=lang_code,
+            )
+        except Exception as e:
+            logger.warning(f"Story clustering failed for NewsAPI article: {e}")
+
+        cluster_size = cluster.article_count if cluster else 1
+        active_feeds_in_market = self._get_active_feeds_in_market(lang_code)
+        headline_score = self.headline_scorer.score_newsapi_article(
+            publication=publication,
+            is_top_headline=is_top_headline,
+            position=position,
+            total_in_batch=total_in_batch,
+            centrality=centrality,
+            burst=burst,
+            cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
+        )
+
         # Create the article
         article = Article(
             title=title,
@@ -234,6 +294,8 @@ class ArticleProcessor:
             language=language,
             published_at=published_at,
             is_top_headline=is_top_headline,
+            headline_score=headline_score,
+            headline_cluster=cluster,
             summary_ready=False,
             word_count=word_count,
             read_time_minutes=read_time,
@@ -253,6 +315,19 @@ class ArticleProcessor:
         # Add regions from the publication
         if publication:
             article.regions.set(publication.regions.all())
+
+        # Tier 1 triage: instant algorithmic decision.
+        # Must run AFTER topics/regions are assigned (triage uses topic counts).
+        # Mirrors the RSS path so NewsAPI articles aren't stuck in 'pending'
+        # waiting for the deferred Celery sweep.
+        try:
+            from apps.articles.services.triage import ArticleTriage
+            triage = ArticleTriage()
+            result = triage.tier1_algorithmic(article)
+            triage.apply_result(article, result)
+        except Exception as e:
+            logger.warning(f"Tier 1 triage failed for NewsAPI article {article.id}: {e}")
+            # Article stays at triage_status='pending' — Celery task will pick it up
 
         # Create the NewsAPIArticle
         newsapi_id = f"{source_id}:{hashlib.md5(article.url.encode()).hexdigest()[:8]}"
@@ -291,15 +366,18 @@ class ArticleProcessor:
         articles_data = api_response['articles']
         created_count = 0
         updated_count = 0
+        total_in_batch = len(articles_data)
 
-        for article_data in articles_data:
+        for position, article_data in enumerate(articles_data):
             try:
                 with transaction.atomic():
                     article, newsapi_article, created = self._get_or_create_article(
                         article_data,
                         is_top_headline,
                         sync_log,
-                        category
+                        category,
+                        position=position,
+                        total_in_batch=total_in_batch,
                     )
 
                     if article:

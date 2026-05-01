@@ -279,13 +279,18 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=14, minute=0),  # 2:00 PM
     },
     
-    # Recent Articles by Sources - Once per day at 4am to get previous day's news
-    'sync-recent-by-sources-daily': {
-        'task': 'newsapi.sync_recent_by_sources',
-        'schedule': crontab(hour=4, minute=0),  # 4:00 AM
-        'kwargs': {'hours': 24, 'batch_size': 20},
-    },
-    
+    # Recent Articles by Sources — DISABLED 2026-05-01.
+    # The /everything endpoint sync produced ~530 articles/day with a 26h
+    # publish→fetch lag (vs. 54min for RSS), so they couldn't compete in
+    # the headline_score * time_decay budget queue and added no value.
+    # Top headlines sync above is the only NewsAPI ingestion path now.
+    # 'sync-recent-by-sources-daily': {
+    #     'task': 'newsapi.sync_recent_by_sources',
+    #     'schedule': crontab(hour=4, minute=0),  # 4:00 AM
+    #     'kwargs': {'hours': 24, 'batch_size': 20},
+    # },
+
+
     # Sources update - Weekly on Sunday at 3:00 AM
     'sync-sources-weekly': {
         'task': 'newsapi.sync_sources',

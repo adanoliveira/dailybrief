@@ -157,6 +157,74 @@ class HeadlineScorer:
         """
         return self.compute_authority(publication) >= 0.7
 
+    def compute_newsapi_signals(
+        self,
+        is_top_headline: bool = False,
+        position: int = 0,
+        total_in_batch: int = 1,
+    ) -> float:
+        """
+        Compute NewsAPI editorial signal score (0-1).
+
+        Substitutes for compute_feed_signals when scoring NewsAPI articles.
+        NewsAPI doesn't expose RSS-style tags/comments, so the strongest
+        signal is whether the article came from the /top-headlines endpoint
+        (editorially curated by NewsAPI) versus /everything (background pool).
+
+        Args:
+            is_top_headline: True if article came from /top-headlines.
+            position: Index of the article within the API response (0-based).
+                      NewsAPI returns top headlines in priority order.
+            total_in_batch: Total articles in the same batch (unused today,
+                            reserved for future relative-position scaling).
+
+        Returns:
+            Float in [0.0, 1.0]. Top-headlines articles cluster in [0.7, 1.0];
+            everything-endpoint articles get a flat 0.30 (they need
+            non-editorial signals — clustering, authority — to clear triage).
+        """
+        if is_top_headline:
+            # 85% editorial weight + 15% floor; position scales the editorial
+            # weight only so that even position 20 stays at ~0.66.
+            position_factor = max(1.0 - (position * 0.03), 0.7)
+            return min(1.0, 0.85 * position_factor + 0.15)
+        return 0.30
+
+    def score_newsapi_article(
+        self,
+        publication: Publication | None = None,
+        is_top_headline: bool = False,
+        position: int = 0,
+        total_in_batch: int = 1,
+        centrality: float = 0.33,
+        burst: float = 0.0,
+        cluster_size: int = 1,
+        active_feeds_in_market: int = 15,
+    ) -> float:
+        """
+        Convenience method: compute full NewsAPI score from publication +
+        editorial signals + clustering signals.
+
+        Mirrors score_article() but uses compute_newsapi_signals() in place
+        of feed_signals so NewsAPI articles compete on the same 0-1 scale
+        as RSS. The combined-score formula is identical, which keeps both
+        sources directly comparable inside the budget queue.
+        """
+        authority = self.compute_authority(publication)
+        signals = self.compute_newsapi_signals(
+            is_top_headline=is_top_headline,
+            position=position,
+            total_in_batch=total_in_batch,
+        )
+        return self.compute_combined_score(
+            authority=authority,
+            centrality=centrality,
+            feed_signals=signals,
+            burst=burst,
+            cluster_size=cluster_size,
+            active_feeds_in_market=active_feeds_in_market,
+        )
+
     # --- Internal signal computations ---
 
     def _position_score(self, entry_index: int, is_curated: bool) -> float:
