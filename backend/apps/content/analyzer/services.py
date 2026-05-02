@@ -1576,16 +1576,21 @@ class AnalyzerService:
                 # Calculate embedding similarity
                 from pgvector.django import CosineDistance
                 import numpy as np
-                
-                # Calculate cosine similarity manually since we're not querying DB
-                embedding_i = np.array(event_i['embedding'])
-                embedding_j = np.array(event_j['embedding'])
-                
-                # Cosine similarity = 1 - cosine distance
-                cosine_sim = np.dot(embedding_i, embedding_j) / (
-                    np.linalg.norm(embedding_i) * np.linalg.norm(embedding_j)
-                )
-                cosine_distance = 1 - cosine_sim
+
+                # Flatten to 1-D so the dot/norm always returns scalars.
+                # Some providers return embeddings shaped (1, N) instead of (N,)
+                # which would make `cosine_distance < 0.1` raise
+                # "truth value of an array is ambiguous".
+                embedding_i = np.asarray(event_i['embedding'], dtype=float).reshape(-1)
+                embedding_j = np.asarray(event_j['embedding'], dtype=float).reshape(-1)
+
+                norm_i = float(np.linalg.norm(embedding_i))
+                norm_j = float(np.linalg.norm(embedding_j))
+                if norm_i == 0.0 or norm_j == 0.0:
+                    continue  # zero-vector embedding can't be compared meaningfully
+
+                cosine_sim = float(np.dot(embedding_i, embedding_j) / (norm_i * norm_j))
+                cosine_distance = 1.0 - cosine_sim
                 
                 # Check title similarity as well
                 import difflib

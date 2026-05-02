@@ -269,14 +269,15 @@ beat_schedule_filename = '/tmp/celerybeat-schedule'
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    # Top Headlines - Twice daily at 4am and 2pm
-    'sync-top-headlines-morning': {
+    # Top Headlines — every 2h at :30 on odd hours (01:30, 03:30, ... 23:30).
+    # Alternates by hour with the RSS-all sync (every 2h at :30 on even hours,
+    # 00:30, 02:30, ... 22:30) so a fresh batch from one source or the other
+    # arrives every hour. This gives 12 NewsAPI syncs/day (vs the prior 2)
+    # and keeps NewsAPI articles in continuous competition with RSS for
+    # the daily pipeline budget instead of arriving in two starve-out bursts.
+    'sync-top-headlines-alternating': {
         'task': 'newsapi.sync_headlines',
-        'schedule': crontab(hour=4, minute=0),  # 4:00 AM
-    },
-    'sync-top-headlines-afternoon': {
-        'task': 'newsapi.sync_headlines',
-        'schedule': crontab(hour=14, minute=0),  # 2:00 PM
+        'schedule': crontab(minute=30, hour='1-23/2'),
     },
     
     # Recent Articles by Sources — DISABLED 2026-05-01.
@@ -550,6 +551,28 @@ PROCESSOR_USE_HYBRID = os.getenv('PROCESSOR_USE_HYBRID', '0').lower() in ('1', '
 # Example: PROCESSOR_HYBRID_PUBLISHERS=cbssports.com,bbc.com  → hybrid for those, AI for rest.
 PROCESSOR_HYBRID_PUBLISHERS = [
     s.strip().lower() for s in os.getenv('PROCESSOR_HYBRID_PUBLISHERS', '').split(',') if s.strip()
+]
+
+# Hybrid denylist — comma-separated publisher tokens (matched against
+# source_name or url, case-insensitive). Use for sites where the hybrid
+# preprocessor fails to materially shrink the input — either bot-walls
+# (Bloomberg returns a 3KB mobile redirect, no real content to clean) or
+# JS-heavy SPAs whose DOM structure defeats the subtractive cleaner.
+# Articles from these publishers route to llm_enhanced instead. Default
+# bootstrapped from observed prod data 2026-05-02; tune via env.
+PROCESSOR_HYBRID_EXCLUDE = [
+    s.strip().lower()
+    for s in os.getenv(
+        'PROCESSOR_HYBRID_EXCLUDE',
+        # bloomberg.com — fetcher gets a 3KB mobile redirect (bot wall);
+        #   no real content for the preprocessor to clean. Fetcher fix needed.
+        # theverge.com / estadao.com.br — preprocessor leaves 150–270KB of
+        #   styled-components / Next.js DOM bloat after cleanup, larger
+        #   than llm_enhanced's truncated input → hybrid actually costs
+        #   more here than the legacy route.
+        'bloomberg.com,theverge.com,estadao.com.br',
+    ).split(',')
+    if s.strip()
 ]
 
 # Digest Generation Configuration
