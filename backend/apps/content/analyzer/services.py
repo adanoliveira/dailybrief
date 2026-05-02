@@ -1574,7 +1574,6 @@ class AnalyzerService:
                     continue
                 
                 # Calculate embedding similarity
-                from pgvector.django import CosineDistance
                 import numpy as np
 
                 # Flatten to 1-D so the dot/norm always returns scalars.
@@ -1584,12 +1583,18 @@ class AnalyzerService:
                 embedding_i = np.asarray(event_i['embedding'], dtype=float).reshape(-1)
                 embedding_j = np.asarray(event_j['embedding'], dtype=float).reshape(-1)
 
+                # Defensive: skip incomparable vectors instead of crashing the
+                # whole deduplication pass.
+                if embedding_i.size != embedding_j.size:
+                    continue
+
                 norm_i = float(np.linalg.norm(embedding_i))
                 norm_j = float(np.linalg.norm(embedding_j))
                 if norm_i == 0.0 or norm_j == 0.0:
                     continue  # zero-vector embedding can't be compared meaningfully
 
                 cosine_sim = float(np.dot(embedding_i, embedding_j) / (norm_i * norm_j))
+                cosine_sim = max(-1.0, min(1.0, cosine_sim))
                 cosine_distance = 1.0 - cosine_sim
                 
                 # Check title similarity as well

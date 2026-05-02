@@ -8,7 +8,7 @@ Covers:
 
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from apps.content.processor.rss_processor import process_rss_content
 from apps.content.processor.services import ContentProcessor
@@ -218,3 +218,50 @@ class ProcessArticleContentRoutingTests(SimpleTestCase):
         result = self.processor.process_article_content(article)
         self.assertFalse(result.success)
         self.assertIn("No usable content", result.error_message)
+
+
+class HybridRouteSelectionTests(SimpleTestCase):
+    def setUp(self):
+        self.processor = ContentProcessor()
+
+    def _make_article(self, source_name="", url=""):
+        article = MagicMock()
+        article.source_name = source_name
+        article.url = url
+        return article
+
+    @override_settings(
+        PROCESSOR_USE_HYBRID=True,
+        PROCESSOR_HYBRID_PUBLISHERS=[],
+        PROCESSOR_HYBRID_EXCLUDE=["theverge.com"],
+    )
+    def test_denylist_overrides_global_hybrid_flag(self):
+        article = self._make_article(
+            source_name="The Verge",
+            url="https://www.theverge.com/2026/05/example",
+        )
+        self.assertFalse(self.processor._should_use_hybrid(article))
+
+    @override_settings(
+        PROCESSOR_USE_HYBRID=False,
+        PROCESSOR_HYBRID_PUBLISHERS=["bbc.com"],
+        PROCESSOR_HYBRID_EXCLUDE=["bbc.com"],
+    )
+    def test_denylist_overrides_allowlist(self):
+        article = self._make_article(
+            source_name="BBC News",
+            url="https://www.bbc.com/news/world-123",
+        )
+        self.assertFalse(self.processor._should_use_hybrid(article))
+
+    @override_settings(
+        PROCESSOR_USE_HYBRID=False,
+        PROCESSOR_HYBRID_PUBLISHERS=["cbssports.com"],
+        PROCESSOR_HYBRID_EXCLUDE=[],
+    )
+    def test_allowlist_enables_hybrid_when_global_disabled(self):
+        article = self._make_article(
+            source_name="CBS Sports",
+            url="https://www.cbssports.com/nfl/news/example",
+        )
+        self.assertTrue(self.processor._should_use_hybrid(article))
