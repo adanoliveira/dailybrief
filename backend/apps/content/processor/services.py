@@ -154,18 +154,28 @@ class ContentProcessor:
         """
         Decide whether the new hybrid (preprocessor → LLM) route applies to this
         article. Order of precedence:
-          1. PROCESSOR_HYBRID_PUBLISHERS allowlist — wins when set (per-publisher rollout).
-          2. PROCESSOR_USE_HYBRID global flag — applies if no allowlist.
-          3. Otherwise default to legacy llm_enhanced.
+          1. PROCESSOR_HYBRID_EXCLUDE denylist — wins when matched. Used to
+             route publishers whose pages defeat the subtractive cleaner
+             (heavy JS-shell sites, bot-walled responses) back to legacy.
+          2. PROCESSOR_HYBRID_PUBLISHERS allowlist — wins when set (per-publisher rollout).
+          3. PROCESSOR_USE_HYBRID global flag — applies if no allowlist.
+          4. Otherwise default to legacy llm_enhanced.
         """
         from django.conf import settings
+
+        haystacks = [
+            (article.source_name or '').lower(),
+            (article.url or '').lower(),
+        ]
+
+        denylist = getattr(settings, 'PROCESSOR_HYBRID_EXCLUDE', []) or []
+        if denylist and any(token in h for token in denylist for h in haystacks):
+            return False
+
         allowlist = getattr(settings, 'PROCESSOR_HYBRID_PUBLISHERS', []) or []
         if allowlist:
-            haystacks = [
-                (article.source_name or '').lower(),
-                (article.url or '').lower(),
-            ]
             return any(token in h for token in allowlist for h in haystacks)
+
         return bool(getattr(settings, 'PROCESSOR_USE_HYBRID', False))
 
     def _process_rss_content(self, article, html_content) -> ProcessingResult:
