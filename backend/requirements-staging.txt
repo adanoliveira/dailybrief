@@ -1,8 +1,8 @@
 # Core Django dependencies
-django==5.0.2
+django==5.1.15
 djangorestframework==3.16.0
 django-cors-headers==4.7.0
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 psycopg2-binary==2.9.10
 pgvector==0.2.5
 celery==5.5.2
@@ -10,22 +10,22 @@ redis==5.2.1
 newsapi-python==0.2.7
 supabase==1.2.0
 pyjwt==2.8.0
-requests==2.31.0
+requests==2.33.0
 flower==2.0.1
 
 # Production server dependencies
-gunicorn==21.2.0
+gunicorn==22.0.0
 gevent==23.9.1
 
 # Content fetching dependencies (keep these - used in content processing)
 beautifulsoup4==4.12.3
 readability-lxml==0.8.1
-lxml==5.1.0
+lxml==6.1.0
 html2text==2024.2.26
-brotli==1.1.0
+brotli==1.2.0
 
 # AI and NLP dependencies (ESSENTIAL - keep all used packages)
-langchain==0.1.12
+langchain==0.3.30
 openai==1.20.0
 anthropic==0.16.0
 gensim>=4.3.2              # Used heavily in content assembler for summarization
